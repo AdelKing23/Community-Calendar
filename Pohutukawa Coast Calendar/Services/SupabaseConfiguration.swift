@@ -8,6 +8,10 @@ enum SupabaseConfiguration {
         projectURL?.appendingPathComponent("rest/v1")
     }
 
+    static var authURL: URL? {
+        projectURL?.appendingPathComponent("auth/v1")
+    }
+
     static var isConfigured: Bool {
         projectURL?.host != "your-project-ref.supabase.co"
         && !publishableKey.isEmpty

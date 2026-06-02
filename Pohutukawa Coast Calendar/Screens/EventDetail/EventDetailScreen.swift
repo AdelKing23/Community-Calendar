@@ -16,7 +16,10 @@ struct EventDetailScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 22)
-                .padding(.bottom, 124)
+                .padding(.bottom, 220)
+            }
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 112)
             }
         }
         .navigationTitle("Event")
@@ -28,20 +31,36 @@ struct EventDetailHero: View {
     let event: LocalEvent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(event.category.rawValue.uppercased())
-                .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.pohutukawaOrange)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(event.category.rawValue.uppercased())
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
 
-            Text(event.title)
-                .font(.system(size: 38, weight: .black, design: .serif))
-                .foregroundStyle(PCCTheme.ink)
-                .lineSpacing(-1)
+                Spacer(minLength: 8)
 
-            Text(event.shortDescription)
-                .font(.title3.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
-                .lineSpacing(3)
+                Text(event.town.rawValue)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(PCCTheme.leafGreen.opacity(0.08), in: Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(event.title)
+                    .font(.system(size: 34, weight: .black, design: .serif))
+                    .foregroundStyle(PCCTheme.ink)
+                    .lineSpacing(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(event.shortDescription)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if event.isPaidPush {
                 Text("Featured local listing")
@@ -52,6 +71,7 @@ struct EventDetailHero: View {
                     .background(PCCTheme.leafGreen, in: Capsule())
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
         .pccCardStyle()
     }

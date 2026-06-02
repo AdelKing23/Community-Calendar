@@ -81,6 +81,7 @@ struct LocalEvent: Identifiable, Hashable {
     let audience: String
     let shortDescription: String
     let longDescription: String
+    let contactName: String?
     let contactPhone: String?
     let contactEmail: String?
     let isFeatured: Bool
@@ -106,6 +107,7 @@ struct LocalEvent: Identifiable, Hashable {
         audience: String,
         shortDescription: String,
         longDescription: String,
+        contactName: String? = nil,
         contactPhone: String?,
         contactEmail: String?,
         isFeatured: Bool,
@@ -126,6 +128,7 @@ struct LocalEvent: Identifiable, Hashable {
         self.audience = audience
         self.shortDescription = shortDescription
         self.longDescription = longDescription
+        self.contactName = contactName
         self.contactPhone = contactPhone
         self.contactEmail = contactEmail
         self.isFeatured = isFeatured

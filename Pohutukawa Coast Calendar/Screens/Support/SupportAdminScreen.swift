@@ -1,29 +1,36 @@
 import SwiftUI
 
 struct SupportAdminScreen: View {
-    @State private var isLoggedIn = false
+    @State private var ownerSession: OwnerSession?
     @State private var email = ""
-    @State private var pin = ""
+    @State private var password = ""
+    @State private var isSigningIn = false
     @State private var loginError: String?
+
+    private let supportService: OwnerAuthenticating & OwnerEventReviewing = SupabaseEventService()
 
     var body: some View {
         ZStack {
             PCCScreenBackground()
 
-            if isLoggedIn {
-                SupportDashboard {
+            if let ownerSession {
+                SupportDashboard(
+                    ownerSession: ownerSession,
+                    supportService: supportService
+                ) {
+                    self.ownerSession = nil
                     email = ""
-                    pin = ""
+                    password = ""
                     loginError = nil
-                    isLoggedIn = false
                 }
             } else {
                 SupportLoginGate(
                     email: $email,
-                    pin: $pin,
+                    password: $password,
+                    isSigningIn: isSigningIn,
                     loginError: loginError
                 ) {
-                    attemptLogin()
+                    Task { await signIn() }
                 }
             }
         }
@@ -31,22 +38,35 @@ struct SupportAdminScreen: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func attemptLogin() {
+    @MainActor
+    private func signIn() async {
+        guard !isSigningIn else { return }
+
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedEmail.localizedCaseInsensitiveContains("@"),
-              pin.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4 else {
-            loginError = "Enter an owner email placeholder and local launch PIN."
+              !password.isEmpty else {
+            loginError = "Enter the owner email and password."
             return
         }
 
+        isSigningIn = true
         loginError = nil
-        isLoggedIn = true
+
+        do {
+            ownerSession = try await supportService.signInOwner(email: trimmedEmail, password: password)
+            password = ""
+            isSigningIn = false
+        } catch {
+            isSigningIn = false
+            loginError = "Login failed. Check the owner email and password, then try again."
+        }
     }
 }
 
 struct SupportLoginGate: View {
     @Binding var email: String
-    @Binding var pin: String
+    @Binding var password: String
+    let isSigningIn: Bool
     let loginError: String?
     let onLogin: () -> Void
 
@@ -58,7 +78,7 @@ struct SupportLoginGate: View {
                         .font(.system(size: 38, weight: .black, design: .serif))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text("Owner-only tools for launch testing. This local gate is UI-ready only and is not Supabase Auth yet.")
+                    Text("Owner-only approval tools for reviewing submitted listings. Public users do not need an account.")
                         .font(.title3.weight(.medium))
                         .foregroundStyle(PCCTheme.ink.opacity(0.68))
                         .lineSpacing(3)
@@ -67,19 +87,20 @@ struct SupportLoginGate: View {
                 .pccCardStyle()
 
                 VStack(alignment: .leading, spacing: 14) {
-                    PCCSupportField(title: "Owner Email Placeholder", text: $email, prompt: "owner@example.co.nz")
+                    PCCSupportField(title: "Owner Email", text: $email, prompt: "owner@example.co.nz")
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Local Launch PIN")
+                        Text("Password")
                             .font(.caption.weight(.black))
                             .foregroundStyle(PCCTheme.ink.opacity(0.54))
 
-                        SecureField("Enter local PIN", text: $pin)
+                        SecureField("Supabase Auth password", text: $password)
                             .textFieldStyle(.plain)
-                            .keyboardType(.numberPad)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
                             .padding(13)
                             .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                     }
@@ -91,16 +112,17 @@ struct SupportLoginGate: View {
                     }
 
                     Button(action: onLogin) {
-                        Label("Open Support Dashboard", systemImage: "lock.open.fill")
+                        Label(isSigningIn ? "Signing In" : "Sign In", systemImage: isSigningIn ? "hourglass" : "lock.open.fill")
                             .font(.headline.weight(.black))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 15)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.white)
-                    .background(PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    .background(isSigningIn ? PCCTheme.ink.opacity(0.28) : PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    .disabled(isSigningIn)
 
-                    Text("MVP note: this is a local support gate only. Publishing, rejecting and archiving still require a safe Supabase owner policy or server function.")
+                    Text("Uses Supabase Auth and owner-only RLS. No admin key is stored in the app.")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(PCCTheme.ink.opacity(0.56))
                         .lineSpacing(2)
@@ -117,216 +139,334 @@ struct SupportLoginGate: View {
 }
 
 struct SupportDashboard: View {
-    @State private var publishedEvents: [LocalEvent] = []
-    @State private var isLoadingPublished = false
-    @State private var publishedError: String?
-    @State private var supportEmail = ""
-    @State private var supportPhone = ""
-    @State private var supportWebsite = ""
-
-    private let eventService: PublishedEventFetching = SupabaseEventService()
+    let ownerSession: OwnerSession
+    let supportService: OwnerEventReviewing
     let onLogout: () -> Void
+
+    @State private var events: [LocalEvent] = []
+    @State private var isLoading = false
+    @State private var loadError: String?
+    @State private var actionMessage: String?
+    @State private var updatingEventID: UUID?
+
+    private var pendingEvents: [LocalEvent] {
+        events
+            .filter { $0.listingStatus == .pendingReview }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var publishedEvents: [LocalEvent] {
+        events
+            .filter { $0.listingStatus == .published }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
+    private var rejectedEvents: [LocalEvent] {
+        events
+            .filter { $0.listingStatus == .rejected }
+            .sorted { ($0.updatedAt ?? $0.createdAt) > ($1.updatedAt ?? $1.createdAt) }
+    }
+
+    private var archivedEvents: [LocalEvent] {
+        events
+            .filter { $0.listingStatus == .archived }
+            .sorted { ($0.updatedAt ?? $0.createdAt) > ($1.updatedAt ?? $1.createdAt) }
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Support Dashboard")
-                            .font(.system(size: 34, weight: .black, design: .serif))
-                            .foregroundStyle(PCCTheme.ink)
+                SupportHeaderCard(onLogout: onLogout)
 
-                        Text("Owner-only launch tools for reviewing listings and keeping the public calendar tidy.")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                if let actionMessage {
+                    Label(actionMessage, systemImage: "checkmark.seal.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(PCCTheme.leafGreen)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(PCCTheme.leafGreen.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                }
+
+                if isLoading {
+                    SupportPanel(title: "Loading Listings", icon: "arrow.clockwise") {
+                        ProgressView()
+                            .tint(PCCTheme.pohutukawaOrange)
                     }
+                } else if let loadError {
+                    SupportPanel(title: "Support Data", icon: "wifi.exclamationmark") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(loadError)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.pohutukawaRed)
 
-                    Spacer()
+                            Button("Try Again") {
+                                Task { await loadOwnerEvents() }
+                            }
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(PCCTheme.leafGreen)
+                        }
+                    }
                 }
-                .padding(20)
-                .pccCardStyle()
 
-                PendingListingsPanel()
-                PublishedEventsPanel(events: publishedEvents, isLoading: isLoadingPublished, error: publishedError) {
-                    Task { await loadPublishedEvents() }
-                }
-                SupportContactsPanel(email: $supportEmail, phone: $supportPhone, website: $supportWebsite)
-                LaunchChecklistPanel()
+                PendingListingsReviewPanel(
+                    events: pendingEvents,
+                    updatingEventID: updatingEventID,
+                    onSetStatus: { event, status in
+                        Task { await update(event, to: status) }
+                    }
+                )
 
-                Button(action: onLogout) {
-                    Label("Log out of Support mode", systemImage: "rectangle.portrait.and.arrow.right")
-                        .font(.headline.weight(.black))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 15)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white)
-                .background(PCCTheme.pohutukawaRed, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                SupportEventListPanel(title: "Published Events", icon: "calendar.badge.checkmark", events: publishedEvents)
+                SupportEventListPanel(title: "Rejected", icon: "xmark.seal", events: rejectedEvents)
+                SupportEventListPanel(title: "Archived", icon: "archivebox", events: archivedEvents)
+
+                Text("Field editing is intentionally held for the next pass. This version proves owner login plus approve, reject and archive first.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                    .padding(.horizontal, 6)
             }
             .padding(.horizontal, 16)
             .padding(.top, 22)
-            .padding(.bottom, 124)
+            .padding(.bottom, 220)
+        }
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 112)
         }
         .task {
-            await loadPublishedEvents()
+            await loadOwnerEvents()
         }
         .refreshable {
-            await loadPublishedEvents()
+            await loadOwnerEvents()
         }
     }
 
     @MainActor
-    private func loadPublishedEvents() async {
-        isLoadingPublished = publishedEvents.isEmpty
-        publishedError = nil
+    private func loadOwnerEvents() async {
+        isLoading = events.isEmpty
+        loadError = nil
 
         do {
-            publishedEvents = try await eventService.fetchPublishedEvents()
-            isLoadingPublished = false
+            events = try await supportService.fetchOwnerEvents(accessToken: ownerSession.accessToken)
+            isLoading = false
         } catch {
-            isLoadingPublished = false
-            publishedError = "Published events could not be loaded."
+            isLoading = false
+            loadError = "Support listings could not be loaded. If your session expired, log out and sign in again."
+        }
+    }
+
+    @MainActor
+    private func update(_ event: LocalEvent, to status: ListingStatus) async {
+        updatingEventID = event.id
+        actionMessage = nil
+
+        do {
+            try await supportService.updateEventStatus(id: event.id, status: status, accessToken: ownerSession.accessToken)
+            actionMessage = "\(event.title) moved to \(status.supportLabel)."
+            updatingEventID = nil
+            await loadOwnerEvents()
+        } catch {
+            updatingEventID = nil
+            loadError = "Could not update this listing. If your session expired, log out and sign in again."
         }
     }
 }
 
-struct PendingListingsPanel: View {
+struct SupportHeaderCard: View {
+    let onLogout: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Support Dashboard")
+                        .font(.system(size: 34, weight: .black, design: .serif))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text("Review submitted listings, then publish, reject or archive them.")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                }
+
+                Spacer()
+
+                Button(action: onLogout) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.pohutukawaRed)
+                        .padding(10)
+                        .background(PCCTheme.pohutukawaRed.opacity(0.08), in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text("Private review details are visible only after owner login.")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+        }
+        .padding(20)
+        .pccCardStyle()
+    }
+}
+
+struct PendingListingsReviewPanel: View {
+    let events: [LocalEvent]
+    let updatingEventID: UUID?
+    let onSetStatus: (LocalEvent, ListingStatus) -> Void
+
     var body: some View {
         SupportPanel(title: "Pending Listings", icon: "tray.full") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Pending listings are currently reviewed in Supabase Table Editor during MVP.")
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(PCCTheme.ink)
-
-                Text("This local support screen cannot read or approve pending listings yet because public RLS blocks pending reads. In-app approval requires real owner login and owner-only RLS, coming next.")
+            if events.isEmpty {
+                Text("No pending listings are waiting for review.")
                     .font(.body.weight(.medium))
                     .foregroundStyle(PCCTheme.ink.opacity(0.68))
-                    .lineSpacing(3)
-
-                SupportStatusRow(icon: "tablecells", title: "Review source", value: "Supabase Table Editor")
-                SupportStatusRow(icon: "checkmark.seal", title: "Approve", value: "Set status to published")
-                SupportStatusRow(icon: "xmark.seal", title: "Reject", value: "Set status to rejected")
-                SupportStatusRow(icon: "archivebox", title: "Archive", value: "Set status to archived")
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(events) { event in
+                        PendingListingReviewCard(
+                            event: event,
+                            isUpdating: updatingEventID == event.id,
+                            onSetStatus: onSetStatus
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-struct PublishedEventsPanel: View {
-    let events: [LocalEvent]
-    let isLoading: Bool
-    let error: String?
-    let reload: () -> Void
+struct PendingListingReviewCard: View {
+    let event: LocalEvent
+    let isUpdating: Bool
+    let onSetStatus: (LocalEvent, ListingStatus) -> Void
 
     var body: some View {
-        SupportPanel(title: "Published Events", icon: "calendar.badge.checkmark") {
-            VStack(alignment: .leading, spacing: 12) {
-                if isLoading {
-                    ProgressView()
-                        .tint(PCCTheme.pohutukawaOrange)
-                } else if let error {
-                    Text(error)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.pohutukawaRed)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(event.title)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
 
-                    Button("Try Again", action: reload)
-                        .font(.headline.weight(.black))
+                    Text("\(event.category.rawValue) · \(event.town.rawValue)")
+                        .font(.subheadline.weight(.bold))
                         .foregroundStyle(PCCTheme.leafGreen)
-                } else if events.isEmpty {
-                    Text("No published events are currently visible.")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
-                } else {
-                    ForEach(events) { event in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(event.title)
-                                .font(.headline.weight(.black))
-                                .foregroundStyle(PCCTheme.ink)
+                }
 
-                            Text("\(event.town.rawValue) · \(event.venue)")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                Spacer()
 
-                            Text(event.dateText)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(PCCTheme.pohutukawaOrange)
+                Text(event.createdAt.formatted(.dateTime.day().month().hour().minute()))
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                SupportDetailRow(icon: "mappin.and.ellipse", title: "Venue", value: event.venue)
+                SupportDetailRow(icon: "clock", title: "Time", value: event.timeText)
+                SupportDetailRow(icon: "tag", title: "Price", value: event.priceLabel)
+                SupportDetailRow(icon: "person.2", title: "Audience", value: event.audience)
+            }
+
+            Text(event.longDescription)
+                .font(.body.weight(.medium))
+                .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                .lineSpacing(3)
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Review Contact")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+
+                SupportDetailRow(icon: "person", title: "Name", value: event.contactName ?? "Not supplied")
+                SupportDetailRow(icon: "envelope", title: "Email", value: event.contactEmail ?? "Not supplied")
+                SupportDetailRow(icon: "phone", title: "Phone", value: event.contactPhone ?? "Not supplied")
+            }
+            .padding(12)
+            .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+            HStack(spacing: 9) {
+                SupportStatusButton(title: "Publish", icon: "checkmark.seal.fill", color: PCCTheme.leafGreen, isUpdating: isUpdating) {
+                    onSetStatus(event, .published)
+                }
+
+                SupportStatusButton(title: "Reject", icon: "xmark.seal.fill", color: PCCTheme.pohutukawaRed, isUpdating: isUpdating) {
+                    onSetStatus(event, .rejected)
+                }
+
+                SupportStatusButton(title: "Archive", icon: "archivebox.fill", color: PCCTheme.ink.opacity(0.74), isUpdating: isUpdating) {
+                    onSetStatus(event, .archived)
+                }
+            }
+        }
+        .padding(14)
+        .background(PCCTheme.cream.opacity(0.58), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct SupportEventListPanel: View {
+    let title: String
+    let icon: String
+    let events: [LocalEvent]
+
+    var body: some View {
+        SupportPanel(title: title, icon: icon) {
+            if events.isEmpty {
+                Text("No listings in this section.")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.64))
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(events.prefix(8)) { event in
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(event.title)
+                                    .font(.headline.weight(.black))
+                                    .foregroundStyle(PCCTheme.ink)
+
+                                Text("\(event.town.rawValue) · \(event.venue)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+
+                                Text(event.dateText)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                            }
+
+                            Spacer()
+
+                            Text(event.listingStatus.supportLabel)
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(PCCTheme.leafGreen)
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(PCCTheme.cream.opacity(0.66), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                     }
                 }
-
-                Text("Archive, unpublish, feature and edit actions need a safe owner-only Supabase policy or server-side function before going live.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.56))
-                    .lineSpacing(2)
             }
         }
     }
 }
 
-struct SupportContactsPanel: View {
-    @Binding var email: String
-    @Binding var phone: String
-    @Binding var website: String
+struct SupportStatusButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let isUpdating: Bool
+    let action: () -> Void
 
     var body: some View {
-        SupportPanel(title: "Support Contacts", icon: "person.2.wave.2") {
-            VStack(alignment: .leading, spacing: 12) {
-                PCCSupportField(title: "Email", text: $email, prompt: "hello@example.co.nz")
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                PCCSupportField(title: "Phone", text: $phone, prompt: "Add public phone before launch")
-                    .keyboardType(.phonePad)
-
-                PCCSupportField(title: "Website / Social", text: $website, prompt: "website or social link")
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                HStack(spacing: 10) {
-                    SupportQuickAction(title: "Report an issue", icon: "exclamationmark.bubble")
-                    SupportQuickAction(title: "Submit an event", icon: "paperplane")
-                }
-
-                Text("These values stay local during launch testing. Public contact details can be added before launch, and database-backed support contacts can come later.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.56))
-            }
+        Button(action: action) {
+            Label(title, systemImage: isUpdating ? "hourglass" : icon)
+                .font(.caption.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
         }
-    }
-}
-
-struct LaunchChecklistPanel: View {
-    private let items = [
-        ("Supabase connected", true),
-        ("Public feed reads published events", true),
-        ("Create Listing submits pending_review", true),
-        ("Support review tools available", false),
-        ("Contact details added", false),
-        ("Real events added", false),
-        ("Test on iPhone complete", false)
-    ]
-
-    var body: some View {
-        SupportPanel(title: "App / Launch Checklist", icon: "checklist") {
-            VStack(spacing: 10) {
-                ForEach(items, id: \.0) { item in
-                    HStack(spacing: 10) {
-                        Image(systemName: item.1 ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(item.1 ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.34))
-
-                        Text(item.0)
-                            .font(.body.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(item.1 ? 0.82 : 0.58))
-
-                        Spacer()
-                    }
-                }
-            }
-        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .background(isUpdating ? PCCTheme.ink.opacity(0.28) : color, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        .disabled(isUpdating)
     }
 }
 
@@ -368,7 +508,7 @@ struct PCCSupportField: View {
     }
 }
 
-struct SupportStatusRow: View {
+struct SupportDetailRow: View {
     let icon: String
     let title: String
     let value: String
@@ -392,17 +532,13 @@ struct SupportStatusRow: View {
     }
 }
 
-struct SupportQuickAction: View {
-    let title: String
-    let icon: String
-
-    var body: some View {
-        Label(title, systemImage: icon)
-            .font(.caption.weight(.black))
-            .foregroundStyle(PCCTheme.leafGreen)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity)
-            .padding(12)
-            .background(PCCTheme.leafGreen.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+private extension ListingStatus {
+    var supportLabel: String {
+        switch self {
+        case .pendingReview: return "Pending"
+        case .published: return "Published"
+        case .rejected: return "Rejected"
+        case .archived: return "Archived"
+        }
     }
 }

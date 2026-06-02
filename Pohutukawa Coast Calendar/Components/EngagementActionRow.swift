@@ -7,7 +7,7 @@ struct EngagementActionRow: View {
     @State private var saved = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             EngagementButton(title: "Interested", icon: "star", isSelected: interested) {
                 interested.toggle()
             }
@@ -22,10 +22,13 @@ struct EngagementActionRow: View {
 
             ShareLink(item: shareText) {
                 Label("Share", systemImage: "square.and.arrow.up")
-                    .font(.caption.weight(.black))
+                    .font(.system(size: 11, weight: .black))
                     .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
+                    .padding(.horizontal, 4)
                     .background(PCCTheme.cream.opacity(0.66), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
             }
         }
@@ -45,10 +48,13 @@ struct EngagementButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: isSelected ? "\(icon).fill" : icon)
-                .font(.caption.weight(.black))
+                .font(.system(size: 11, weight: .black))
                 .foregroundStyle(isSelected ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.66))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
+                .padding(.horizontal, 4)
                 .background(
                     isSelected ? PCCTheme.leafGreen.opacity(0.12) : PCCTheme.cream.opacity(0.66),
                     in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)

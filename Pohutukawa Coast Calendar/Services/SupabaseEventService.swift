@@ -3,6 +3,7 @@ import Foundation
 enum SupabaseServiceError: LocalizedError {
     case notConfigured
     case invalidResponse
+    case authFailed
     case requestFailed(Int)
 
     var errorDescription: String? {
@@ -11,6 +12,8 @@ enum SupabaseServiceError: LocalizedError {
             return "Supabase is not configured."
         case .invalidResponse:
             return "The server returned an unexpected response."
+        case .authFailed:
+            return "Login failed."
         case .requestFailed:
             return "The events service is unavailable."
         }
@@ -25,7 +28,22 @@ protocol PublishedEventFetching {
     func fetchPublishedEvents() async throws -> [LocalEvent]
 }
 
-struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching {
+protocol OwnerAuthenticating {
+    func signInOwner(email: String, password: String) async throws -> OwnerSession
+}
+
+protocol OwnerEventReviewing {
+    func fetchOwnerEvents(accessToken: String) async throws -> [LocalEvent]
+    func updateEventStatus(id: UUID, status: ListingStatus, accessToken: String) async throws
+}
+
+struct OwnerSession: Hashable {
+    let accessToken: String
+    let email: String?
+    let expiresAt: Date?
+}
+
+struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching, OwnerAuthenticating, OwnerEventReviewing {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -63,7 +81,8 @@ struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching {
             throw SupabaseServiceError.notConfigured
         }
 
-        let (data, _) = try await session.data(for: request(url: url))
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
         return try decoder.decode([SupabaseEventRecord].self, from: data)
             .compactMap(\.localEvent)
     }
@@ -88,6 +107,86 @@ struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching {
         }
     }
 
+    func signInOwner(email: String, password: String) async throws -> OwnerSession {
+        guard let authURL = SupabaseConfiguration.authURL?.appendingPathComponent("token"),
+              var components = URLComponents(url: authURL, resolvingAgainstBaseURL: false),
+              SupabaseConfiguration.isConfigured else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "grant_type", value: "password")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(SupabaseConfiguration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(OwnerPasswordLogin(email: email.trimmed, password: password))
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw SupabaseServiceError.authFailed
+        }
+
+        let token = try decoder.decode(SupabaseAuthTokenResponse.self, from: data)
+        return OwnerSession(
+            accessToken: token.accessToken,
+            email: token.user?.email,
+            expiresAt: token.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
+        )
+    }
+
+    func fetchOwnerEvents(accessToken: String) async throws -> [LocalEvent] {
+        guard var components = eventsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "created_at.desc,start_at.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
+        try validate(response)
+        return try decoder.decode([SupabaseEventRecord].self, from: data)
+            .compactMap(\.localEvent)
+    }
+
+    func updateEventStatus(id: UUID, status: ListingStatus, accessToken: String) async throws {
+        guard var components = eventsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString)")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try encoder.encode(OwnerStatusUpdate(status: status.rawValue))
+
+        let (_, response) = try await session.data(for: request)
+        try validate(response)
+    }
+
     private var eventsURLComponents: URLComponents? {
         guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("events"),
               SupabaseConfiguration.isConfigured else {
@@ -97,11 +196,20 @@ struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching {
         return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
     }
 
-    private func request(url: URL) -> URLRequest {
+    private func request(url: URL, accessToken: String? = nil) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue(SupabaseConfiguration.publishableKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(SupabaseConfiguration.publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(accessToken ?? SupabaseConfiguration.publishableKey)", forHTTPHeaderField: "Authorization")
         return request
+    }
+
+    private func validate(_ response: URLResponse) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw SupabaseServiceError.requestFailed(httpResponse.statusCode)
+        }
     }
 
     private static let isoDateFormatter: ISO8601DateFormatter = {
@@ -130,6 +238,7 @@ struct SupabaseEventRecord: Decodable {
     let audience: String
     let shortDescription: String
     let longDescription: String?
+    let contactName: String?
     let contactPhone: String?
     let contactEmail: String?
     let isFeatured: Bool
@@ -151,6 +260,7 @@ struct SupabaseEventRecord: Decodable {
         case audience
         case shortDescription = "short_description"
         case longDescription = "long_description"
+        case contactName = "contact_name"
         case contactPhone = "contact_phone"
         case contactEmail = "contact_email"
         case isFeatured = "is_featured"
@@ -180,6 +290,7 @@ struct SupabaseEventRecord: Decodable {
             audience: audience,
             shortDescription: shortDescription,
             longDescription: longDescription ?? shortDescription,
+            contactName: contactName,
             contactPhone: contactPhone,
             contactEmail: contactEmail,
             isFeatured: isFeatured,
@@ -189,6 +300,31 @@ struct SupabaseEventRecord: Decodable {
             updatedAt: updatedAt
         )
     }
+}
+
+struct OwnerPasswordLogin: Encodable {
+    let email: String
+    let password: String
+}
+
+struct SupabaseAuthTokenResponse: Decodable {
+    let accessToken: String
+    let expiresIn: Int?
+    let user: SupabaseAuthUser?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case expiresIn = "expires_in"
+        case user
+    }
+}
+
+struct SupabaseAuthUser: Decodable, Hashable {
+    let email: String?
+}
+
+struct OwnerStatusUpdate: Encodable {
+    let status: String
 }
 
 struct PendingEventInsert: Encodable {

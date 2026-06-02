@@ -79,7 +79,10 @@ struct HomeScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 22)
-                    .padding(.bottom, 124)
+                    .padding(.bottom, 180)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 72)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
