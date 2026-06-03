@@ -1,13 +1,10 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 enum MainTab: String, CaseIterable, Identifiable {
     case home = "Home"
     case whatsOn = "What's On"
     case create = "Create"
-    case account = "Account"
+    case calendar = "Calendar"
     case settings = "Settings"
 
     var id: String { rawValue }
@@ -17,7 +14,7 @@ enum MainTab: String, CaseIterable, Identifiable {
         case .home: return "house.fill"
         case .whatsOn: return "calendar"
         case .create: return "plus.circle.fill"
-        case .account: return "person.crop.circle"
+        case .calendar: return "calendar.day.timeline.left"
         case .settings: return "gearshape"
         }
     }
@@ -40,8 +37,8 @@ struct RootTabView: View {
                         onNavigateHome: { selectedTab = .home },
                         onNavigateWhatsOn: { selectedTab = .whatsOn }
                     )
-                case .account:
-                    AccountScreen()
+                case .calendar:
+                    CalendarScreen()
                 case .settings:
                     SettingsScreen()
                 }
@@ -53,12 +50,7 @@ struct RootTabView: View {
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: isKeyboardVisible)
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            isKeyboardVisible = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            isKeyboardVisible = false
-        }
+        .pccTracksKeyboardVisibility($isKeyboardVisible)
     }
 }
 

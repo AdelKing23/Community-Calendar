@@ -26,6 +26,7 @@ protocol EventListingSubmitting {
 
 protocol PublishedEventFetching {
     func fetchPublishedEvents() async throws -> [LocalEvent]
+    func fetchPublishedEvents(from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent]
 }
 
 protocol OwnerAuthenticating {
@@ -75,6 +76,29 @@ struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching, Own
             URLQueryItem(name: "status", value: "eq.published"),
             URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: Date()))"),
             URLQueryItem(name: "order", value: "is_paid_push.desc,is_featured.desc,start_at.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return try decoder.decode([SupabaseEventRecord].self, from: data)
+            .compactMap(\.localEvent)
+    }
+
+    func fetchPublishedEvents(from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent] {
+        guard var components = eventsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: rangeStart))"),
+            URLQueryItem(name: "start_at", value: "lt.\(Self.isoDateFormatter.string(from: rangeEnd))"),
+            URLQueryItem(name: "order", value: "start_at.asc")
         ]
 
         guard let url = components.url else {

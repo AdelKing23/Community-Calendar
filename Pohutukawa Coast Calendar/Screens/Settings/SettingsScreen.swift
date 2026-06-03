@@ -34,6 +34,21 @@ struct SettingsScreen: View {
                         )
 
                         SettingsInfoSection(
+                            title: "Browsing Accounts",
+                            message: "No account is needed to browse local listings, check the calendar or share events."
+                        )
+
+                        SettingsInfoSection(
+                            title: "Organiser Accounts",
+                            message: "Regular organiser accounts are planned for a later launch stage. For now, listings are submitted through Create and reviewed manually before publishing."
+                        )
+
+                        SettingsInfoSection(
+                            title: "Support/Admin Access",
+                            message: "Launch support tools are owner-only and separate from public browsing accounts."
+                        )
+
+                        SettingsInfoSection(
                             title: "Areas Covered",
                             message: "Whitford, Beachlands, Maraetai and Clevedon."
                         )
@@ -65,7 +80,7 @@ struct SettingsScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 30)
-                    .padding(.bottom, 124)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
                 }
             }
             .navigationBarHidden(true)

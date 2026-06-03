@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct HomeScreen: View {
     @State private var events: [LocalEvent] = []
@@ -79,19 +76,14 @@ struct HomeScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 22)
-                    .padding(.bottom, 180)
+                    .padding(.bottom, PCCKeyboardSpacing.homeBottomPadding)
                 }
-                .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 72)
-                }
-                .scrollDismissesKeyboard(.interactively)
+                .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
+                .pccScrollableKeyboardDismiss()
             }
             .navigationBarHidden(true)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            UIApplication.pccDismissKeyboard()
-        }
+        .pccDismissesKeyboardOnTap()
         .task {
             await loadEvents()
         }

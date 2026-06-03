@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct PCCSearchBar: View {
     @Binding var text: String
@@ -44,11 +41,3 @@ struct PCCSearchBar: View {
         .shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 8)
     }
 }
-
-#if canImport(UIKit)
-extension UIApplication {
-    static func pccDismissKeyboard() {
-        shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-}
-#endif

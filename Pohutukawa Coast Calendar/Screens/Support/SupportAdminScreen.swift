@@ -132,9 +132,11 @@ struct SupportLoginGate: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 22)
-            .padding(.bottom, 124)
+            .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
+        .pccScrollableKeyboardDismiss()
+        .pccDismissesKeyboardOnTap()
     }
 }
 
@@ -227,11 +229,11 @@ struct SupportDashboard: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 22)
-            .padding(.bottom, 220)
+            .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
         }
-        .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 112)
-        }
+        .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
+        .pccScrollableKeyboardDismiss()
+        .pccDismissesKeyboardOnTap()
         .task {
             await loadOwnerEvents()
         }

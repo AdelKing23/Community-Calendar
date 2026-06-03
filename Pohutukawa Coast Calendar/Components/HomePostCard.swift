@@ -42,6 +42,7 @@ struct HomePostCard: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
+                Label(event.dateText, systemImage: "calendar")
                 Label(event.timeText, systemImage: "clock")
                 Label("\(event.venue), \(event.town.rawValue)", systemImage: "mappin.and.ellipse")
             }

@@ -55,26 +55,16 @@ struct CreateListingScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 26)
-                .padding(.bottom, 220)
+                .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 112)
-            }
+            .pccScrollableKeyboardDismiss()
+            .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        .pccDismissesKeyboardOnTap {
             focusedField = nil
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-
-                Button("Done") {
-                    focusedField = nil
-                }
-                .font(.headline.weight(.bold))
-            }
+        .pccKeyboardDoneToolbar {
+            focusedField = nil
         }
     }
 

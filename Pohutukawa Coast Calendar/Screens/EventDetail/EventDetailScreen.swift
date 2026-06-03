@@ -16,11 +16,9 @@ struct EventDetailScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 22)
-                .padding(.bottom, 220)
+                .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
             }
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 112)
-            }
+            .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
         }
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)

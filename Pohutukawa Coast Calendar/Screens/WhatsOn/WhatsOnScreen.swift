@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct WhatsOnScreen: View {
     @State private var searchText = ""
@@ -100,16 +97,14 @@ struct WhatsOnScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 22)
-                    .padding(.bottom, 124)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
+                .pccScrollableKeyboardDismiss()
             }
             .navigationBarHidden(true)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            UIApplication.pccDismissKeyboard()
-        }
+        .pccDismissesKeyboardOnTap()
         .task {
             await loadEvents()
         }
