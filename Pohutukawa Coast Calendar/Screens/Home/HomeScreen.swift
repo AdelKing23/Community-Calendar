@@ -114,12 +114,12 @@ struct HomeHero: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Pōhutukawa")
+                    Text("Community")
                         .font(.system(size: 31, weight: .black, design: .serif))
                         .minimumScaleFactor(0.86)
                         .lineLimit(1)
 
-                    Text("Coast Board")
+                    Text("Calendar")
                         .font(.system(size: 36, weight: .black, design: .serif))
                         .foregroundStyle(PCCTheme.pohutukawaOrange)
                 }
@@ -138,6 +138,10 @@ struct HomeHero: View {
                 .padding(12)
                 .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
             }
+
+            Text("Showing: Pōhutukawa Coast")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(PCCTheme.leafGreen)
 
             Text("A calm local noticeboard for markets, music, family days, fundraisers and community happenings.")
                 .font(.body.weight(.medium))

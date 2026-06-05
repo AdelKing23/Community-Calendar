@@ -24,7 +24,7 @@ struct SettingsScreen: View {
                         .buttonStyle(.plain)
 
                         SettingsInfoSection(
-                            title: "Contact Pōhutukawa Coast Calendar",
+                            title: "Contact Community Calendar",
                             message: "Use the Create tab to submit a listing. For support, use the contact option once live details are added. Public contact details can be added before launch."
                         )
 
