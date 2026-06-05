@@ -85,8 +85,8 @@ struct CalendarScreen: View {
     private var monthGrid: some View {
         VStack(spacing: 10) {
             HStack(spacing: 6) {
-                ForEach(weekdaySymbols, id: \.self) { weekday in
-                    Text(weekday)
+                ForEach(weekdaySymbols.indices, id: \.self) { index in
+                    Text(weekdaySymbols[index])
                         .font(.caption.weight(.black))
                         .foregroundStyle(PCCTheme.ink.opacity(0.54))
                         .frame(maxWidth: .infinity)
