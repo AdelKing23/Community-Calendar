@@ -109,7 +109,7 @@ struct CreateListingHero: View {
                 .font(.system(size: 38, weight: .black, design: .serif))
                 .foregroundStyle(PCCTheme.ink)
 
-            Text("Send a coastal listing for review. Approved events appear in the public calendar.")
+            Text("Send a \(CommunityArea.defaultAreaName) listing for review. Approved events appear in the public calendar.")
                 .font(.title3.weight(.medium))
                 .foregroundStyle(PCCTheme.ink.opacity(0.68))
                 .lineSpacing(3)

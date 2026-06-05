@@ -24,7 +24,7 @@ struct SettingsScreen: View {
                         .buttonStyle(.plain)
 
                         SettingsInfoSection(
-                            title: "Contact Community Calendar",
+                            title: "Contact \(CommunityArea.appBrandName)",
                             message: "Use the Create tab to submit a listing. For support, use the contact option once live details are added. Public contact details can be added before launch."
                         )
 

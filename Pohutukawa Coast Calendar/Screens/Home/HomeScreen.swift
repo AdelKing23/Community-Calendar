@@ -114,12 +114,12 @@ struct HomeHero: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Community")
+                    Text(CommunityArea.appBrandName.components(separatedBy: " ").first ?? CommunityArea.appBrandName)
                         .font(.system(size: 31, weight: .black, design: .serif))
                         .minimumScaleFactor(0.86)
                         .lineLimit(1)
 
-                    Text("Calendar")
+                    Text(CommunityArea.appBrandName.components(separatedBy: " ").dropFirst().joined(separator: " "))
                         .font(.system(size: 36, weight: .black, design: .serif))
                         .foregroundStyle(PCCTheme.pohutukawaOrange)
                 }
@@ -139,7 +139,7 @@ struct HomeHero: View {
                 .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
             }
 
-            Text("Showing: Pōhutukawa Coast")
+            Text("Showing: \(CommunityArea.defaultAreaName)")
                 .font(.subheadline.weight(.black))
                 .foregroundStyle(PCCTheme.leafGreen)
 
