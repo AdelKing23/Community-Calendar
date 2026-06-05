@@ -361,6 +361,15 @@ struct PendingListingReviewCard: View {
                     .foregroundStyle(PCCTheme.ink.opacity(0.48))
             }
 
+            if event.unverifiedUserListing {
+                Label("Unverified user listing", systemImage: "exclamationmark.shield.fill")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(PCCTheme.pohutukawaOrange.opacity(0.10), in: Capsule())
+            }
+
             VStack(alignment: .leading, spacing: 7) {
                 SupportDetailRow(icon: "mappin.and.ellipse", title: "Venue", value: event.venue)
                 SupportDetailRow(icon: "clock", title: "Time", value: event.timeText)

@@ -21,7 +21,7 @@ enum SupabaseServiceError: LocalizedError {
 }
 
 protocol EventListingSubmitting {
-    func submitPendingListing(_ draft: PendingListingDraft) async throws
+    func submitPendingListing(_ draft: PendingListingDraft, accessToken: String) async throws -> UUID
 }
 
 protocol PublishedEventFetching {
@@ -111,24 +111,38 @@ struct SupabaseEventService: EventListingSubmitting, PublishedEventFetching, Own
             .compactMap(\.localEvent)
     }
 
-    func submitPendingListing(_ draft: PendingListingDraft) async throws {
-        guard let url = eventsURLComponents?.url else {
+    func submitPendingListing(_ draft: PendingListingDraft, accessToken: String) async throws -> UUID {
+        guard var components = eventsURLComponents else {
             throw SupabaseServiceError.notConfigured
         }
 
-        var request = request(url: url)
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "id")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
         request.httpBody = try encoder.encode(PendingEventInsert(draft: draft))
 
-        let (_, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseServiceError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw SupabaseServiceError.requestFailed(httpResponse.statusCode)
         }
+
+        guard let inserted = try decoder.decode([InsertedEventResponse].self, from: data).first else {
+            throw SupabaseServiceError.invalidResponse
+        }
+
+        return inserted.id
     }
 
     func signInOwner(email: String, password: String) async throws -> OwnerSession {
@@ -268,6 +282,7 @@ struct SupabaseEventRecord: Decodable {
     let isFeatured: Bool
     let isPaidPush: Bool
     let status: String
+    let unverifiedUserListing: Bool?
     let createdAt: Date?
     let updatedAt: Date?
 
@@ -290,6 +305,7 @@ struct SupabaseEventRecord: Decodable {
         case isFeatured = "is_featured"
         case isPaidPush = "is_paid_push"
         case status
+        case unverifiedUserListing = "unverified_user_listing"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -320,6 +336,7 @@ struct SupabaseEventRecord: Decodable {
             isFeatured: isFeatured,
             isPaidPush: isPaidPush,
             listingStatus: listingStatus,
+            unverifiedUserListing: unverifiedUserListing ?? false,
             createdAt: createdAt ?? startAt,
             updatedAt: updatedAt
         )
@@ -349,6 +366,10 @@ struct SupabaseAuthUser: Decodable, Hashable {
 
 struct OwnerStatusUpdate: Encodable {
     let status: String
+}
+
+struct InsertedEventResponse: Decodable {
+    let id: UUID
 }
 
 struct PendingEventInsert: Encodable {

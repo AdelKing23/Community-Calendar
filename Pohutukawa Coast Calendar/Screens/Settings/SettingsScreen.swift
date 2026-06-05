@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsScreen: View {
+    @EnvironmentObject private var userSessionStore: UserSessionStore
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -14,18 +16,17 @@ struct SettingsScreen: View {
 
                         SettingsListSection(
                             title: "Account",
-                            rows: [
-                                SettingsRowContent(
-                                    id: "join-community",
-                                    icon: "person.crop.circle.badge.plus",
-                                    title: "Join the community",
-                                    subtitle: "Create an account to manage your listings and see feedback insights from your posts.",
-                                    detail: "Create account / Sign in",
-                                    style: .disclosure,
-                                    isEnabled: false
-                                )
-                            ]
+                            rows: accountRows
                         )
+
+                        if userSessionStore.isSignedIn {
+                            Button {
+                                userSessionStore.signOut()
+                            } label: {
+                                SettingsSignOutRow()
+                            }
+                            .buttonStyle(.plain)
+                        }
 
                         SettingsListSection(
                             title: "My Listings",
@@ -152,6 +153,34 @@ struct SettingsScreen: View {
             .navigationBarHidden(true)
         }
     }
+
+    private var accountRows: [SettingsRowContent] {
+        if userSessionStore.isSignedIn {
+            return [
+                SettingsRowContent(
+                    id: "account-details",
+                    icon: "person.crop.circle.fill",
+                    title: "Account details",
+                    subtitle: userSessionStore.email ?? "Signed-in account",
+                    detail: nil,
+                    style: .plain,
+                    isEnabled: true
+                )
+            ]
+        }
+
+        return [
+            SettingsRowContent(
+                id: "join-community",
+                icon: "person.crop.circle.badge.plus",
+                title: "Join the community",
+                subtitle: "Create an account to manage your listings and see feedback insights from your posts.",
+                detail: "Use Create",
+                style: .disclosure,
+                isEnabled: false
+            )
+        ]
+    }
 }
 
 struct SettingsListSection: View {
@@ -275,6 +304,30 @@ struct SettingsRow: View {
                 .labelsHidden()
                 .disabled(true)
         }
+    }
+}
+
+struct SettingsSignOutRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "rectangle.portrait.and.arrow.right")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(PCCTheme.pohutukawaRed)
+                .frame(width: 30, height: 30)
+                .background(PCCTheme.pohutukawaRed.opacity(0.08), in: Circle())
+
+            Text("Sign Out")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(PCCTheme.pohutukawaRed)
+
+            Spacer()
+        }
+        .padding(14)
+        .background(.white.opacity(0.58), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)
+                .stroke(.white.opacity(0.70), lineWidth: 1)
+        )
     }
 }
 

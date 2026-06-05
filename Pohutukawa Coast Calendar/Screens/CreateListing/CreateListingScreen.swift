@@ -10,10 +10,22 @@ struct CreateListingScreen: View {
         case description
     }
 
+    enum AuthMode {
+        case signUp
+        case signIn
+    }
+
+    @EnvironmentObject private var userSessionStore: UserSessionStore
     @State private var draft = PendingListingDraft()
+    @State private var authMode: AuthMode = .signUp
+    @State private var accountEmail = ""
+    @State private var accountPassword = ""
+    @State private var accountError: String?
+    @State private var isAuthenticating = false
     @State private var didSubmit = false
     @State private var isSubmitting = false
     @State private var submissionError: String?
+    @State private var submittedListingID: UUID?
     @FocusState private var focusedField: Field?
     private let listingService: EventListingSubmitting = SupabaseEventService()
     let onNavigateHome: () -> Void
@@ -35,13 +47,30 @@ struct CreateListingScreen: View {
                 VStack(alignment: .leading, spacing: 18) {
                     CreateListingHero()
 
-                    if didSubmit {
+                    if !userSessionStore.isSignedIn {
+                        ListingAccountGate(
+                            mode: $authMode,
+                            email: $accountEmail,
+                            password: $accountPassword,
+                            isAuthenticating: isAuthenticating,
+                            errorMessage: accountError
+                        ) {
+                            focusedField = nil
+                            Task { await authenticate() }
+                        }
+                    } else if didSubmit {
                         SubmissionReceivedCard(
+                            listingID: submittedListingID,
                             onCreateAnother: resetForAnotherListing,
                             onNavigateHome: onNavigateHome,
                             onNavigateWhatsOn: onNavigateWhatsOn
                         )
                     } else {
+                        SignedInListingBanner(email: userSessionStore.email) {
+                            userSessionStore.signOut()
+                            resetForAnotherListing()
+                        }
+
                         PendingListingForm(
                             draft: $draft,
                             focusedField: $focusedField,
@@ -74,10 +103,13 @@ struct CreateListingScreen: View {
         isSubmitting = false
         draft = PendingListingDraft()
         didSubmit = false
+        submittedListingID = nil
     }
 
     private func submitListing() {
-        guard draft.canSubmit, !isSubmitting else { return }
+        guard draft.canSubmit,
+              !isSubmitting,
+              let accessToken = userSessionStore.session?.accessToken else { return }
 
         Task {
             await MainActor.run {
@@ -86,8 +118,9 @@ struct CreateListingScreen: View {
             }
 
             do {
-                try await listingService.submitPendingListing(draft)
+                let listingID = try await listingService.submitPendingListing(draft, accessToken: accessToken)
                 await MainActor.run {
+                    submittedListingID = listingID
                     didSubmit = true
                     isSubmitting = false
                     draft = PendingListingDraft()
@@ -99,6 +132,172 @@ struct CreateListingScreen: View {
                 }
             }
         }
+    }
+
+    @MainActor
+    private func authenticate() async {
+        guard !isAuthenticating else { return }
+
+        let trimmedEmail = accountEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedEmail.localizedCaseInsensitiveContains("@"),
+              accountPassword.count >= 6 else {
+            accountError = "Enter an email and a password with at least 6 characters."
+            return
+        }
+
+        isAuthenticating = true
+        accountError = nil
+
+        do {
+            switch authMode {
+            case .signUp:
+                try await userSessionStore.signUp(email: trimmedEmail, password: accountPassword)
+            case .signIn:
+                try await userSessionStore.signIn(email: trimmedEmail, password: accountPassword)
+            }
+
+            accountPassword = ""
+            isAuthenticating = false
+        } catch UserAuthError.signUpNeedsConfirmation {
+            isAuthenticating = false
+            accountError = "Check your email to confirm your account, then sign in."
+            authMode = .signIn
+            accountPassword = ""
+        } catch {
+            isAuthenticating = false
+            accountError = authMode == .signUp
+                ? "Account could not be created. Try signing in if you already have one."
+                : "Sign in failed. Check your email and password, then try again."
+        }
+    }
+}
+
+struct ListingAccountGate: View {
+    @Binding var mode: CreateListingScreen.AuthMode
+    @Binding var email: String
+    @Binding var password: String
+    let isAuthenticating: Bool
+    let errorMessage: String?
+    let onSubmit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Create a free account to submit a listing.")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+
+                Text("Browsing stays open to everyone. Accounts help keep submitted listings trusted and reviewable.")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .lineSpacing(3)
+            }
+
+            HStack(spacing: 8) {
+                AccountModeButton(title: "Create Account", isSelected: mode == .signUp) {
+                    mode = .signUp
+                }
+
+                AccountModeButton(title: "Sign In", isSelected: mode == .signIn) {
+                    mode = .signIn
+                }
+            }
+
+            PCCFormField(title: "Email", text: $email, prompt: "you@example.co.nz")
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Password")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                SecureField("At least 6 characters", text: $password)
+                    .textFieldStyle(.plain)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(13)
+                    .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PCCTheme.pohutukawaRed)
+            }
+
+            Button(action: onSubmit) {
+                Label(buttonTitle, systemImage: isAuthenticating ? "hourglass" : "person.crop.circle.badge.plus")
+                    .font(.headline.weight(.black))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(isAuthenticating ? PCCTheme.ink.opacity(0.28) : PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            .disabled(isAuthenticating)
+        }
+        .padding(20)
+        .pccCardStyle()
+    }
+
+    private var buttonTitle: String {
+        if isAuthenticating {
+            return mode == .signUp ? "Creating Account" : "Signing In"
+        }
+
+        return mode == .signUp ? "Create Account" : "Sign In"
+    }
+}
+
+struct AccountModeButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.black))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .foregroundStyle(isSelected ? .white : PCCTheme.leafGreen)
+                .background(isSelected ? PCCTheme.leafGreen : PCCTheme.cream.opacity(0.70), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct SignedInListingBanner: View {
+    let email: String?
+    let onSignOut: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(PCCTheme.leafGreen)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Submitting as")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.50))
+
+                Text(email ?? "Signed-in account")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button("Sign Out", action: onSignOut)
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.pohutukawaRed)
+        }
+        .padding(14)
+        .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
     }
 }
 
@@ -234,6 +433,7 @@ struct PCCFormField: View {
 }
 
 struct SubmissionReceivedCard: View {
+    let listingID: UUID?
     let onCreateAnother: () -> Void
     let onNavigateHome: () -> Void
     let onNavigateWhatsOn: () -> Void
@@ -252,6 +452,13 @@ struct SubmissionReceivedCard: View {
                 .font(.body.weight(.medium))
                 .foregroundStyle(PCCTheme.ink.opacity(0.68))
                 .lineSpacing(3)
+
+            if let listingID {
+                Text("Listing reference: \(String(listingID.uuidString.prefix(8)))")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .padding(.top, 2)
+            }
 
             VStack(spacing: 10) {
                 Button(action: onCreateAnother) {

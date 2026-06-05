@@ -87,6 +87,7 @@ struct LocalEvent: Identifiable, Hashable {
     let isFeatured: Bool
     let isPaidPush: Bool
     let listingStatus: ListingStatus
+    let unverifiedUserListing: Bool
     let createdAt: Date
     let updatedAt: Date?
 
@@ -113,6 +114,7 @@ struct LocalEvent: Identifiable, Hashable {
         isFeatured: Bool,
         isPaidPush: Bool,
         listingStatus: ListingStatus = .published,
+        unverifiedUserListing: Bool = false,
         createdAt: Date = .distantPast,
         updatedAt: Date? = nil
     ) {
@@ -134,6 +136,7 @@ struct LocalEvent: Identifiable, Hashable {
         self.isFeatured = isFeatured
         self.isPaidPush = isPaidPush
         self.listingStatus = listingStatus
+        self.unverifiedUserListing = unverifiedUserListing
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
