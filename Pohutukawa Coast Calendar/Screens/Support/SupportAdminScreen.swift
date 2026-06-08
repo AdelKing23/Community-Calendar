@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SupportAdminScreen: View {
-    @State private var ownerSession: OwnerSession?
+    @EnvironmentObject private var ownerSessionStore: OwnerSessionStore
     @State private var email = ""
     @State private var password = ""
     @State private var isSigningIn = false
@@ -13,12 +13,11 @@ struct SupportAdminScreen: View {
         ZStack {
             PCCScreenBackground()
 
-            if let ownerSession {
+            if ownerSessionStore.session != nil {
                 SupportDashboard(
-                    ownerSession: ownerSession,
                     supportService: supportService
                 ) {
-                    self.ownerSession = nil
+                    ownerSessionStore.signOut()
                     email = ""
                     password = ""
                     loginError = nil
@@ -53,7 +52,7 @@ struct SupportAdminScreen: View {
         loginError = nil
 
         do {
-            ownerSession = try await supportService.signInOwner(email: trimmedEmail, password: password)
+            try await ownerSessionStore.signIn(email: trimmedEmail, password: password)
             password = ""
             isSigningIn = false
         } catch {
@@ -131,7 +130,7 @@ struct SupportLoginGate: View {
                 .pccCardStyle()
             }
             .padding(.horizontal, 16)
-            .padding(.top, 22)
+            .padding(.top, PCCKeyboardSpacing.standardTopPadding)
             .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
         }
         .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
@@ -141,10 +140,10 @@ struct SupportLoginGate: View {
 }
 
 struct SupportDashboard: View {
-    let ownerSession: OwnerSession
     let supportService: OwnerEventReviewing
     let onLogout: () -> Void
 
+    @EnvironmentObject private var ownerSessionStore: OwnerSessionStore
     @State private var events: [LocalEvent] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -228,7 +227,7 @@ struct SupportDashboard: View {
                     .padding(.horizontal, 6)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 22)
+            .padding(.top, PCCKeyboardSpacing.standardTopPadding)
             .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
         }
         .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
@@ -248,7 +247,12 @@ struct SupportDashboard: View {
         loadError = nil
 
         do {
-            events = try await supportService.fetchOwnerEvents(accessToken: ownerSession.accessToken)
+            await ownerSessionStore.refreshIfNeeded()
+            guard let activeSession = ownerSessionStore.session else {
+                throw SupabaseServiceError.authFailed
+            }
+
+            events = try await supportService.fetchOwnerEvents(accessToken: activeSession.accessToken)
             isLoading = false
         } catch {
             isLoading = false
@@ -262,7 +266,12 @@ struct SupportDashboard: View {
         actionMessage = nil
 
         do {
-            try await supportService.updateEventStatus(id: event.id, status: status, accessToken: ownerSession.accessToken)
+            await ownerSessionStore.refreshIfNeeded()
+            guard let activeSession = ownerSessionStore.session else {
+                throw SupabaseServiceError.authFailed
+            }
+
+            try await supportService.updateEventStatus(id: event.id, status: status, accessToken: activeSession.accessToken)
             actionMessage = "\(event.title) moved to \(status.supportLabel)."
             updatingEventID = nil
             await loadOwnerEvents()
@@ -382,6 +391,10 @@ struct PendingListingReviewCard: View {
                 .foregroundStyle(PCCTheme.ink.opacity(0.70))
                 .lineSpacing(3)
 
+            if !event.images.isEmpty {
+                SupportImageStrip(images: event.images)
+            }
+
             VStack(alignment: .leading, spacing: 7) {
                 Text("Review Contact")
                     .font(.caption.weight(.black))
@@ -413,6 +426,50 @@ struct PendingListingReviewCard: View {
     }
 }
 
+struct SupportImageStrip: View {
+    let images: [EventImage]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Submitted Photos")
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(images) { image in
+                        SupportImageThumbnail(image: image)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(PCCTheme.leafGreen.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct SupportImageThumbnail: View {
+    let image: EventImage
+
+    var body: some View {
+        ListingRemoteImageView(
+            image: image,
+            context: "support image=\(String(image.id.uuidString.prefix(8)))",
+            contentMode: .fill
+        ) {
+            RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)
+                .fill(PCCTheme.cream.opacity(0.68))
+                .overlay {
+                    Image(systemName: "photo")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.44))
+                }
+        }
+        .frame(width: 112, height: 84)
+        .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
 struct SupportEventListPanel: View {
     let title: String
     let icon: String
@@ -440,6 +497,10 @@ struct SupportEventListPanel: View {
                                 Text(event.dateText)
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+                                if !event.images.isEmpty {
+                                    SupportImageStrip(images: event.images)
+                                }
                             }
 
                             Spacer()

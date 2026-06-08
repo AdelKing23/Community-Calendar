@@ -75,7 +75,7 @@ struct HomeScreen: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 22)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
                     .padding(.bottom, PCCKeyboardSpacing.homeBottomPadding)
                 }
                 .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)

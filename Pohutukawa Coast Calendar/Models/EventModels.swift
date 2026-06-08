@@ -68,6 +68,30 @@ enum ListingStatus: String, Hashable {
     case archived
 }
 
+struct EventImage: Identifiable, Hashable {
+    let id: UUID
+    let eventID: UUID
+    let storagePath: String
+    let position: Int
+    let mimeType: String
+    let byteSize: Int?
+    let width: Int?
+    let height: Int?
+    let signedURL: URL?
+}
+
+struct ListingPhotoUpload: Identifiable, Hashable {
+    let id: UUID
+    let data: Data
+    let width: Int
+    let height: Int
+    let mimeType: String
+
+    var byteSize: Int {
+        data.count
+    }
+}
+
 struct LocalEvent: Identifiable, Hashable {
     let id: UUID
     let title: String
@@ -88,11 +112,16 @@ struct LocalEvent: Identifiable, Hashable {
     let isPaidPush: Bool
     let listingStatus: ListingStatus
     let unverifiedUserListing: Bool
+    let images: [EventImage]
     let createdAt: Date
     let updatedAt: Date?
 
     var isPubliclyVisible: Bool {
         listingStatus == .published
+    }
+
+    var primaryImage: EventImage? {
+        images.sorted { $0.position < $1.position }.first
     }
 
     init(
@@ -115,6 +144,7 @@ struct LocalEvent: Identifiable, Hashable {
         isPaidPush: Bool,
         listingStatus: ListingStatus = .published,
         unverifiedUserListing: Bool = false,
+        images: [EventImage] = [],
         createdAt: Date = .distantPast,
         updatedAt: Date? = nil
     ) {
@@ -137,6 +167,7 @@ struct LocalEvent: Identifiable, Hashable {
         self.isPaidPush = isPaidPush
         self.listingStatus = listingStatus
         self.unverifiedUserListing = unverifiedUserListing
+        self.images = images
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -191,7 +222,7 @@ struct PendingListingDraft: Hashable {
     var venue = ""
     var date = Date()
     var time = Date()
-    var priceLabel = ""
+    var priceLabel = "Free"
     var contactName = ""
     var contactEmail = ""
     var shortDescription = ""
@@ -200,9 +231,6 @@ struct PendingListingDraft: Hashable {
         [
             title,
             venue,
-            priceLabel,
-            contactName,
-            contactEmail,
             shortDescription
         ].allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }

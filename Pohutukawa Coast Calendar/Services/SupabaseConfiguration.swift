@@ -12,6 +12,10 @@ enum SupabaseConfiguration {
         projectURL?.appendingPathComponent("auth/v1")
     }
 
+    static var storageURL: URL? {
+        projectURL?.appendingPathComponent("storage/v1")
+    }
+
     static var isConfigured: Bool {
         projectURL?.host != "your-project-ref.supabase.co"
         && !publishableKey.isEmpty

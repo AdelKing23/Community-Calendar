@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsScreen: View {
     @EnvironmentObject private var userSessionStore: UserSessionStore
+    @EnvironmentObject private var ownerSessionStore: OwnerSessionStore
 
     var body: some View {
         NavigationStack {
@@ -35,10 +36,10 @@ struct SettingsScreen: View {
                                     id: "previous-listings",
                                     icon: "rectangle.stack",
                                     title: "Previous listings",
-                                    subtitle: "View your submitted posts, status, and insights.",
-                                    detail: "Coming soon",
+                                    subtitle: "View submitted posts and review status from the Create tab.",
+                                    detail: "Create tab",
                                     style: .status,
-                                    isEnabled: false
+                                    isEnabled: true
                                 )
                             ]
                         )
@@ -50,7 +51,7 @@ struct SettingsScreen: View {
                                     id: "faster-checkout",
                                     icon: "creditcard",
                                     title: "Faster checkout",
-                                    subtitle: "Save payment securely with the payment provider for quicker paid listings.",
+                                    subtitle: "Paid listing checkout will be handled securely by the payment provider.",
                                     detail: "Coming soon",
                                     style: .status,
                                     isEnabled: false
@@ -81,8 +82,8 @@ struct SettingsScreen: View {
                                     id: "terms",
                                     icon: "doc.text",
                                     title: "Terms and conditions",
-                                    subtitle: nil,
-                                    detail: nil,
+                                    subtitle: "Clear listing and app terms before launch.",
+                                    detail: "Coming soon",
                                     style: .disclosure,
                                     isEnabled: false
                                 ),
@@ -90,8 +91,8 @@ struct SettingsScreen: View {
                                     id: "privacy",
                                     icon: "hand.raised",
                                     title: "Privacy policy",
-                                    subtitle: nil,
-                                    detail: nil,
+                                    subtitle: "How account and listing details are used.",
+                                    detail: "Coming soon",
                                     style: .disclosure,
                                     isEnabled: false
                                 ),
@@ -99,8 +100,8 @@ struct SettingsScreen: View {
                                     id: "posting-rules",
                                     icon: "checkmark.seal",
                                     title: "Community posting rules",
-                                    subtitle: nil,
-                                    detail: nil,
+                                    subtitle: "What can be listed and what needs review.",
+                                    detail: "Coming soon",
                                     style: .disclosure,
                                     isEnabled: false
                                 )
@@ -130,8 +131,8 @@ struct SettingsScreen: View {
                                     id: "contact",
                                     icon: "envelope",
                                     title: "Contact \(CommunityArea.appBrandName)",
-                                    subtitle: "Public contact details can be added before launch.",
-                                    detail: nil,
+                                    subtitle: "Use Create to submit a listing. Support contact details will be added before launch.",
+                                    detail: "Soon",
                                     style: .disclosure,
                                     isEnabled: false
                                 )
@@ -141,12 +142,12 @@ struct SettingsScreen: View {
                         NavigationLink {
                             SupportAdminScreen()
                         } label: {
-                            OwnerSupportRow()
+                            OwnerSupportRow(isSignedIn: ownerSessionStore.isSignedIn)
                         }
                         .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 30)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
                     .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
                 }
             }
@@ -162,8 +163,8 @@ struct SettingsScreen: View {
                     icon: "person.crop.circle.fill",
                     title: "Account details",
                     subtitle: userSessionStore.email ?? "Signed-in account",
-                    detail: nil,
-                    style: .plain,
+                    detail: "Active",
+                    style: .status,
                     isEnabled: true
                 )
             ]
@@ -173,11 +174,11 @@ struct SettingsScreen: View {
             SettingsRowContent(
                 id: "join-community",
                 icon: "person.crop.circle.badge.plus",
-                title: "Join the community",
-                subtitle: "Create an account to manage your listings and see feedback insights from your posts.",
-                detail: "Use Create",
+                title: "Create account / Sign in",
+                subtitle: "Create a free account when you are ready to submit and manage listings.",
+                detail: "Create tab",
                 style: .disclosure,
-                isEnabled: false
+                isEnabled: true
             )
         ]
     }
@@ -332,6 +333,8 @@ struct SettingsSignOutRow: View {
 }
 
 struct OwnerSupportRow: View {
+    let isSignedIn: Bool
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "lock.shield")
@@ -352,9 +355,18 @@ struct OwnerSupportRow: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.30))
+            if isSignedIn {
+                Text("Signed in")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.30))
+            }
         }
         .padding(14)
         .background(.white.opacity(0.50), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))

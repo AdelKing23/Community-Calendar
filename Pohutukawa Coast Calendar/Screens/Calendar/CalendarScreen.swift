@@ -22,7 +22,7 @@ struct CalendarScreen: View {
                         selectedDaySection
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 24)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
                     .padding(.bottom, PCCKeyboardSpacing.homeBottomPadding)
                 }
                 .refreshable {
@@ -315,6 +315,16 @@ private struct CalendarEventRow: View {
     var body: some View {
         HStack(spacing: 12) {
             DateTile(event: event)
+
+            ListingRemoteImageView(
+                image: event.primaryImage,
+                context: "calendar row event=\(String(event.id.uuidString.prefix(8)))",
+                contentMode: .fill
+            ) {
+                EventImagePlaceholderView()
+            }
+            .frame(width: 74, height: 92)
+            .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {

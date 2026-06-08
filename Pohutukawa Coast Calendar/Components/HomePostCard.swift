@@ -26,7 +26,15 @@ struct HomePostCard: View {
                 }
             }
 
-            EventImagePlaceholderView()
+            ListingRemoteImageView(
+                image: event.primaryImage,
+                context: "home event=\(String(event.id.uuidString.prefix(8)))",
+                contentMode: .fill
+            ) {
+                EventImagePlaceholderView()
+            }
+            .frame(height: 156)
+            .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(event.title)
@@ -80,7 +88,7 @@ struct EventImagePlaceholderView: View {
                 }
             }
         }
-        .frame(height: 138)
+        .frame(maxWidth: .infinity, minHeight: 138)
         .overlay(
             RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)
                 .stroke(.white.opacity(0.82), lineWidth: 1)

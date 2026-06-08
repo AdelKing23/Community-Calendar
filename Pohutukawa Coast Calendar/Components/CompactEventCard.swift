@@ -5,6 +5,16 @@ struct CompactEventCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
+            ListingRemoteImageView(
+                image: event.primaryImage,
+                context: "compact event=\(String(event.id.uuidString.prefix(8)))",
+                contentMode: .fill
+            ) {
+                EventImagePlaceholderView()
+            }
+            .frame(height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
             HStack {
                 Text(event.monthShort)
                     .font(.caption2.weight(.black))
@@ -37,7 +47,7 @@ struct CompactEventCard: View {
                 .foregroundStyle(PCCTheme.ink.opacity(0.54))
                 .lineLimit(1)
         }
-        .frame(width: 164, height: 132)
+        .frame(width: 170, height: 188)
         .padding(13)
         .pccCardStyle()
     }

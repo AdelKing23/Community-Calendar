@@ -15,7 +15,7 @@ struct EventDetailScreen: View {
                     PublicContactNotice()
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 22)
+                .padding(.top, PCCKeyboardSpacing.standardTopPadding)
                 .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
             }
             .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
@@ -30,6 +30,18 @@ struct EventDetailHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            ListingRemoteImageView(
+                image: event.primaryImage,
+                context: "detail event=\(String(event.id.uuidString.prefix(8)))",
+                contentMode: .fit
+            ) {
+                EventImagePlaceholderView()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 190)
+            .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
             HStack(alignment: .center, spacing: 10) {
                 Text(event.category.rawValue.uppercased())
                     .font(.caption.weight(.black))

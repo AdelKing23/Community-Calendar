@@ -4,11 +4,12 @@ import UIKit
 #endif
 
 enum PCCKeyboardSpacing {
-    static let standardBottomPadding: CGFloat = 124
-    static let homeBottomPadding: CGFloat = 180
-    static let formBottomPadding: CGFloat = 220
-    static let standardBottomInset: CGFloat = 72
-    static let formBottomInset: CGFloat = 112
+    static let standardTopPadding: CGFloat = 76
+    static let standardBottomPadding: CGFloat = 210
+    static let homeBottomPadding: CGFloat = 260
+    static let formBottomPadding: CGFloat = 300
+    static let standardBottomInset: CGFloat = 132
+    static let formBottomInset: CGFloat = 168
 }
 
 extension View {

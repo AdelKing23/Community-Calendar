@@ -4,8 +4,22 @@ struct EventFeedCard: View {
     let event: LocalEvent
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            DateTile(event: event)
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack(alignment: .topLeading) {
+                ListingRemoteImageView(
+                    image: event.primaryImage,
+                    context: "feed event=\(String(event.id.uuidString.prefix(8)))",
+                    contentMode: .fill
+                ) {
+                    EventImagePlaceholderView()
+                }
+                .frame(height: 126)
+                .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+                DateTile(event: event)
+                    .scaleEffect(0.82, anchor: .topLeading)
+                    .padding(8)
+            }
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
@@ -25,8 +39,6 @@ struct EventFeedCard: View {
                             .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
                     }
 
-                    Spacer()
-
                     if event.isFree {
                         Text("Free")
                             .font(.caption.weight(.black))
@@ -35,6 +47,8 @@ struct EventFeedCard: View {
                             .padding(.vertical, 6)
                             .background(PCCTheme.leafGreen, in: Capsule())
                     }
+
+                    Spacer()
                 }
 
                 Text(event.title)

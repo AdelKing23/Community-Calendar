@@ -96,7 +96,7 @@ struct WhatsOnScreen: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 22)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
                     .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
                 }
                 .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
