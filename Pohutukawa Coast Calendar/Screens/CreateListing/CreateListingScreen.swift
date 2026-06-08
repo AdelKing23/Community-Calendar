@@ -33,13 +33,17 @@ struct CreateListingScreen: View {
     @State private var submittedListingID: UUID?
     @State private var submittedListingTitle: String?
     @State private var myListings: [LocalEvent] = []
+    @State private var myChangeRequests: [EventChangeRequest] = []
     @State private var isLoadingMyListings = false
     @State private var myListingsError: String?
+    @State private var changeRequestMessage: String?
     @State private var selectedUserListing: LocalEvent?
+    @State private var selectedEditListing: LocalEvent?
+    @State private var selectedRemovalListing: LocalEvent?
     @State private var photoPickerItems: [PhotosPickerItem] = []
     @State private var selectedPhotos: [ListingPhotoUpload] = []
     @FocusState private var focusedField: Field?
-    private let listingService: EventListingSubmitting & UserListingFetching = SupabaseEventService()
+    private let listingService: EventListingSubmitting & UserListingFetching & EventChangeRequesting = SupabaseEventService()
     let onNavigateHome: () -> Void
     let onNavigateWhatsOn: () -> Void
 
@@ -105,10 +109,18 @@ struct CreateListingScreen: View {
 
                         MyListingsPanel(
                             listings: myListings,
+                            changeRequests: myChangeRequests,
                             isLoading: isLoadingMyListings,
                             errorMessage: myListingsError,
+                            actionMessage: changeRequestMessage,
                             onSelectListing: { listing in
                                 selectedUserListing = listing
+                            },
+                            onEditListing: { listing in
+                                selectedEditListing = listing
+                            },
+                            onRemoveListing: { listing in
+                                selectedRemovalListing = listing
                             }
                         ) {
                             Task { await loadMyListings() }
@@ -136,7 +148,30 @@ struct CreateListingScreen: View {
             await loadMyListings()
         }
         .sheet(item: $selectedUserListing) { listing in
-            UserListingDetailSheet(listing: listing)
+            UserListingDetailSheet(
+                listing: listing,
+                pendingRequest: pendingRequest(for: listing),
+                latestRequest: latestRequest(for: listing),
+                requests: requests(for: listing),
+                onEdit: {
+                    selectedUserListing = nil
+                    selectedEditListing = listing
+                },
+                onRemove: {
+                    selectedUserListing = nil
+                    selectedRemovalListing = listing
+                }
+            )
+        }
+        .sheet(item: $selectedEditListing) { listing in
+            ListingEditRequestSheet(listing: listing) { draft, note in
+                await submitEditRequest(for: listing, draft: draft, note: note)
+            }
+        }
+        .sheet(item: $selectedRemovalListing) { listing in
+            ListingRemovalRequestSheet(listing: listing) { note in
+                await submitRemovalRequest(for: listing, note: note)
+            }
         }
     }
 
@@ -231,6 +266,7 @@ struct CreateListingScreen: View {
     private func loadMyListings() async {
         guard let currentSession = userSessionStore.session else {
             myListings = []
+            myChangeRequests = []
             myListingsError = nil
             return
         }
@@ -245,10 +281,74 @@ struct CreateListingScreen: View {
                 userID: activeSession.userID,
                 accessToken: activeSession.accessToken
             )
+            myChangeRequests = try await listingService.fetchMyChangeRequests(
+                userID: activeSession.userID,
+                accessToken: activeSession.accessToken
+            )
             isLoadingMyListings = false
         } catch {
             isLoadingMyListings = false
             myListingsError = "Your listings could not be loaded. Pull down or try again soon."
+        }
+    }
+
+    private func pendingRequest(for listing: LocalEvent) -> EventChangeRequest? {
+        myChangeRequests.first { $0.eventID == listing.id && $0.status == .pending }
+    }
+
+    private func latestRequest(for listing: LocalEvent) -> EventChangeRequest? {
+        myChangeRequests
+            .filter { $0.eventID == listing.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+    }
+
+    private func requests(for listing: LocalEvent) -> [EventChangeRequest] {
+        myChangeRequests
+            .filter { $0.eventID == listing.id }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    @MainActor
+    private func submitEditRequest(for listing: LocalEvent, draft: ListingEditDraft, note: String?) async {
+        guard let currentSession = userSessionStore.session else { return }
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+            let activeSession = userSessionStore.session ?? currentSession
+            try await listingService.createEditRequest(
+                event: listing,
+                draft: draft,
+                requesterID: activeSession.userID,
+                requesterNote: note,
+                accessToken: activeSession.accessToken
+            )
+            changeRequestMessage = "Edit request sent for \(listing.title)."
+            selectedEditListing = nil
+            await loadMyListings()
+        } catch {
+            changeRequestMessage = "Edit request could not be sent. Please try again."
+        }
+    }
+
+    @MainActor
+    private func submitRemovalRequest(for listing: LocalEvent, note: String?) async {
+        guard let currentSession = userSessionStore.session else { return }
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+            let activeSession = userSessionStore.session ?? currentSession
+            try await listingService.createRemovalRequest(
+                event: listing,
+                requesterID: activeSession.userID,
+                requesterNote: note,
+                accessToken: activeSession.accessToken
+            )
+            changeRequestMessage = "Removal request sent for \(listing.title)."
+            selectedRemovalListing = nil
+            await loadMyListings()
+        } catch {
+            changeRequestMessage = "Removal request could not be sent. Please try again."
         }
     }
 
@@ -477,9 +577,13 @@ struct SignedInListingBanner: View {
 
 struct MyListingsPanel: View {
     let listings: [LocalEvent]
+    let changeRequests: [EventChangeRequest]
     let isLoading: Bool
     let errorMessage: String?
+    let actionMessage: String?
     let onSelectListing: (LocalEvent) -> Void
+    let onEditListing: (LocalEvent) -> Void
+    let onRemoveListing: (LocalEvent) -> Void
     let onRefresh: () -> Void
 
     var body: some View {
@@ -507,6 +611,15 @@ struct MyListingsPanel: View {
                 .buttonStyle(.plain)
             }
 
+            if let actionMessage {
+                Label(actionMessage, systemImage: "paperplane.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(PCCTheme.leafGreen.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+
             if isLoading {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -532,9 +645,20 @@ struct MyListingsPanel: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(listings.prefix(4)) { listing in
-                        MyListingCard(listing: listing) {
-                            onSelectListing(listing)
-                        }
+                        MyListingCard(
+                            listing: listing,
+                            pendingRequest: pendingRequest(for: listing),
+                            latestRequest: latestRequest(for: listing),
+                            onView: {
+                                onSelectListing(listing)
+                            },
+                            onEdit: {
+                                onEditListing(listing)
+                            },
+                            onRemove: {
+                                onRemoveListing(listing)
+                            }
+                        )
                     }
                 }
             }
@@ -542,11 +666,26 @@ struct MyListingsPanel: View {
         .padding(18)
         .pccCardStyle()
     }
+
+    private func pendingRequest(for listing: LocalEvent) -> EventChangeRequest? {
+        changeRequests.first { $0.eventID == listing.id && $0.status == .pending }
+    }
+
+    private func latestRequest(for listing: LocalEvent) -> EventChangeRequest? {
+        changeRequests
+            .filter { $0.eventID == listing.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+    }
 }
 
 struct MyListingCard: View {
     let listing: LocalEvent
+    let pendingRequest: EventChangeRequest?
+    let latestRequest: EventChangeRequest?
     let onView: () -> Void
+    let onEdit: () -> Void
+    let onRemove: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -595,6 +734,24 @@ struct MyListingCard: View {
                 .foregroundStyle(PCCTheme.ink.opacity(0.56))
                 .lineSpacing(2)
 
+            if let pendingRequest {
+                Label("\(pendingRequest.supportTitle) pending support review", systemImage: "clock.badge.exclamationmark")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(PCCTheme.pohutukawaOrange.opacity(0.10), in: Capsule())
+            } else if latestRequest?.status == .rejected {
+                Label("Action needed: tap to review Support feedback", systemImage: "exclamationmark.circle.fill")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaRed)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(PCCTheme.pohutukawaRed.opacity(0.10), in: Capsule())
+            } else if let latestRequest, latestRequest.status != .pending {
+                ReviewedRequestSummary(request: latestRequest)
+            }
+
             HStack(spacing: 9) {
                 Button(action: onView) {
                     Label("View", systemImage: "eye.fill")
@@ -606,29 +763,39 @@ struct MyListingCard: View {
                 .foregroundStyle(.white)
                 .background(PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
 
-                Label("Edit soon", systemImage: "pencil")
-                    .font(.caption.weight(.black))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
-                    .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                Button(action: onEdit) {
+                    Label("Edit", systemImage: "pencil")
+                        .font(.caption.weight(.black))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(pendingRequest == nil ? PCCTheme.ink.opacity(0.72) : PCCTheme.ink.opacity(0.34))
+                .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                .disabled(pendingRequest != nil)
 
-                Label("Remove soon", systemImage: "archivebox")
-                    .font(.caption.weight(.black))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
-                    .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                Button(action: onRemove) {
+                    Label("Remove", systemImage: "archivebox")
+                        .font(.caption.weight(.black))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(pendingRequest == nil ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.34))
+                .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                .disabled(pendingRequest != nil)
             }
         }
         .padding(13)
         .background(PCCTheme.cream.opacity(0.60), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        .onTapGesture(perform: onView)
     }
 
     private var editNote: String {
         switch listing.listingStatus {
         case .pendingReview:
-            return "Pending review. Edits and removal will be connected with review safeguards next."
+            return "Pending review. Edits and removal are sent back through Support."
         case .published:
             return "Published. Future edits to price, date, venue, photos or promotion will return to review."
         case .rejected:
@@ -641,6 +808,11 @@ struct MyListingCard: View {
 
 struct UserListingDetailSheet: View {
     let listing: LocalEvent
+    let pendingRequest: EventChangeRequest?
+    let latestRequest: EventChangeRequest?
+    let requests: [EventChangeRequest]
+    let onEdit: () -> Void
+    let onRemove: () -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -691,22 +863,51 @@ struct UserListingDetailSheet: View {
                     .pccCardStyle()
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Editing and removal controls are being connected next.", systemImage: "lock.shield")
+                        Label(pendingRequest == nil ? "Changes go back through review." : "Request already waiting for review.", systemImage: "lock.shield")
                             .font(.headline.weight(.black))
                             .foregroundStyle(PCCTheme.ink)
 
-                        Text("For launch safety, changes that affect price, promotion, event details or photos need to return to review before they appear publicly.")
+                        Text(reviewCopy)
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(PCCTheme.ink.opacity(0.64))
                             .lineSpacing(3)
 
                         HStack(spacing: 9) {
-                            DisabledListingAction(title: "Edit", icon: "pencil")
-                            DisabledListingAction(title: "Remove", icon: "archivebox")
+                            Button {
+                                dismiss()
+                                onEdit()
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                                    .font(.caption.weight(.black))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 11)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(pendingRequest == nil ? .white : PCCTheme.ink.opacity(0.36))
+                            .background(pendingRequest == nil ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                            .disabled(pendingRequest != nil)
+
+                            Button {
+                                dismiss()
+                                onRemove()
+                            } label: {
+                                Label("Remove", systemImage: "archivebox")
+                                    .font(.caption.weight(.black))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 11)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(pendingRequest == nil ? .white : PCCTheme.ink.opacity(0.36))
+                            .background(pendingRequest == nil ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                            .disabled(pendingRequest != nil)
                         }
                     }
                     .padding(18)
                     .pccCardStyle()
+
+                    if !requests.isEmpty {
+                        ListingRequestHistory(requests: requests)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 22)
@@ -724,6 +925,141 @@ struct UserListingDetailSheet: View {
                 }
             }
         }
+    }
+
+    private var reviewCopy: String {
+        if let pendingRequest {
+            return "\(pendingRequest.supportTitle) is pending. Support will review it before anything changes publicly."
+        }
+
+        return "For launch safety, edits and removal requests are reviewed before they affect the public listing."
+    }
+}
+
+struct ListingRequestHistory: View {
+    let requests: [EventChangeRequest]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Listing Activity")
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+
+                Text("Support decisions and notes stay attached to this listing.")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+            }
+
+            VStack(spacing: 10) {
+                ForEach(requests) { request in
+                    UserRequestTimelineCard(request: request)
+                }
+            }
+        }
+        .padding(18)
+        .pccCardStyle()
+    }
+}
+
+struct UserRequestTimelineCard: View {
+    let request: EventChangeRequest
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(request.supportTitle.capitalized)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text(request.createdAt.formatted(.dateTime.day().month().year().hour().minute()))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                }
+
+                Spacer()
+
+                Text(request.status.userStatusLabel)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(request.status.userStatusTint)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(request.status.userStatusTint.opacity(0.10), in: Capsule())
+            }
+
+            if let requesterNote = request.requesterNote, !requesterNote.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Your note")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.50))
+
+                    Text(requesterNote)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                }
+            }
+
+            if let reviewReason = request.reviewReason {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(reviewReason.label, systemImage: request.status == .rejected ? "exclamationmark.circle.fill" : "tag.fill")
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(request.status == .rejected ? PCCTheme.pohutukawaRed : PCCTheme.leafGreen)
+
+                    Text(reviewReason.userNextStep(for: request.changeType, status: request.status))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .lineSpacing(3)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(request.status == .rejected ? PCCTheme.pohutukawaRed.opacity(0.07) : PCCTheme.leafGreen.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+
+            if let supportNote = request.supportNote, !supportNote.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Support note")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.50))
+
+                    Text(supportNote)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                        .lineSpacing(3)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(PCCTheme.cream.opacity(0.68), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+
+            if request.status == .pending {
+                Label("Support has not reviewed this request yet.", systemImage: "clock.badge.exclamationmark")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+            }
+        }
+        .padding(13)
+        .background(PCCTheme.cream.opacity(0.54), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct ReviewedRequestSummary: View {
+    let request: EventChangeRequest
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(request.userSummary, systemImage: request.userSummaryIcon)
+                .font(.caption.weight(.black))
+                .foregroundStyle(request.userSummaryTint)
+
+            if let supportNote = request.supportNote, !supportNote.isEmpty {
+                Text(supportNote)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .lineLimit(3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -753,17 +1089,241 @@ struct UserListingInfoRow: View {
     }
 }
 
-struct DisabledListingAction: View {
-    let title: String
-    let icon: String
+struct ListingEditRequestSheet: View {
+    let listing: LocalEvent
+    let onSubmit: (ListingEditDraft, String?) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: ListingEditDraft
+    @State private var requesterNote = ""
+    @State private var isSubmitting = false
+
+    init(listing: LocalEvent, onSubmit: @escaping (ListingEditDraft, String?) async -> Void) {
+        self.listing = listing
+        self.onSubmit = onSubmit
+        _draft = State(initialValue: ListingEditDraft(event: listing))
+    }
 
     var body: some View {
-        Label("\(title) coming soon", systemImage: icon)
-            .font(.caption.weight(.black))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .foregroundStyle(PCCTheme.ink.opacity(0.48))
-            .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Request an edit")
+                            .font(.system(size: 34, weight: .black, design: .serif))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        Text("Your public listing will not change until Support reviews this request.")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .lineSpacing(3)
+                    }
+                    .padding(20)
+                    .pccCardStyle()
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        PCCFormField(title: "Event Name", text: $draft.title, prompt: "Event name")
+                        PCCFormField(title: "Venue", text: $draft.venue, prompt: "Venue")
+
+                        Picker("Town", selection: $draft.town) {
+                            ForEach(CoastTown.allCases.filter { $0 != .all }) { town in
+                                Text(town.rawValue).tag(town)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Picker("Category", selection: $draft.category) {
+                            ForEach(EventCategory.allCases) { category in
+                                Text(category.shortLabel).tag(category)
+                            }
+                        }
+
+                        DatePicker("Date", selection: $draft.date, displayedComponents: .date)
+                        DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+
+                        PCCFormField(title: "Cost", text: $draft.priceLabel, prompt: "Free, koha, $20")
+                        PCCFormField(title: "Audience", text: $draft.audience, prompt: "Everyone")
+                        PCCFormField(title: "Contact Name", text: $draft.contactName, prompt: "Organiser or venue")
+                        PCCFormField(title: "Contact Email", text: $draft.contactEmail, prompt: "name@example.co.nz")
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        PCCFormField(title: "Contact Phone", text: $draft.contactPhone, prompt: "Optional phone")
+                            .keyboardType(.phonePad)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Short Description")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                            TextEditor(text: $draft.shortDescription)
+                                .frame(minHeight: 96)
+                                .scrollContentBackground(.hidden)
+                                .padding(10)
+                                .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Extra details")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                            TextEditor(text: $draft.longDescription)
+                                .frame(minHeight: 118)
+                                .scrollContentBackground(.hidden)
+                                .padding(10)
+                                .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Note for Support")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                            TextEditor(text: $requesterNote)
+                                .frame(minHeight: 82)
+                                .scrollContentBackground(.hidden)
+                                .padding(10)
+                                .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                        }
+
+                        Label("Photo changes will be connected in a later pass.", systemImage: "photo.on.rectangle")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.60))
+                    }
+                    .padding(20)
+                    .pccCardStyle()
+
+                    Button {
+                        submit()
+                    } label: {
+                        Label(isSubmitting ? "Sending Request" : "Send Edit Request", systemImage: isSubmitting ? "hourglass" : "paperplane.fill")
+                            .font(.headline.weight(.black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                    .background(draft.canSubmit && !isSubmitting ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.28), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    .disabled(!draft.canSubmit || isSubmitting)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 22)
+                .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
+            }
+            .background(PCCScreenBackground())
+            .navigationTitle("Edit Request")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .disabled(isSubmitting)
+                }
+            }
+        }
+    }
+
+    private func submit() {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+
+        Task {
+            await onSubmit(draft, requesterNote.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty)
+            await MainActor.run {
+                isSubmitting = false
+            }
+        }
+    }
+}
+
+struct ListingRemovalRequestSheet: View {
+    let listing: LocalEvent
+    let onSubmit: (String?) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var requesterNote = ""
+    @State private var isSubmitting = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Request removal?")
+                            .font(.system(size: 34, weight: .black, design: .serif))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        Text(listing.title)
+                            .font(.title3.weight(.black))
+                            .foregroundStyle(PCCTheme.leafGreen)
+
+                        Text("This sends a request to Support. Your listing may remain visible until the request is approved.")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .lineSpacing(3)
+                    }
+                    .padding(20)
+                    .pccCardStyle()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Note for Support")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                        TextEditor(text: $requesterNote)
+                            .frame(minHeight: 112)
+                            .scrollContentBackground(.hidden)
+                            .padding(10)
+                            .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    }
+                    .padding(20)
+                    .pccCardStyle()
+
+                    Button {
+                        submit()
+                    } label: {
+                        Label(isSubmitting ? "Sending Request" : "Send Removal Request", systemImage: isSubmitting ? "hourglass" : "archivebox.fill")
+                            .font(.headline.weight(.black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                    .background(isSubmitting ? PCCTheme.ink.opacity(0.28) : PCCTheme.pohutukawaRed, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    .disabled(isSubmitting)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 22)
+                .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
+            }
+            .background(PCCScreenBackground())
+            .navigationTitle("Remove Listing")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .disabled(isSubmitting)
+                }
+            }
+        }
+    }
+
+    private func submit() {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+
+        Task {
+            await onSubmit(requesterNote.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty)
+            await MainActor.run {
+                isSubmitting = false
+            }
+        }
     }
 }
 
@@ -1139,5 +1699,122 @@ private extension ListingStatus {
         case .rejected: return PCCTheme.pohutukawaRed
         case .archived: return PCCTheme.ink.opacity(0.62)
         }
+    }
+}
+
+private extension EventChangeRequest {
+    var userSummary: String {
+        let reason = reviewReason?.label
+
+        switch status {
+        case .pending:
+            return "\(supportTitle) pending review"
+        case .applied:
+            return reason.map { "Applied: \($0)" } ?? "Applied"
+        case .approved:
+            return reason.map { "Approved: \($0)" } ?? "Approved"
+        case .rejected:
+            return reason.map { "Rejected: \($0)" } ?? "Rejected"
+        case .cancelled:
+            return reason.map { "Cancelled: \($0)" } ?? "Cancelled"
+        }
+    }
+
+    var userSummaryIcon: String {
+        switch status {
+        case .pending:
+            return "clock.badge.exclamationmark"
+        case .applied, .approved:
+            return "checkmark.seal.fill"
+        case .rejected:
+            return "exclamationmark.circle.fill"
+        case .cancelled:
+            return "xmark.circle.fill"
+        }
+    }
+
+    var userSummaryTint: Color {
+        switch status {
+        case .pending:
+            return PCCTheme.pohutukawaOrange
+        case .applied, .approved:
+            return PCCTheme.leafGreen
+        case .rejected, .cancelled:
+            return PCCTheme.pohutukawaRed
+        }
+    }
+}
+
+private extension EventChangeRequestStatus {
+    var userStatusLabel: String {
+        switch self {
+        case .pending: return "Pending"
+        case .approved: return "Approved"
+        case .rejected: return "Action Needed"
+        case .cancelled: return "Cancelled"
+        case .applied: return "Applied"
+        }
+    }
+
+    var userStatusTint: Color {
+        switch self {
+        case .pending:
+            return PCCTheme.pohutukawaOrange
+        case .approved, .applied:
+            return PCCTheme.leafGreen
+        case .rejected, .cancelled:
+            return PCCTheme.pohutukawaRed
+        }
+    }
+}
+
+private extension EventReviewReason {
+    func userNextStep(for changeType: EventChangeType, status: EventChangeRequestStatus) -> String {
+        if status == .applied || status == .approved {
+            switch changeType {
+            case .editRequest:
+                return "Your edit has been reviewed and applied to the listing."
+            case .removalRequest:
+                return "Your removal request has been approved and the listing has been archived."
+            }
+        }
+
+        if status == .pending {
+            return "Support is reviewing this request. Nothing changes publicly until it is approved."
+        }
+
+        switch self {
+        case .approvedApplied:
+            return "Support approved this request."
+        case .needsPayment:
+            return "This listing needs a paid option before it can be approved. Update the listing or choose the right paid listing path when payments are connected."
+        case .inappropriateWording:
+            return "Update the wording so it is clear, local and suitable for public viewing, then send another edit request."
+        case .inappropriateImage:
+            return "Replace or remove the photo before sending another request. Photo edits will be connected in a later pass."
+        case .wrongCategory:
+            return "Choose the category that best matches the listing, then resubmit."
+        case .wrongDateTime:
+            return "Check the event date and time, then send an updated request."
+        case .unclearLocation:
+            return "Add a clearer venue or location so people can find the event."
+        case .duplicateListing:
+            return "This appears to duplicate another listing. Use the existing listing or change this one so it is clearly different."
+        case .commercialSubmittedAsFree:
+            return "This appears commercial. Adjust it to a community listing or use a paid listing option when payments are connected."
+        case .promotionUpgradeRequired:
+            return "This request needs a promotion or featured listing option before it can be applied."
+        case .notEnoughInformation:
+            return "Add the missing details people need, such as what is happening, where it is, and who it is for."
+        case .other:
+            return "Read the Support note below, then update the listing if needed."
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

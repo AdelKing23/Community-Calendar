@@ -68,6 +68,207 @@ enum ListingStatus: String, Hashable {
     case archived
 }
 
+enum EventChangeType: String, Hashable, Codable {
+    case editRequest = "edit_request"
+    case removalRequest = "removal_request"
+}
+
+enum EventChangeRequestStatus: String, Hashable, Codable {
+    case pending
+    case approved
+    case rejected
+    case cancelled
+    case applied
+}
+
+enum EventReviewReason: String, CaseIterable, Identifiable, Hashable, Codable {
+    case approvedApplied = "approved_applied"
+    case needsPayment = "needs_payment"
+    case inappropriateWording = "inappropriate_wording"
+    case inappropriateImage = "inappropriate_image"
+    case wrongCategory = "wrong_category"
+    case wrongDateTime = "wrong_date_time"
+    case unclearLocation = "unclear_location"
+    case duplicateListing = "duplicate_listing"
+    case commercialSubmittedAsFree = "commercial_submitted_as_free"
+    case promotionUpgradeRequired = "promotion_upgrade_required"
+    case notEnoughInformation = "not_enough_information"
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .approvedApplied: return "Approved and applied"
+        case .needsPayment: return "Needs payment"
+        case .inappropriateWording: return "Inappropriate wording"
+        case .inappropriateImage: return "Inappropriate image"
+        case .wrongCategory: return "Wrong category"
+        case .wrongDateTime: return "Wrong date or time"
+        case .unclearLocation: return "Unclear location"
+        case .duplicateListing: return "Duplicate listing"
+        case .commercialSubmittedAsFree: return "Commercial submitted as free"
+        case .promotionUpgradeRequired: return "Promotion upgrade required"
+        case .notEnoughInformation: return "Not enough information"
+        case .other: return "Other"
+        }
+    }
+}
+
+enum EventChangeValue: Hashable, Codable {
+    case string(String)
+    case bool(Bool)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+            return
+        }
+
+        self = .string(try container.decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        switch self {
+        case .string(let value):
+            try container.encode(value)
+        case .bool(let value):
+            try container.encode(value)
+        }
+    }
+
+    var displayText: String {
+        switch self {
+        case .string(let value):
+            return value
+        case .bool(let value):
+            return value ? "Yes" : "No"
+        }
+    }
+}
+
+struct EventChangeRequest: Identifiable, Hashable {
+    let id: UUID
+    let eventID: UUID
+    let requestedBy: UUID
+    let changeType: EventChangeType
+    let status: EventChangeRequestStatus
+    let proposedChanges: [String: EventChangeValue]
+    let requesterNote: String?
+    let reviewReason: EventReviewReason?
+    let supportNote: String?
+    let reviewedBy: UUID?
+    let reviewedAt: Date?
+    let appliedAt: Date?
+    let createdAt: Date
+    let updatedAt: Date
+    let event: LocalEvent?
+
+    var isPending: Bool {
+        status == .pending
+    }
+
+    var supportTitle: String {
+        switch changeType {
+        case .editRequest: return "Edit request"
+        case .removalRequest: return "Removal request"
+        }
+    }
+}
+
+struct ListingEditDraft: Hashable {
+    var title: String
+    var category: EventCategory
+    var town: CoastTown
+    var venue: String
+    var date: Date
+    var time: Date
+    var priceLabel: String
+    var audience: String
+    var shortDescription: String
+    var longDescription: String
+    var contactName: String
+    var contactEmail: String
+    var contactPhone: String
+
+    init(event: LocalEvent) {
+        title = event.title
+        category = event.category
+        town = event.town
+        venue = event.venue
+        date = event.startDate
+        time = event.startDate
+        priceLabel = event.priceLabel
+        audience = event.audience
+        shortDescription = event.shortDescription
+        longDescription = event.longDescription
+        contactName = event.contactName ?? ""
+        contactEmail = event.contactEmail ?? ""
+        contactPhone = event.contactPhone ?? ""
+    }
+
+    var canSubmit: Bool {
+        [
+            title,
+            venue,
+            shortDescription
+        ].allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var startDate: Date {
+        Calendar.current.date(
+            bySettingHour: Calendar.current.component(.hour, from: time),
+            minute: Calendar.current.component(.minute, from: time),
+            second: 0,
+            of: date
+        ) ?? date
+    }
+
+    var endDate: Date {
+        Calendar.current.date(byAdding: .hour, value: 2, to: startDate) ?? startDate
+    }
+
+    var proposedChanges: [String: EventChangeValue] {
+        let price = priceLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedPrice = price.isEmpty ? "Free" : price
+        let description = shortDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let longText = longDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return [
+            "title": .string(title.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "category": .string(category.rawValue),
+            "town": .string(town.rawValue),
+            "venue": .string(venue.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "start_at": .string(SupabaseDateEncoding.string(from: startDate)),
+            "end_at": .string(SupabaseDateEncoding.string(from: endDate)),
+            "price_label": .string(resolvedPrice),
+            "is_free": .bool(resolvedPrice.localizedCaseInsensitiveContains("free")),
+            "audience": .string(audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Everyone" : audience.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "short_description": .string(description),
+            "long_description": .string(longText.isEmpty ? description : longText),
+            "contact_name": .string(contactName.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "contact_email": .string(contactEmail.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "contact_phone": .string(contactPhone.trimmingCharacters(in: .whitespacesAndNewlines))
+        ]
+    }
+}
+
+enum SupabaseDateEncoding {
+    static func string(from date: Date) -> String {
+        formatter.string(from: date)
+    }
+
+    private static let formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+}
+
 struct EventImage: Identifiable, Hashable {
     let id: UUID
     let eventID: UUID

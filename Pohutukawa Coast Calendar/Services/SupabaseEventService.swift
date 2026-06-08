@@ -29,6 +29,12 @@ protocol UserListingFetching {
     func fetchUserListings(userID: UUID, accessToken: String) async throws -> [LocalEvent]
 }
 
+protocol EventChangeRequesting {
+    func createEditRequest(event: LocalEvent, draft: ListingEditDraft, requesterID: UUID, requesterNote: String?, accessToken: String) async throws
+    func createRemovalRequest(event: LocalEvent, requesterID: UUID, requesterNote: String?, accessToken: String) async throws
+    func fetchMyChangeRequests(userID: UUID, accessToken: String) async throws -> [EventChangeRequest]
+}
+
 protocol PublishedEventFetching {
     func fetchPublishedEvents() async throws -> [LocalEvent]
     func fetchPublishedEvents(from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent]
@@ -42,6 +48,10 @@ protocol OwnerAuthenticating {
 protocol OwnerEventReviewing {
     func fetchOwnerEvents(accessToken: String) async throws -> [LocalEvent]
     func updateEventStatus(id: UUID, status: ListingStatus, accessToken: String) async throws
+    func fetchSupportChangeRequests(accessToken: String) async throws -> [EventChangeRequest]
+    func supportApproveChangeRequest(_ request: EventChangeRequest, reviewReason: EventReviewReason, supportNote: String?, accessToken: String) async throws
+    func supportRejectChangeRequest(id: UUID, reviewReason: EventReviewReason, supportNote: String?, accessToken: String) async throws
+    func supportMarkApplied(id: UUID, reviewReason: EventReviewReason, supportNote: String?, accessToken: String) async throws
 }
 
 struct OwnerSession: Hashable {
@@ -56,7 +66,7 @@ struct OwnerSession: Hashable {
     }
 }
 
-struct SupabaseEventService: EventListingSubmitting, UserListingFetching, PublishedEventFetching, OwnerAuthenticating, OwnerEventReviewing {
+struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventChangeRequesting, PublishedEventFetching, OwnerAuthenticating, OwnerEventReviewing {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -187,6 +197,63 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Publis
         let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
         try validate(response)
         return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: accessToken, logContext: "user listings")
+    }
+
+    func createEditRequest(
+        event: LocalEvent,
+        draft: ListingEditDraft,
+        requesterID: UUID,
+        requesterNote: String?,
+        accessToken: String
+    ) async throws {
+        try await insertChangeRequest(
+            EventChangeRequestInsert(
+                eventID: event.id,
+                requestedBy: requesterID,
+                changeType: .editRequest,
+                proposedChanges: draft.proposedChanges,
+                requesterNote: requesterNote?.trimmed.nilIfEmpty
+            ),
+            accessToken: accessToken
+        )
+    }
+
+    func createRemovalRequest(
+        event: LocalEvent,
+        requesterID: UUID,
+        requesterNote: String?,
+        accessToken: String
+    ) async throws {
+        try await insertChangeRequest(
+            EventChangeRequestInsert(
+                eventID: event.id,
+                requestedBy: requesterID,
+                changeType: .removalRequest,
+                proposedChanges: [:],
+                requesterNote: requesterNote?.trimmed.nilIfEmpty
+            ),
+            accessToken: accessToken
+        )
+    }
+
+    func fetchMyChangeRequests(userID: UUID, accessToken: String) async throws -> [EventChangeRequest] {
+        guard var components = eventChangeRequestsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*,events(*,event_images(*))"),
+            URLQueryItem(name: "requested_by", value: "eq.\(userID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.desc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
+        try validate(response)
+        return await changeRequests(from: try decoder.decode([SupabaseEventChangeRequestRecord].self, from: data), accessToken: accessToken)
     }
 
     func signInOwner(email: String, password: String) async throws -> OwnerSession {
@@ -330,6 +397,133 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Publis
         try validate(response)
     }
 
+    func fetchSupportChangeRequests(accessToken: String) async throws -> [EventChangeRequest] {
+        guard var components = eventChangeRequestsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*,events(*,event_images(*))"),
+            URLQueryItem(name: "order", value: "created_at.desc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
+        try validate(response)
+        return await changeRequests(from: try decoder.decode([SupabaseEventChangeRequestRecord].self, from: data), accessToken: accessToken)
+    }
+
+    func supportApproveChangeRequest(_ request: EventChangeRequest, reviewReason: EventReviewReason, supportNote: String?, accessToken: String) async throws {
+        switch request.changeType {
+        case .editRequest:
+            try await updateEvent(id: request.eventID, proposedChanges: request.proposedChanges, accessToken: accessToken)
+            try await updateChangeRequest(
+                id: request.id,
+                update: EventChangeRequestUpdate(status: .applied, reviewReason: reviewReason, supportNote: supportNote, reviewedAt: Date(), appliedAt: Date()),
+                accessToken: accessToken
+            )
+        case .removalRequest:
+            try await updateEventStatus(id: request.eventID, status: .archived, accessToken: accessToken)
+            try await updateChangeRequest(
+                id: request.id,
+                update: EventChangeRequestUpdate(status: .applied, reviewReason: reviewReason, supportNote: supportNote, reviewedAt: Date(), appliedAt: Date()),
+                accessToken: accessToken
+            )
+        }
+    }
+
+    func supportRejectChangeRequest(id: UUID, reviewReason: EventReviewReason, supportNote: String?, accessToken: String) async throws {
+        try await updateChangeRequest(
+            id: id,
+            update: EventChangeRequestUpdate(status: .rejected, reviewReason: reviewReason, supportNote: supportNote, reviewedAt: Date(), appliedAt: nil),
+            accessToken: accessToken
+        )
+    }
+
+    func supportMarkApplied(id: UUID, reviewReason: EventReviewReason, supportNote: String?, accessToken: String) async throws {
+        try await updateChangeRequest(
+            id: id,
+            update: EventChangeRequestUpdate(status: .applied, reviewReason: reviewReason, supportNote: supportNote, reviewedAt: Date(), appliedAt: Date()),
+            accessToken: accessToken
+        )
+    }
+
+    private func insertChangeRequest(_ insert: EventChangeRequestInsert, accessToken: String) async throws {
+        guard let url = eventChangeRequestsURLComponents?.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try encoder.encode(insert)
+
+        let (_, response) = try await session.data(for: request)
+        try validate(response)
+    }
+
+    private func changeRequests(from records: [SupabaseEventChangeRequestRecord], accessToken: String?) async -> [EventChangeRequest] {
+        var requests: [EventChangeRequest] = []
+
+        for record in records {
+            let eventImages = record.event?.eventImages ?? []
+            let signedImages = await signedEventImages(from: eventImages, eventID: record.eventID, accessToken: accessToken)
+            requests.append(record.changeRequest(event: record.event?.localEvent(images: signedImages)))
+        }
+
+        return requests
+    }
+
+    private func updateEvent(id: UUID, proposedChanges: [String: EventChangeValue], accessToken: String) async throws {
+        guard var components = eventsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString)")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try encoder.encode(proposedChanges)
+
+        let (_, response) = try await session.data(for: request)
+        try validate(response)
+    }
+
+    private func updateChangeRequest(id: UUID, update: EventChangeRequestUpdate, accessToken: String) async throws {
+        guard var components = eventChangeRequestsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString)")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try encoder.encode(update)
+
+        let (_, response) = try await session.data(for: request)
+        try validate(response)
+    }
+
     private func uploadStorageObject(data: Data, storagePath: String, mimeType: String, accessToken: String) async throws {
         guard let url = storageObjectURL(storagePath: storagePath) else {
             throw SupabaseServiceError.notConfigured
@@ -462,6 +656,15 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Publis
 
     private var eventImagesURLComponents: URLComponents? {
         guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("event_images"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private var eventChangeRequestsURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("event_change_requests"),
               SupabaseConfiguration.isConfigured else {
             return nil
         }
@@ -656,6 +859,96 @@ struct SupabaseEventImageRecord: Decodable {
             height: height,
             signedURL: signedURL
         )
+    }
+}
+
+struct SupabaseEventChangeRequestRecord: Decodable {
+    let id: UUID
+    let eventID: UUID
+    let requestedBy: UUID
+    let changeType: EventChangeType
+    let status: EventChangeRequestStatus
+    let proposedChanges: [String: EventChangeValue]
+    let requesterNote: String?
+    let reviewReason: EventReviewReason?
+    let supportNote: String?
+    let reviewedBy: UUID?
+    let reviewedAt: Date?
+    let appliedAt: Date?
+    let createdAt: Date
+    let updatedAt: Date
+    let event: SupabaseEventRecord?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case eventID = "event_id"
+        case requestedBy = "requested_by"
+        case changeType = "change_type"
+        case status
+        case proposedChanges = "proposed_changes"
+        case requesterNote = "requester_note"
+        case reviewReason = "review_reason"
+        case supportNote = "support_note"
+        case reviewedBy = "reviewed_by"
+        case reviewedAt = "reviewed_at"
+        case appliedAt = "applied_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case event = "events"
+    }
+
+    func changeRequest(event: LocalEvent?) -> EventChangeRequest {
+        EventChangeRequest(
+            id: id,
+            eventID: eventID,
+            requestedBy: requestedBy,
+            changeType: changeType,
+            status: status,
+            proposedChanges: proposedChanges,
+            requesterNote: requesterNote,
+            reviewReason: reviewReason,
+            supportNote: supportNote,
+            reviewedBy: reviewedBy,
+            reviewedAt: reviewedAt,
+            appliedAt: appliedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            event: event
+        )
+    }
+}
+
+struct EventChangeRequestInsert: Encodable {
+    let eventID: UUID
+    let requestedBy: UUID
+    let changeType: EventChangeType
+    let status: EventChangeRequestStatus = .pending
+    let proposedChanges: [String: EventChangeValue]
+    let requesterNote: String?
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "event_id"
+        case requestedBy = "requested_by"
+        case changeType = "change_type"
+        case status
+        case proposedChanges = "proposed_changes"
+        case requesterNote = "requester_note"
+    }
+}
+
+struct EventChangeRequestUpdate: Encodable {
+    let status: EventChangeRequestStatus
+    let reviewReason: EventReviewReason
+    let supportNote: String?
+    let reviewedAt: Date?
+    let appliedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case reviewReason = "review_reason"
+        case supportNote = "support_note"
+        case reviewedAt = "reviewed_at"
+        case appliedAt = "applied_at"
     }
 }
 
