@@ -35,7 +35,14 @@ struct EngagementActionRow: View {
     }
 
     private var shareText: String {
-        "\(event.title)\n\(event.dateText)\n\(event.venue), \(event.town.rawValue)"
+        """
+        \(event.title)
+        \(event.dateText)
+        \(event.timeText)
+        \(event.venue), \(event.town.rawValue)
+
+        Shared from Community Calendar. App link coming soon.
+        """
     }
 }
 

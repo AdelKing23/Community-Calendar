@@ -13,25 +13,99 @@ enum PCCTheme {
     static let smallRadius: CGFloat = 18
 }
 
+enum PCCWallpaperStyle: String, CaseIterable, Identifiable {
+    case ornament
+    case beachPohutukawa
+    case bushWalk
+    case clearBlueSea
+    case clifftopCoast
+    case coastalSunrise
+    case estuarySunset
+    case jettyHarbour
+    case sandyBeach
+    case sunsetRocks
+
+    var id: String { rawValue }
+
+    static let storageKey = "communityCalendar.wallpaperStyle"
+
+    static func style(for rawValue: String) -> PCCWallpaperStyle {
+        PCCWallpaperStyle(rawValue: rawValue) ?? .ornament
+    }
+
+    var title: String {
+        switch self {
+        case .ornament: return "Original"
+        case .beachPohutukawa: return "Pohutukawa Beach"
+        case .bushWalk: return "Bush Walk"
+        case .clearBlueSea: return "Clear Blue Sea"
+        case .clifftopCoast: return "Clifftop Coast"
+        case .coastalSunrise: return "Coastal Sunrise"
+        case .estuarySunset: return "Estuary Sunset"
+        case .jettyHarbour: return "Jetty Harbour"
+        case .sandyBeach: return "Sandy Beach"
+        case .sunsetRocks: return "Sunset Rocks"
+        }
+    }
+
+    var assetName: String? {
+        switch self {
+        case .ornament: return nil
+        case .beachPohutukawa: return "PCCWallpaperBeachPohutukawa"
+        case .bushWalk: return "PCCWallpaperBushWalk"
+        case .clearBlueSea: return "PCCWallpaperClearBlueSea"
+        case .clifftopCoast: return "PCCWallpaperClifftopCoast"
+        case .coastalSunrise: return "PCCWallpaperCoastalSunrise"
+        case .estuarySunset: return "PCCWallpaperEstuarySunset"
+        case .jettyHarbour: return "PCCWallpaperJettyHarbour"
+        case .sandyBeach: return "PCCWallpaperSandyBeach"
+        case .sunsetRocks: return "PCCWallpaperSunsetRocks"
+        }
+    }
+}
+
 struct PCCScreenBackground: View {
+    @AppStorage(PCCWallpaperStyle.storageKey) private var selectedWallpaper = PCCWallpaperStyle.ornament.rawValue
+
     var body: some View {
+        let style = PCCWallpaperStyle.style(for: selectedWallpaper)
+
         ZStack {
-            PCCTheme.cream.ignoresSafeArea()
+            if let assetName = style.assetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
 
-            LinearGradient(
-                colors: [
-                    .white.opacity(0.95),
-                    PCCTheme.cream.opacity(0.95),
-                    Color(red: 0.95, green: 0.91, blue: 0.82)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-
-            PCCWallpaperOrnament()
-                .opacity(0.88)
+                LinearGradient(
+                    colors: [
+                        .white.opacity(0.34),
+                        PCCTheme.cream.opacity(0.26),
+                        PCCTheme.cream.opacity(0.46)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
                 .ignoresSafeArea()
+
+            } else {
+                PCCTheme.cream.ignoresSafeArea()
+
+                LinearGradient(
+                    colors: [
+                        .white.opacity(0.95),
+                        PCCTheme.cream.opacity(0.95),
+                        Color(red: 0.95, green: 0.91, blue: 0.82)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                PCCWallpaperOrnament()
+                    .opacity(0.88)
+                    .ignoresSafeArea()
+            }
         }
     }
 }

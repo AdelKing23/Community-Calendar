@@ -40,7 +40,9 @@ struct RootTabView: View {
                 case .calendar:
                     CalendarScreen()
                 case .settings:
-                    SettingsScreen()
+                    SettingsScreen {
+                        selectedTab = .create
+                    }
                 }
             }
 

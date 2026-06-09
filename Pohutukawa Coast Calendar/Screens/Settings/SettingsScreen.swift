@@ -2,7 +2,20 @@ import SwiftUI
 
 struct SettingsScreen: View {
     @EnvironmentObject private var userSessionStore: UserSessionStore
-    @EnvironmentObject private var ownerSessionStore: OwnerSessionStore
+    @AppStorage(PCCWallpaperStyle.storageKey) private var selectedWallpaper = PCCWallpaperStyle.ornament.rawValue
+    let onNavigateCreate: () -> Void
+    @State private var canOpenReviewQueue = false
+    @State private var selectedDocument: SettingsDocument?
+    @State private var showWallpaperPicker = false
+    @State private var showContactSupport = false
+    @State private var showPayments = false
+    @State private var showSavedReminders = false
+
+    private let supportService: OwnerEventReviewing = SupabaseEventService()
+
+    init(onNavigateCreate: @escaping () -> Void = {}) {
+        self.onNavigateCreate = onNavigateCreate
+    }
 
     var body: some View {
         NavigationStack {
@@ -15,10 +28,7 @@ struct SettingsScreen: View {
                             .font(.system(size: 40, weight: .black, design: .serif))
                             .foregroundStyle(PCCTheme.ink)
 
-                        SettingsListSection(
-                            title: "Account",
-                            rows: accountRows
-                        )
+                        accountSection
 
                         if userSessionStore.isSignedIn {
                             Button {
@@ -35,8 +45,8 @@ struct SettingsScreen: View {
                                 SettingsRowContent(
                                     id: "previous-listings",
                                     icon: "rectangle.stack",
-                                    title: "Previous listings",
-                                    subtitle: "View submitted posts and review status from the Create tab.",
+                                    title: "Your listings",
+                                    subtitle: "Create, review, edit and remove your listings from the Create tab.",
                                     detail: "Create tab",
                                     style: .status,
                                     isEnabled: true
@@ -44,69 +54,66 @@ struct SettingsScreen: View {
                             ]
                         )
 
-                        SettingsListSection(
-                            title: "Payment",
-                            rows: [
-                                SettingsRowContent(
-                                    id: "faster-checkout",
-                                    icon: "creditcard",
-                                    title: "Faster checkout",
-                                    subtitle: "Paid listing checkout will be handled securely by the payment provider.",
-                                    detail: "Coming soon",
-                                    style: .status,
-                                    isEnabled: false
+                        SettingsActionSection(title: "Saved & Reminders") {
+                            Button {
+                                showSavedReminders = true
+                            } label: {
+                                SettingsRow(
+                                    content: SettingsRowContent(
+                                        id: "saved-reminders",
+                                        icon: "bookmark",
+                                        title: "Saved events",
+                                        subtitle: "Saved, going and interested events will appear here.",
+                                        detail: "Soon",
+                                        style: .disclosure,
+                                        isEnabled: true
+                                    )
                                 )
-                            ],
-                            footer: "Payment details are handled securely by the payment provider, not stored in this app."
-                        )
+                            }
+                            .buttonStyle(.plain)
+                        }
 
-                        SettingsListSection(
-                            title: "Appearance",
-                            rows: [
-                                SettingsRowContent(
-                                    id: "theme",
-                                    icon: "circle.lefthalf.filled",
-                                    title: "Theme",
-                                    subtitle: "System default for now.",
-                                    detail: nil,
-                                    style: .toggle(isOn: true),
-                                    isEnabled: false
+                        SettingsActionSection(title: "Payments") {
+                            Button {
+                                showPayments = true
+                            } label: {
+                                SettingsRow(
+                                    content: SettingsRowContent(
+                                        id: "payments",
+                                        icon: "creditcard",
+                                        title: "Payments and receipts",
+                                        subtitle: "Listing payments and receipts will appear here once paid options are live.",
+                                        detail: "Soon",
+                                        style: .disclosure,
+                                        isEnabled: true
+                                    )
                                 )
-                            ]
-                        )
+                            }
+                            .buttonStyle(.plain)
+                        } footer: {
+                            Text("Community Calendar will not store card details. Payments will be handled securely by Stripe.")
+                        }
 
-                        SettingsListSection(
-                            title: "Documents",
-                            rows: [
-                                SettingsRowContent(
-                                    id: "terms",
-                                    icon: "doc.text",
-                                    title: "Terms and conditions",
-                                    subtitle: "Clear listing and app terms before launch.",
-                                    detail: "Coming soon",
-                                    style: .disclosure,
-                                    isEnabled: false
-                                ),
-                                SettingsRowContent(
-                                    id: "privacy",
-                                    icon: "hand.raised",
-                                    title: "Privacy policy",
-                                    subtitle: "How account and listing details are used.",
-                                    detail: "Coming soon",
-                                    style: .disclosure,
-                                    isEnabled: false
-                                ),
-                                SettingsRowContent(
-                                    id: "posting-rules",
-                                    icon: "checkmark.seal",
-                                    title: "Community posting rules",
-                                    subtitle: "What can be listed and what needs review.",
-                                    detail: "Coming soon",
-                                    style: .disclosure,
-                                    isEnabled: false
+                        SettingsActionSection(title: "Wallpaper") {
+                            Button {
+                                showWallpaperPicker = true
+                            } label: {
+                                SettingsRow(
+                                    content: SettingsRowContent(
+                                        id: "wallpaper",
+                                        icon: "photo",
+                                        title: "App wallpaper",
+                                        subtitle: PCCWallpaperStyle.style(for: selectedWallpaper).title,
+                                        detail: "Change",
+                                        style: .disclosure,
+                                        isEnabled: true
+                                    )
                                 )
-                            ]
-                        )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        SettingsDocumentsSection(selectedDocument: $selectedDocument)
 
                         SettingsListSection(
                             title: "Area",
@@ -124,27 +131,33 @@ struct SettingsScreen: View {
                             footer: "More communities coming soon."
                         )
 
-                        SettingsListSection(
-                            title: "Help",
-                            rows: [
-                                SettingsRowContent(
-                                    id: "contact",
-                                    icon: "envelope",
-                                    title: "Contact \(CommunityArea.appBrandName)",
-                                    subtitle: "Use Create to submit a listing. Support contact details will be added before launch.",
-                                    detail: "Soon",
-                                    style: .disclosure,
-                                    isEnabled: false
+                        SettingsActionSection(title: "Contact Support") {
+                            Button {
+                                showContactSupport = true
+                            } label: {
+                                SettingsRow(
+                                    content: SettingsRowContent(
+                                        id: "contact",
+                                        icon: "envelope",
+                                        title: "Contact \(CommunityArea.appBrandName)",
+                                        subtitle: "Send a short support request from this app once support sending is connected.",
+                                        detail: "Open",
+                                        style: .disclosure,
+                                        isEnabled: true
+                                    )
                                 )
-                            ]
-                        )
-
-                        NavigationLink {
-                            SupportAdminScreen()
-                        } label: {
-                            OwnerSupportRow(isSignedIn: ownerSessionStore.isSignedIn)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+
+                        if canOpenReviewQueue {
+                            NavigationLink {
+                                SupportAdminScreen()
+                            } label: {
+                                ReviewQueueRow()
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, PCCKeyboardSpacing.standardTopPadding)
@@ -152,35 +165,127 @@ struct SettingsScreen: View {
                 }
             }
             .navigationBarHidden(true)
+            .task(id: userSessionStore.session?.userID) {
+                await checkReviewQueueAccess()
+            }
+            .sheet(item: $selectedDocument) { document in
+                SettingsDocumentScreen(document: document)
+            }
+            .sheet(isPresented: $showWallpaperPicker) {
+                WallpaperPickerScreen()
+            }
+            .sheet(isPresented: $showContactSupport) {
+                ContactSupportPlaceholderScreen()
+            }
+            .sheet(isPresented: $showPayments) {
+                PaymentsPlaceholderScreen()
+            }
+            .sheet(isPresented: $showSavedReminders) {
+                SavedRemindersPlaceholderScreen()
+            }
         }
     }
 
-    private var accountRows: [SettingsRowContent] {
+    @ViewBuilder
+    private var accountSection: some View {
         if userSessionStore.isSignedIn {
-            return [
-                SettingsRowContent(
-                    id: "account-details",
-                    icon: "person.crop.circle.fill",
-                    title: "Account details",
-                    subtitle: userSessionStore.email ?? "Signed-in account",
-                    detail: "Active",
-                    style: .status,
-                    isEnabled: true
-                )
-            ]
+            SettingsListSection(
+                title: "Account",
+                rows: [
+                    SettingsRowContent(
+                        id: "account-details",
+                        icon: "person.crop.circle.fill",
+                        title: "Account details",
+                        subtitle: userSessionStore.email ?? "Signed-in account",
+                        detail: "Active",
+                        style: .status,
+                        isEnabled: true
+                    )
+                ]
+            )
+        } else {
+            SettingsActionSection(title: "Account") {
+                Button {
+                    onNavigateCreate()
+                } label: {
+                    SettingsRow(
+                        content: SettingsRowContent(
+                            id: "join-community",
+                            icon: "person.crop.circle.badge.plus",
+                            title: "Create account / Sign in",
+                            subtitle: "Create a free account when you are ready to submit and manage listings.",
+                            detail: "Create tab",
+                            style: .disclosure,
+                            isEnabled: true
+                        )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @MainActor
+    private func checkReviewQueueAccess() async {
+        guard let currentSession = userSessionStore.session else {
+            canOpenReviewQueue = false
+            return
         }
 
-        return [
-            SettingsRowContent(
-                id: "join-community",
-                icon: "person.crop.circle.badge.plus",
-                title: "Create account / Sign in",
-                subtitle: "Create a free account when you are ready to submit and manage listings.",
-                detail: "Create tab",
-                style: .disclosure,
-                isEnabled: true
+        await userSessionStore.refreshIfNeeded()
+        let activeSession = userSessionStore.session ?? currentSession
+        canOpenReviewQueue = SupportAccessPolicy.isSupportAccount(email: activeSession.email)
+    }
+}
+
+struct SettingsActionSection<Content: View, Footer: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let footer: () -> Footer
+
+    init(
+        title: String,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder footer: @escaping () -> Footer
+    ) {
+        self.title = title
+        self.content = content
+        self.footer = footer
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                .textCase(.uppercase)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)
+                    .stroke(.white.opacity(0.82), lineWidth: 1)
             )
-        ]
+
+            footer()
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+        }
+    }
+}
+
+extension SettingsActionSection where Footer == EmptyView {
+    init(
+        title: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.content = content
+        self.footer = { EmptyView() }
     }
 }
 
@@ -322,6 +427,581 @@ struct SettingsSignOutRow: View {
                 .foregroundStyle(PCCTheme.pohutukawaRed)
 
             Spacer()
+        }
+        .padding(14)
+        .background(.white.opacity(0.58), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)
+                .stroke(.white.opacity(0.70), lineWidth: 1)
+        )
+    }
+}
+
+struct SettingsDocumentsSection: View {
+    @Binding var selectedDocument: SettingsDocument?
+
+    var body: some View {
+        SettingsActionSection(title: "Documents") {
+            VStack(spacing: 0) {
+                ForEach(SettingsDocument.allCases) { document in
+                    Button {
+                        selectedDocument = document
+                    } label: {
+                        SettingsRow(
+                            content: SettingsRowContent(
+                                id: document.id,
+                                icon: document.icon,
+                                title: document.title,
+                                subtitle: document.subtitle,
+                                detail: "Read",
+                                style: .disclosure,
+                                isEnabled: true
+                            )
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    if document.id != SettingsDocument.allCases.last?.id {
+                        Divider()
+                            .overlay(PCCTheme.ink.opacity(0.08))
+                            .padding(.leading, 48)
+                    }
+                }
+            }
+        }
+    }
+}
+
+enum SettingsDocument: String, CaseIterable, Identifiable {
+    case terms
+    case privacy
+    case postingRules
+    case paymentRefunds
+    case communityStandards
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .terms: return "Terms and conditions"
+        case .privacy: return "Privacy policy"
+        case .postingRules: return "Community posting rules"
+        case .paymentRefunds: return "Payment / refund notes"
+        case .communityStandards: return "Community standards"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .terms:
+            return "How listings are reviewed and published."
+        case .privacy:
+            return "How account and listing information is used."
+        case .postingRules:
+            return "What belongs on Community Calendar."
+        case .paymentRefunds:
+            return "Paid promotion notes for later launch stages."
+        case .communityStandards:
+            return "Keep local listings useful, lawful and respectful."
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .terms: return "doc.text"
+        case .privacy: return "lock.shield"
+        case .postingRules: return "checklist"
+        case .paymentRefunds: return "creditcard.and.123"
+        case .communityStandards: return "heart.text.square"
+        }
+    }
+
+    var paragraphs: [String] {
+        switch self {
+        case .terms:
+            return [
+                "Community Calendar provides a local listing platform for events, activities and community notices.",
+                "Listings are reviewed before publishing. Community Calendar may approve, reject, edit, archive, remove or decline to publish a listing at its discretion.",
+                "You are responsible for making sure your listing is accurate, lawful, safe, and that you have permission to publish any words, images or contact details you provide.",
+                "Publishing a listing does not mean Community Calendar endorses the event, organiser, product or service."
+            ]
+        case .privacy:
+            return [
+                "Community Calendar uses account and listing information to operate accounts, receive submissions, review listings, provide support, keep the platform safe, and support payments when paid options are added.",
+                "Contact details submitted with a listing may be used for review and support. Optional public event contact details, when supplied, may appear on the published listing.",
+                "Community Calendar does not sell personal information.",
+                "When payments are added, card details will be handled by the payment provider. Community Calendar will not store card details in the app."
+            ]
+        case .postingRules:
+            return [
+                "Listings should be local, useful, accurate, and written for the community area selected in the app.",
+                "Do not submit misleading, illegal, hateful, unsafe, adult, scam, spam, or abusive content.",
+                "Commercial listings must use the correct paid or promotional option when those options are live. Free community listing paths must not be used to avoid listing fees.",
+                "Images must be relevant to the listing and suitable for a general community audience."
+            ]
+        case .paymentRefunds:
+            return [
+                "Paid listing and promotion tools are coming soon.",
+                "Payments will be handled securely by Stripe or another payment provider. Community Calendar will not store card details.",
+                "Paid promotion improves placement or visibility where offered, but it does not guarantee attendance, sales, bookings or enquiries.",
+                "Refunds or credits may be offered at Community Calendar’s discretion unless required by law."
+            ]
+        case .communityStandards:
+            return [
+                "Community Calendar should feel useful, calm and trustworthy for local people.",
+                "Be respectful. Do not use listings to harass, shame, mislead, impersonate, spam, or pressure other people.",
+                "Keep details current. If your event changes, send an edit request so Support can review it before public details change.",
+                "Support may restrict accounts, decline listings, or archive content that puts the community or platform at risk."
+            ]
+        }
+    }
+}
+
+struct SettingsDocumentScreen: View {
+    let document: SettingsDocument
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(document.title)
+                            .font(.system(size: 34, weight: .black, design: .serif))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            ForEach(Array(document.paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                                Text(paragraph)
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                                    .lineSpacing(4)
+                            }
+                        }
+                        .padding(18)
+                        .pccCardStyle()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 26)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle("Document")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+        }
+    }
+}
+
+struct WallpaperPickerScreen: View {
+    @AppStorage(PCCWallpaperStyle.storageKey) private var selectedWallpaper = PCCWallpaperStyle.ornament.rawValue
+    @Environment(\.dismiss) private var dismiss
+    @State private var previewStyle: PCCWallpaperStyle
+
+    init() {
+        let stored = UserDefaults.standard.string(forKey: PCCWallpaperStyle.storageKey) ?? PCCWallpaperStyle.ornament.rawValue
+        _previewStyle = State(initialValue: PCCWallpaperStyle.style(for: stored))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCWallpaperPreviewBackground(style: previewStyle)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Wallpaper")
+                                .font(.system(size: 38, weight: .black, design: .serif))
+                                .foregroundStyle(PCCTheme.ink)
+
+                            Text("Preview a background before saving it. The original illustrated wallpaper stays available as the default.")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .lineSpacing(3)
+                        }
+
+                        WallpaperPreviewCard(style: previewStyle)
+
+                        VStack(spacing: 10) {
+                            ForEach(PCCWallpaperStyle.allCases) { style in
+                                Button {
+                                    previewStyle = style
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        PCCWallpaperThumb(style: style)
+
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(style.title)
+                                                .font(.headline.weight(.black))
+                                                .foregroundStyle(PCCTheme.ink)
+
+                                            Text(style == .ornament ? "Swift-drawn pōhutukawa background" : "Photo wallpaper")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                                        }
+
+                                        Spacer()
+
+                                        if previewStyle == style {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.title3.weight(.black))
+                                                .foregroundStyle(PCCTheme.leafGreen)
+                                        }
+                                    }
+                                    .padding(12)
+                                    .background(.white.opacity(previewStyle == style ? 0.88 : 0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        Button {
+                            selectedWallpaper = previewStyle.rawValue
+                            dismiss()
+                        } label: {
+                            Text("Save Wallpaper")
+                                .font(.headline.weight(.black))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 15)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .background(PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 26)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle("Wallpaper")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+        }
+    }
+}
+
+struct PCCWallpaperPreviewBackground: View {
+    let style: PCCWallpaperStyle
+
+    var body: some View {
+        ZStack {
+            if let assetName = style.assetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+
+                LinearGradient(
+                    colors: [.white.opacity(0.34), PCCTheme.cream.opacity(0.40)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            } else {
+                PCCTheme.cream.ignoresSafeArea()
+                LinearGradient(
+                    colors: [.white.opacity(0.95), PCCTheme.cream.opacity(0.95), Color(red: 0.95, green: 0.91, blue: 0.82)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+                PCCWallpaperOrnament()
+                    .opacity(0.88)
+                    .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+struct WallpaperPreviewCard: View {
+    let style: PCCWallpaperStyle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(CommunityArea.appBrandName)
+                    .font(.system(size: 28, weight: .black, design: .serif))
+                    .foregroundStyle(PCCTheme.ink)
+
+                Spacer()
+
+                Text("Preview")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
+            }
+
+            Text("Showing: \(CommunityArea.defaultAreaName)")
+                .font(.headline.weight(.black))
+                .foregroundStyle(PCCTheme.leafGreen)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Local market day")
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+
+                Text("Saturday, 10:00 AM · Beachlands")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+            }
+            .padding(14)
+            .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        }
+        .padding(18)
+        .pccCardStyle()
+    }
+}
+
+struct PCCWallpaperThumb: View {
+    let style: PCCWallpaperStyle
+
+    var body: some View {
+        ZStack {
+            if let assetName = style.assetName {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                PCCTheme.cream
+                PCCWallpaperOrnament()
+                    .opacity(0.88)
+                    .scaleEffect(0.36)
+            }
+        }
+        .frame(width: 52, height: 52)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.88), lineWidth: 1)
+        )
+    }
+}
+
+struct ContactSupportPlaceholderScreen: View {
+    enum Topic: String, CaseIterable, Identifiable {
+        case listing = "Listing help"
+        case account = "Account"
+        case payment = "Payment"
+        case safety = "Safety or content"
+        case other = "Other"
+
+        var id: String { rawValue }
+    }
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var topic: Topic = .listing
+    @State private var listingReference = ""
+    @State private var message = ""
+    @State private var showComingSoon = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Contact Support")
+                            .font(.system(size: 34, weight: .black, design: .serif))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            Picker("Topic", selection: $topic) {
+                                ForEach(Topic.allCases) { topic in
+                                    Text(topic.rawValue).tag(topic)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(PCCTheme.leafGreen)
+
+                            PCCSupportField(title: "Listing reference", text: $listingReference, prompt: "Optional")
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Message")
+                                    .font(.caption.weight(.black))
+                                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                                TextEditor(text: $message)
+                                    .font(.body.weight(.medium))
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 130)
+                                    .padding(10)
+                                    .background(PCCTheme.cream.opacity(0.70), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                            }
+
+                            if showComingSoon {
+                                Label("Support request sending is coming soon. For soft launch testing, send feedback directly to the app owner.", systemImage: "paperplane")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(PCCTheme.leafGreen)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Button {
+                                showComingSoon = true
+                            } label: {
+                                Text("Send Support Request")
+                                    .font(.headline.weight(.black))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 15)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.white)
+                            .background(PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                        }
+                        .padding(18)
+                        .pccCardStyle()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 26)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+                .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
+                .pccScrollableKeyboardDismiss()
+                .pccDismissesKeyboardOnTap()
+            }
+            .navigationTitle("Support")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+        }
+    }
+}
+
+struct PaymentsPlaceholderScreen: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        SettingsInfoSheet(
+            title: "Payments",
+            icon: "creditcard",
+            paragraphs: [
+                "Listing payments and receipts will appear here once paid options are live.",
+                "Community Calendar will not store card details.",
+                "Payments will be handled securely by Stripe.",
+                "Boost and promote options are coming soon."
+            ],
+            dismiss: dismiss
+        )
+    }
+}
+
+struct SavedRemindersPlaceholderScreen: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        SettingsInfoSheet(
+            title: "Saved & Reminders",
+            icon: "bookmark",
+            paragraphs: [
+                "Events you save, mark as going, or mark as interested will appear here.",
+                "Reminder controls are coming soon.",
+                "For now, these buttons are local UI only and do not sync between devices."
+            ],
+            dismiss: dismiss
+        )
+    }
+}
+
+struct SettingsInfoSheet: View {
+    let title: String
+    let icon: String
+    let paragraphs: [String]
+    let dismiss: DismissAction
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Label(title, systemImage: icon)
+                            .font(.system(size: 32, weight: .black, design: .serif))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                                Text(paragraph)
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                                    .lineSpacing(4)
+                            }
+                        }
+                        .padding(18)
+                        .pccCardStyle()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 26)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+        }
+    }
+}
+
+struct ReviewQueueRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checklist.checked")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(PCCTheme.leafGreen)
+                .frame(width: 30, height: 30)
+                .background(PCCTheme.leafGreen.opacity(0.10), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Review Queue")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.78))
+
+                Text("For authorised listing reviewers.")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.ink.opacity(0.30))
         }
         .padding(14)
         .background(.white.opacity(0.58), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))

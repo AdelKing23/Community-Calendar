@@ -1,83 +1,39 @@
 import SwiftUI
 
 struct SupportAdminScreen: View {
-    @EnvironmentObject private var ownerSessionStore: OwnerSessionStore
-    @State private var email = ""
-    @State private var password = ""
-    @State private var isSigningIn = false
-    @State private var loginError: String?
+    @EnvironmentObject private var userSessionStore: UserSessionStore
 
-    private let supportService: OwnerAuthenticating & OwnerEventReviewing = SupabaseEventService()
+    private let supportService: OwnerEventReviewing = SupabaseEventService()
 
     var body: some View {
         ZStack {
             PCCScreenBackground()
 
-            if ownerSessionStore.session != nil {
+            if SupportAccessPolicy.isSupportAccount(email: userSessionStore.email) {
                 SupportDashboard(
                     supportService: supportService
                 ) {
-                    ownerSessionStore.signOut()
-                    email = ""
-                    password = ""
-                    loginError = nil
+                    userSessionStore.signOut()
                 }
             } else {
-                SupportLoginGate(
-                    email: $email,
-                    password: $password,
-                    isSigningIn: isSigningIn,
-                    loginError: loginError
-                ) {
-                    Task { await signIn() }
-                }
+                SupportAccessUnavailableScreen()
             }
         }
         .navigationTitle("Support")
         .navigationBarTitleDisplayMode(.inline)
     }
-
-    @MainActor
-    private func signIn() async {
-        guard !isSigningIn else { return }
-
-        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedEmail.localizedCaseInsensitiveContains("@"),
-              !password.isEmpty else {
-            loginError = "Enter the owner email and password."
-            return
-        }
-
-        isSigningIn = true
-        loginError = nil
-
-        do {
-            try await ownerSessionStore.signIn(email: trimmedEmail, password: password)
-            password = ""
-            isSigningIn = false
-        } catch {
-            isSigningIn = false
-            loginError = "Login failed. Check the owner email and password, then try again."
-        }
-    }
 }
 
-struct SupportLoginGate: View {
-    @Binding var email: String
-    @Binding var password: String
-    let isSigningIn: Bool
-    let loginError: String?
-    let onLogin: () -> Void
-
+struct SupportAccessUnavailableScreen: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Launch Support Tools")
+                    Text("Review Queue")
                         .font(.system(size: 38, weight: .black, design: .serif))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text("Owner-only approval tools for reviewing submitted listings. Public users do not need an account.")
+                    Text("Support tools are only available to authorised listing reviewers.")
                         .font(.title3.weight(.medium))
                         .foregroundStyle(PCCTheme.ink.opacity(0.68))
                         .lineSpacing(3)
@@ -85,57 +41,17 @@ struct SupportLoginGate: View {
                 .padding(20)
                 .pccCardStyle()
 
-                VStack(alignment: .leading, spacing: 14) {
-                    PCCSupportField(title: "Owner Email", text: $email, prompt: "owner@example.co.nz")
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Password")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
-
-                        SecureField("Supabase Auth password", text: $password)
-                            .textFieldStyle(.plain)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .padding(13)
-                            .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
-                    }
-
-                    if let loginError {
-                        Label(loginError, systemImage: "exclamationmark.triangle.fill")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(PCCTheme.pohutukawaRed)
-                    }
-
-                    Button(action: onLogin) {
-                        Label(isSigningIn ? "Signing In" : "Sign In", systemImage: isSigningIn ? "hourglass" : "lock.open.fill")
-                            .font(.headline.weight(.black))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 15)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white)
-                    .background(isSigningIn ? PCCTheme.ink.opacity(0.28) : PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
-                    .disabled(isSigningIn)
-
-                    Text("Uses Supabase Auth and owner-only RLS. No admin key is stored in the app.")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.56))
-                        .lineSpacing(2)
-                }
-                .padding(20)
-                .pccCardStyle()
+                Label("If you are a normal user, review your own listings from the Create tab.", systemImage: "rectangle.stack")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
             }
             .padding(.horizontal, 16)
             .padding(.top, PCCKeyboardSpacing.standardTopPadding)
             .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
         }
-        .pccBottomKeyboardInset(PCCKeyboardSpacing.standardBottomInset)
-        .pccScrollableKeyboardDismiss()
-        .pccDismissesKeyboardOnTap()
     }
 }
 
@@ -154,7 +70,7 @@ struct SupportDashboard: View {
     let supportService: OwnerEventReviewing
     let onLogout: () -> Void
 
-    @EnvironmentObject private var ownerSessionStore: OwnerSessionStore
+    @EnvironmentObject private var userSessionStore: UserSessionStore
     @State private var events: [LocalEvent] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -252,9 +168,9 @@ struct SupportDashboard: View {
                     }
                 )
 
-                SupportEventListPanel(title: "Published Events", icon: "calendar.badge.checkmark", events: publishedEvents)
-                SupportEventListPanel(title: "Rejected", icon: "xmark.seal", events: rejectedEvents)
-                SupportEventListPanel(title: "Archived", icon: "archivebox", events: archivedEvents)
+                SupportEventListPanel(title: "Published Events", icon: "calendar.badge.checkmark", events: publishedEvents, defaultExpanded: false)
+                SupportEventListPanel(title: "Rejected", icon: "xmark.seal", events: rejectedEvents, defaultExpanded: false)
+                SupportEventListPanel(title: "Archived", icon: "archivebox", events: archivedEvents, defaultExpanded: false)
 
                 Text("User edits and removal requests are reviewed here. Published listings stay unchanged until Support applies a request.")
                     .font(.footnote.weight(.semibold))
@@ -295,8 +211,9 @@ struct SupportDashboard: View {
         loadError = nil
 
         do {
-            await ownerSessionStore.refreshIfNeeded()
-            guard let activeSession = ownerSessionStore.session else {
+            await userSessionStore.refreshIfNeeded()
+            guard let activeSession = userSessionStore.session,
+                  SupportAccessPolicy.isSupportAccount(email: activeSession.email) else {
                 throw SupabaseServiceError.authFailed
             }
 
@@ -315,8 +232,9 @@ struct SupportDashboard: View {
         actionMessage = nil
 
         do {
-            await ownerSessionStore.refreshIfNeeded()
-            guard let activeSession = ownerSessionStore.session else {
+            await userSessionStore.refreshIfNeeded()
+            guard let activeSession = userSessionStore.session,
+                  SupportAccessPolicy.isSupportAccount(email: activeSession.email) else {
                 throw SupabaseServiceError.authFailed
             }
 
@@ -337,8 +255,9 @@ struct SupportDashboard: View {
         selectedReviewAction = nil
 
         do {
-            await ownerSessionStore.refreshIfNeeded()
-            guard let activeSession = ownerSessionStore.session else {
+            await userSessionStore.refreshIfNeeded()
+            guard let activeSession = userSessionStore.session,
+                  SupportAccessPolicy.isSupportAccount(email: activeSession.email) else {
                 throw SupabaseServiceError.authFailed
             }
 
@@ -364,8 +283,9 @@ struct SupportDashboard: View {
         selectedReviewAction = nil
 
         do {
-            await ownerSessionStore.refreshIfNeeded()
-            guard let activeSession = ownerSessionStore.session else {
+            await userSessionStore.refreshIfNeeded()
+            guard let activeSession = userSessionStore.session,
+                  SupportAccessPolicy.isSupportAccount(email: activeSession.email) else {
                 throw SupabaseServiceError.authFailed
             }
 
@@ -917,9 +837,10 @@ struct SupportEventListPanel: View {
     let title: String
     let icon: String
     let events: [LocalEvent]
+    var defaultExpanded = true
 
     var body: some View {
-        SupportPanel(title: title, icon: icon) {
+        SupportPanel(title: title, icon: icon, defaultExpanded: defaultExpanded) {
             if events.isEmpty {
                 Text("No listings in this section.")
                     .font(.body.weight(.medium))
@@ -988,15 +909,40 @@ struct SupportStatusButton: View {
 struct SupportPanel<Content: View>: View {
     let title: String
     let icon: String
-    @ViewBuilder let content: Content
+    let content: Content
+    @State private var isExpanded: Bool
+
+    init(title: String, icon: String, defaultExpanded: Bool = true, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.content = content()
+        _isExpanded = State(initialValue: defaultExpanded)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(title, systemImage: icon)
-                .font(.title3.weight(.black))
-                .foregroundStyle(PCCTheme.ink)
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Label(title, systemImage: icon)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
 
-            content
+                    Spacer()
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
