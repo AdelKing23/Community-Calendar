@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WhatsOnScreen: View {
-    @State private var searchText = ""
+    @AppStorage("communityCalendar.whatsOn.selectedTopic") private var selectedTopicID = ListingTopic.all.rawValue
     @State private var selectedScope: DateScope = .today
     @State private var selectedTown: CoastTown = .all
     @State private var events: [LocalEvent] = []
@@ -11,7 +11,6 @@ struct WhatsOnScreen: View {
     private let eventService: PublishedEventFetching = SupabaseEventService()
 
     private var visibleEvents: [LocalEvent] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let today = Calendar.current.startOfDay(for: Date())
 
         return events
@@ -26,15 +25,17 @@ struct WhatsOnScreen: View {
                 }
             }
             .filter { selectedTown == .all || $0.town == selectedTown }
-            .filter { event in
-                query.isEmpty || event.searchableText.localizedCaseInsensitiveContains(query)
-            }
+            .filter { $0.matches(topic: selectedTopic) }
             .sorted {
                 if $0.isPaidPush != $1.isPaidPush {
                     return $0.isPaidPush && !$1.isPaidPush
                 }
                 return $0.startDate < $1.startDate
             }
+    }
+
+    private var selectedTopic: ListingTopic {
+        ListingTopic(rawValue: selectedTopicID) ?? .all
     }
 
     private var featuredEvents: [LocalEvent] {
@@ -58,9 +59,9 @@ struct WhatsOnScreen: View {
                         WhatsOnHeader(eventCount: visibleEvents.count)
                             .padding(.top, 4)
 
-                        PCCSearchBar(text: $searchText)
-
                         PCCSegmentedTabs(selection: $selectedScope)
+
+                        TopicPickerRow(selectedTopicID: $selectedTopicID)
 
                         TownPickerRow(selectedTown: $selectedTown)
 
@@ -114,14 +115,12 @@ struct WhatsOnScreen: View {
     }
 
     private var feedTitle: String {
-        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Search Results"
-        }
+        let topicPrefix = selectedTopic == .all ? "" : "\(selectedTopic.shortLabel) · "
 
         switch selectedScope {
-        case .today: return "What's On Today"
-        case .thisWeek: return "This Week"
-        case .thisMonth: return "This Month"
+        case .today: return "\(topicPrefix)What's On Today"
+        case .thisWeek: return "\(topicPrefix)This Week"
+        case .thisMonth: return "\(topicPrefix)This Month"
         }
     }
 
@@ -288,6 +287,65 @@ struct TownPickerRow: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+        }
+    }
+}
+
+struct TopicPickerRow: View {
+    @Binding var selectedTopicID: String
+
+    private var selectedTopic: ListingTopic {
+        ListingTopic(rawValue: selectedTopicID) ?? .all
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Browse by topic")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.64))
+
+                Spacer()
+
+                if selectedTopic != .all {
+                    Button("Clear") {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                            selectedTopicID = ListingTopic.all.rawValue
+                        }
+                    }
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(ListingTopic.allCases) { topic in
+                        Button {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                                selectedTopicID = topic.rawValue
+                            }
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: topic.icon)
+                                    .font(.caption.weight(.black))
+
+                                Text(topic.shortLabel)
+                                    .font(.subheadline.weight(.heavy))
+                            }
+                            .foregroundStyle(selectedTopic == topic ? .white : PCCTheme.leafGreen)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .background(
+                                selectedTopic == topic ? PCCTheme.pohutukawaOrange : .white.opacity(0.76),
+                                in: Capsule()
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.trailing, 20)
             }
         }
     }

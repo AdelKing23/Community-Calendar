@@ -1137,6 +1137,11 @@ struct ListingEditRequestSheet: View {
                             }
                         }
 
+                        ListingTopicPreview(topics: ListingTopic.inferredTopics(
+                            category: draft.category,
+                            searchableText: [draft.title, draft.venue, draft.shortDescription, draft.priceLabel].joined(separator: " ")
+                        ))
+
                         DatePicker("Date", selection: $draft.date, displayedComponents: .date)
                         DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
 
@@ -1382,6 +1387,8 @@ struct PendingListingForm: View {
                 }
             }
 
+            ListingTopicPreview(topics: draft.inferredTopics)
+
             DatePicker("Date", selection: $draft.date, displayedComponents: .date)
             DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
 
@@ -1547,6 +1554,45 @@ struct PaidTierCostSummary: View {
         .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct ListingTopicPreview: View {
+    let topics: [ListingTopic]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Topics")
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+            Text("These are based on the category and wording. They help people browse What’s On by interest.")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                .lineSpacing(2)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(topics.filter { $0 != .all }) { topic in
+                        HStack(spacing: 6) {
+                            Image(systemName: topic.icon)
+                                .font(.caption.weight(.black))
+
+                            Text(topic.shortLabel)
+                                .font(.caption.weight(.black))
+                        }
+                        .foregroundStyle(PCCTheme.leafGreen)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(.white.opacity(0.72), in: Capsule())
+                    }
+                }
+                .padding(.trailing, 20)
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
     }
 }
 

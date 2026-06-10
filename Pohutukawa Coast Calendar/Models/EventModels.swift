@@ -38,6 +38,109 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+enum ListingTopic: String, CaseIterable, Identifiable, Hashable {
+    case all = "All Topics"
+    case kids = "Kids"
+    case fitness = "Fitness"
+    case health = "Health"
+    case business = "Business"
+    case social = "Social"
+    case markets = "Markets"
+    case music = "Music"
+    case food = "Food"
+    case learning = "Learning"
+    case community = "Community"
+    case notices = "Notices"
+
+    var id: String { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .all: return "All"
+        case .kids: return "Kids"
+        case .fitness: return "Fitness"
+        case .health: return "Health"
+        case .business: return "Business"
+        case .social: return "Social"
+        case .markets: return "Markets"
+        case .music: return "Music"
+        case .food: return "Food"
+        case .learning: return "Classes"
+        case .community: return "Community"
+        case .notices: return "Notices"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .all: return "square.grid.2x2"
+        case .kids: return "figure.2.and.child.holdinghands"
+        case .fitness: return "figure.run"
+        case .health: return "cross.case"
+        case .business: return "briefcase"
+        case .social: return "person.2"
+        case .markets: return "basket"
+        case .music: return "music.note"
+        case .food: return "fork.knife"
+        case .learning: return "book"
+        case .community: return "heart.text.square"
+        case .notices: return "megaphone"
+        }
+    }
+
+    static func topics(for category: EventCategory) -> [ListingTopic] {
+        switch category {
+        case .liveMusic:
+            return [.music, .social]
+        case .foodDrink:
+            return [.food, .social, .business]
+        case .markets:
+            return [.markets, .social, .business]
+        case .kidsFamily:
+            return [.kids, .social]
+        case .sport:
+            return [.fitness, .health, .social]
+        case .community:
+            return [.community, .social]
+        case .fundraisers:
+            return [.community, .social]
+        case .classesWorkshops:
+            return [.learning, .business]
+        case .seniors:
+            return [.community, .social, .health]
+        case .churchMaraeCultural:
+            return [.community, .social]
+        case .nightlife:
+            return [.social, .music, .food]
+        case .publicNotices:
+            return [.notices, .community]
+        }
+    }
+
+    static func inferredTopics(category: EventCategory, searchableText: String) -> [ListingTopic] {
+        var topics = topics(for: category)
+        let value = searchableText.lowercased()
+
+        let keywordTopics: [(ListingTopic, [String])] = [
+            (.kids, ["kids", "children", "family", "school", "tamariki", "holiday programme"]),
+            (.fitness, ["fitness", "run", "walk", "yoga", "pilates", "sport", "training", "gym"]),
+            (.health, ["health", "wellbeing", "wellness", "clinic", "support group", "mental health"]),
+            (.business, ["business", "shop", "sale", "discount", "ltd", "limited", "cafe", "café", "service", "consultation"]),
+            (.markets, ["market", "stall", "craft", "farmers"]),
+            (.music, ["music", "band", "gig", "concert", "dj", "karaoke"]),
+            (.food, ["food", "dinner", "lunch", "breakfast", "coffee", "cafe", "restaurant"]),
+            (.learning, ["class", "course", "workshop", "lesson", "learn"]),
+            (.notices, ["notice", "road", "closure", "public notice"])
+        ]
+
+        for (topic, keywords) in keywordTopics where keywords.contains(where: value.contains) {
+            topics.append(topic)
+        }
+
+        return Array(Set(topics)).sorted { $0.rawValue < $1.rawValue }
+    }
+}
+
 enum DateScope: String, CaseIterable, Identifiable {
     case today = "Today"
     case thisWeek = "This Week"
@@ -389,6 +492,14 @@ struct LocalEvent: Identifiable, Hashable {
         ].joined(separator: " ")
     }
 
+    var inferredTopics: [ListingTopic] {
+        ListingTopic.inferredTopics(category: category, searchableText: searchableText)
+    }
+
+    func matches(topic: ListingTopic) -> Bool {
+        topic == .all || inferredTopics.contains(topic)
+    }
+
     var dayText: String {
         startDate.formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
@@ -449,6 +560,13 @@ struct PendingListingDraft: Hashable {
 
     var commercialSignals: [ListingCommercialSignal] {
         ListingCommercialSignalDetector.signals(for: self)
+    }
+
+    var inferredTopics: [ListingTopic] {
+        ListingTopic.inferredTopics(
+            category: category,
+            searchableText: [title, venue, shortDescription, priceLabel].joined(separator: " ")
+        )
     }
 
     var canSubmit: Bool {
