@@ -402,6 +402,8 @@ struct PendingListingReviewCard: View {
                     .background(PCCTheme.pohutukawaOrange.opacity(0.10), in: Capsule())
             }
 
+            ListingTierSupportSummary(event: event)
+
             VStack(alignment: .leading, spacing: 7) {
                 SupportDetailRow(icon: "mappin.and.ellipse", title: "Venue", value: event.venue)
                 SupportDetailRow(icon: "clock", title: "Time", value: event.timeText)
@@ -446,6 +448,45 @@ struct PendingListingReviewCard: View {
         }
         .padding(14)
         .background(PCCTheme.cream.opacity(0.58), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct ListingTierSupportSummary: View {
+    let event: LocalEvent
+
+    private var tier: ListingTier {
+        event.inferredListingTier
+    }
+
+    private var signals: [ListingCommercialSignal] {
+        ListingCommercialSignalDetector.signals(for: event)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("\(tier.title) path · \(tier.priceText)", systemImage: tier.isPaidTier ? "creditcard.fill" : "checkmark.seal.fill")
+                .font(.caption.weight(.black))
+                .foregroundStyle(tier.isPaidTier ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+
+            if !signals.isEmpty && tier == .communityFree {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Possible commercial free listing", systemImage: "flag.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.pohutukawaRed)
+
+                    ForEach(signals.prefix(3)) { signal in
+                        Text("\(signal.label): \(signal.detail)")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    }
+                }
+                .padding(10)
+                .background(PCCTheme.pohutukawaRed.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
     }
 }
 

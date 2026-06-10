@@ -10,6 +10,8 @@ struct SettingsScreen: View {
     @State private var showContactSupport = false
     @State private var showPayments = false
     @State private var showSavedReminders = false
+    @State private var showListingAnalytics = false
+    @State private var showMyListings = false
 
     private let supportService: OwnerEventReviewing = SupabaseEventService()
 
@@ -39,20 +41,45 @@ struct SettingsScreen: View {
                             .buttonStyle(.plain)
                         }
 
-                        SettingsListSection(
-                            title: "My Listings",
-                            rows: [
-                                SettingsRowContent(
-                                    id: "previous-listings",
-                                    icon: "rectangle.stack",
-                                    title: "Your listings",
-                                    subtitle: "Create, review, edit and remove your listings from the Create tab.",
-                                    detail: "Create tab",
-                                    style: .status,
-                                    isEnabled: true
+                        SettingsActionSection(title: "My Listings") {
+                            Button {
+                                showMyListings = true
+                            } label: {
+                                SettingsRow(
+                                    content: SettingsRowContent(
+                                        id: "previous-listings",
+                                        icon: "rectangle.stack",
+                                        title: "Your listings",
+                                        subtitle: "Review, edit, remove, and follow Support feedback for your listings.",
+                                        detail: userSessionStore.isSignedIn ? "Open" : "Sign in",
+                                        style: .disclosure,
+                                        isEnabled: true
+                                    )
                                 )
-                            ]
-                        )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        SettingsActionSection(title: "Analytics") {
+                            Button {
+                                showListingAnalytics = true
+                            } label: {
+                                SettingsRow(
+                                    content: SettingsRowContent(
+                                        id: "listing-analytics",
+                                        icon: "chart.bar.xaxis",
+                                        title: "Listing insights",
+                                        subtitle: "See simple per-listing activity. Boost + Insights shows a deeper graph.",
+                                        detail: userSessionStore.isSignedIn ? "Open" : "Sign in",
+                                        style: .disclosure,
+                                        isEnabled: true
+                                    )
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        } footer: {
+                            Text("Analytics are privacy-friendly and aggregated. Soft-launch numbers are placeholders until server tracking is connected.")
+                        }
 
                         SettingsActionSection(title: "Saved & Reminders") {
                             Button {
@@ -182,6 +209,14 @@ struct SettingsScreen: View {
             }
             .sheet(isPresented: $showSavedReminders) {
                 SavedRemindersPlaceholderScreen()
+            }
+            .sheet(isPresented: $showListingAnalytics) {
+                ListingAnalyticsSettingsScreen()
+                    .environmentObject(userSessionStore)
+            }
+            .sheet(isPresented: $showMyListings) {
+                MyListingsSettingsScreen()
+                    .environmentObject(userSessionStore)
             }
         }
     }
@@ -899,34 +934,617 @@ struct PaymentsPlaceholderScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        SettingsInfoSheet(
-            title: "Payments",
-            icon: "creditcard",
-            paragraphs: [
-                "Listing payments and receipts will appear here once paid options are live.",
-                "Community Calendar will not store card details.",
-                "Payments will be handled securely by Stripe.",
-                "Boost and promote options are coming soon."
-            ],
-            dismiss: dismiss
-        )
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Image(systemName: "creditcard.fill")
+                                .font(.system(size: 38, weight: .bold))
+                                .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+                            Text("Payments")
+                                .font(.system(size: 36, weight: .black, design: .serif))
+                                .foregroundStyle(PCCTheme.ink)
+
+                            Text("Paid listing options are being prepared for launch. No card details are stored by Community Calendar.")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .lineSpacing(3)
+                        }
+                        .padding(20)
+                        .pccCardStyle()
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(ListingTier.allCases) { tier in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text(tier.priceText)
+                                        .font(.headline.weight(.black))
+                                        .foregroundStyle(tier.isPaidTier ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+                                        .frame(width: 54, alignment: .leading)
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(tier.title)
+                                            .font(.headline.weight(.black))
+                                            .foregroundStyle(PCCTheme.ink)
+
+                                        Text(tier.shortDescription)
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                            .lineSpacing(2)
+                                    }
+                                }
+                                .padding(13)
+                                .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                            }
+                        }
+                        .padding(18)
+                        .pccCardStyle()
+
+                        SettingsInfoMessage(
+                            icon: "lock.shield",
+                            title: "Payment handling",
+                            message: "In-app boosts will use Apple’s purchase system where required. Stripe may be used later for external tickets, invoices or sponsor payments. Receipts will appear here when paid options are live."
+                        )
+
+                        SettingsInfoMessage(
+                            icon: "shippingbox",
+                            title: "Purchase setup",
+                            message: "StoreKit product IDs are prepared for Commercial, Boost, and Boost + Insights. Purchase buttons stay off until App Store products and payment tracking are connected."
+                        )
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle("Payments")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+        }
+    }
+}
+
+struct ListingAnalyticsSettingsScreen: View {
+    @EnvironmentObject private var userSessionStore: UserSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var listings: [LocalEvent] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    private let service: UserListingFetching = SupabaseEventService()
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Listing Insights")
+                                .font(.system(size: 36, weight: .black, design: .serif))
+                                .foregroundStyle(PCCTheme.ink)
+
+                            Text("Track what each listing is doing. Free listings get a simple view; Boost + Insights gets the deeper graph.")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .lineSpacing(3)
+                        }
+                        .padding(20)
+                        .pccCardStyle()
+
+                        if !userSessionStore.isSignedIn {
+                            SettingsInfoMessage(
+                                icon: "person.crop.circle.badge.plus",
+                                title: "Sign in to see your listings",
+                                message: "Analytics are attached to listings you submit from your account."
+                            )
+                        } else if isLoading {
+                            SettingsInfoMessage(
+                                icon: "arrow.clockwise",
+                                title: "Loading insights",
+                                message: "Fetching your submitted listings."
+                            )
+                        } else if let errorMessage {
+                            SettingsInfoMessage(
+                                icon: "wifi.exclamationmark",
+                                title: "Insights unavailable",
+                                message: errorMessage
+                            )
+                        } else if listings.isEmpty {
+                            SettingsInfoMessage(
+                                icon: "rectangle.stack.badge.plus",
+                                title: "No listings yet",
+                                message: "Submit a listing from the Create tab and its activity will appear here."
+                            )
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(listings) { listing in
+                                    SettingsListingAnalyticsDisclosure(event: listing)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle("Insights")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+            .task {
+                await loadListings()
+            }
+            .refreshable {
+                await loadListings()
+            }
+        }
+    }
+
+    @MainActor
+    private func loadListings() async {
+        guard let session = userSessionStore.session else { return }
+
+        isLoading = listings.isEmpty
+        errorMessage = nil
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+            let activeSession = userSessionStore.session ?? session
+            listings = try await service.fetchUserListings(userID: activeSession.userID, accessToken: activeSession.accessToken)
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = "Your listing insights could not be loaded. Please try again soon."
+        }
+    }
+}
+
+struct MyListingsSettingsScreen: View {
+    @EnvironmentObject private var userSessionStore: UserSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var listings: [LocalEvent] = []
+    @State private var changeRequests: [EventChangeRequest] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var actionMessage: String?
+    @State private var selectedUserListing: LocalEvent?
+    @State private var selectedEditListing: LocalEvent?
+    @State private var selectedRemovalListing: LocalEvent?
+    private let service: UserListingFetching & EventChangeRequesting = SupabaseEventService()
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("My Listings")
+                                .font(.system(size: 36, weight: .black, design: .serif))
+                                .foregroundStyle(PCCTheme.ink)
+
+                            Text("Your submitted, pending, published, rejected and archived listings stay here with Support feedback attached.")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .lineSpacing(3)
+                        }
+                        .padding(20)
+                        .pccCardStyle()
+
+                        if !userSessionStore.isSignedIn {
+                            SettingsInfoMessage(
+                                icon: "person.crop.circle.badge.plus",
+                                title: "Sign in to manage listings",
+                                message: "Create or sign into an account from the Create tab before submitting listings."
+                            )
+                        } else {
+                            MyListingsPanel(
+                                listings: listings,
+                                changeRequests: changeRequests,
+                                isLoading: isLoading,
+                                errorMessage: errorMessage,
+                                actionMessage: actionMessage,
+                                onSelectListing: { listing in
+                                    selectedUserListing = listing
+                                },
+                                onEditListing: { listing in
+                                    selectedEditListing = listing
+                                },
+                                onRemoveListing: { listing in
+                                    selectedRemovalListing = listing
+                                }
+                            ) {
+                                Task { await loadListings() }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle("My Listings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+            .task {
+                await loadListings()
+            }
+            .refreshable {
+                await loadListings()
+            }
+            .sheet(item: $selectedUserListing) { listing in
+                UserListingDetailSheet(
+                    listing: listing,
+                    pendingRequest: pendingRequest(for: listing),
+                    latestRequest: latestRequest(for: listing),
+                    requests: requests(for: listing),
+                    onEdit: {
+                        selectedUserListing = nil
+                        selectedEditListing = listing
+                    },
+                    onRemove: {
+                        selectedUserListing = nil
+                        selectedRemovalListing = listing
+                    }
+                )
+            }
+            .sheet(item: $selectedEditListing) { listing in
+                ListingEditRequestSheet(listing: listing) { draft, note in
+                    await submitEditRequest(for: listing, draft: draft, note: note)
+                }
+            }
+            .sheet(item: $selectedRemovalListing) { listing in
+                ListingRemovalRequestSheet(listing: listing) { note in
+                    await submitRemovalRequest(for: listing, note: note)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func loadListings() async {
+        guard let session = userSessionStore.session else { return }
+
+        isLoading = listings.isEmpty
+        errorMessage = nil
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+            let activeSession = userSessionStore.session ?? session
+            listings = try await service.fetchUserListings(userID: activeSession.userID, accessToken: activeSession.accessToken)
+            changeRequests = try await service.fetchMyChangeRequests(userID: activeSession.userID, accessToken: activeSession.accessToken)
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = "Your listings could not be loaded. Please try again soon."
+        }
+    }
+
+    private func pendingRequest(for listing: LocalEvent) -> EventChangeRequest? {
+        changeRequests.first { $0.eventID == listing.id && $0.status == .pending }
+    }
+
+    private func latestRequest(for listing: LocalEvent) -> EventChangeRequest? {
+        changeRequests
+            .filter { $0.eventID == listing.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+    }
+
+    private func requests(for listing: LocalEvent) -> [EventChangeRequest] {
+        changeRequests
+            .filter { $0.eventID == listing.id }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    @MainActor
+    private func submitEditRequest(for listing: LocalEvent, draft: ListingEditDraft, note: String?) async {
+        guard let session = userSessionStore.session else { return }
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+            let activeSession = userSessionStore.session ?? session
+            try await service.createEditRequest(
+                event: listing,
+                draft: draft,
+                requesterID: activeSession.userID,
+                requesterNote: note,
+                accessToken: activeSession.accessToken
+            )
+            actionMessage = "Edit request sent for \(listing.title)."
+            selectedEditListing = nil
+            await loadListings()
+        } catch {
+            actionMessage = "Edit request could not be sent. Please try again."
+        }
+    }
+
+    @MainActor
+    private func submitRemovalRequest(for listing: LocalEvent, note: String?) async {
+        guard let session = userSessionStore.session else { return }
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+            let activeSession = userSessionStore.session ?? session
+            try await service.createRemovalRequest(
+                event: listing,
+                requesterID: activeSession.userID,
+                requesterNote: note,
+                accessToken: activeSession.accessToken
+            )
+            actionMessage = "Removal request sent for \(listing.title)."
+            selectedRemovalListing = nil
+            await loadListings()
+        } catch {
+            actionMessage = "Removal request could not be sent. Please try again."
+        }
+    }
+}
+
+struct SettingsListingAnalyticsDisclosure: View {
+    let event: LocalEvent
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(event.title)
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        Text("\(event.inferredListingTier.title) · \(event.listingStatus.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    }
+
+                    Spacer()
+
+                    Text(event.inferredListingTier.includesInsights ? "Graph" : "Basic")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(event.inferredListingTier.includesInsights ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background((event.inferredListingTier.includesInsights ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen).opacity(0.10), in: Capsule())
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                ListingAnalyticsDetailCard(event: event)
+            } else {
+                ListingAnalyticsCompactView(event: event)
+            }
+        }
+        .padding(16)
+        .pccCardStyle()
+    }
+}
+
+struct SettingsInfoMessage: View {
+    let icon: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.headline.weight(.black))
+                .foregroundStyle(PCCTheme.ink)
+
+            Text(message)
+                .font(.body.weight(.medium))
+                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .lineSpacing(3)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .pccCardStyle()
     }
 }
 
 struct SavedRemindersPlaceholderScreen: View {
+    @EnvironmentObject private var engagementStore: EventEngagementStore
     @Environment(\.dismiss) private var dismiss
+    @State private var events: [LocalEvent] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    private let service: PublishedEventFetching = SupabaseEventService()
+
+    private var engagedEvents: [LocalEvent] {
+        events
+            .filter { !engagementStore.engagementKind(for: $0).isEmpty }
+            .sorted { $0.startDate < $1.startDate }
+    }
 
     var body: some View {
-        SettingsInfoSheet(
-            title: "Saved & Reminders",
-            icon: "bookmark",
-            paragraphs: [
-                "Events you save, mark as going, or mark as interested will appear here.",
-                "Reminder controls are coming soon.",
-                "For now, these buttons are local UI only and do not sync between devices."
-            ],
-            dismiss: dismiss
-        )
+        NavigationStack {
+            ZStack {
+                PCCScreenBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Saved & Reminders")
+                                .font(.system(size: 36, weight: .black, design: .serif))
+                                .foregroundStyle(PCCTheme.ink)
+
+                            Text("Events you save, mark interested, or mark going appear here on this device.")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .lineSpacing(3)
+                        }
+                        .padding(20)
+                        .pccCardStyle()
+
+                        if isLoading {
+                            SettingsInfoMessage(icon: "arrow.clockwise", title: "Loading events", message: "Checking your saved local events.")
+                        } else if let errorMessage {
+                            SettingsInfoMessage(icon: "wifi.exclamationmark", title: "Saved events unavailable", message: errorMessage)
+                        } else if engagedEvents.isEmpty {
+                            SettingsInfoMessage(icon: "bookmark", title: "Nothing saved yet", message: "Tap Save, Interested, or Going on a listing to keep it here.")
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(engagedEvents) { event in
+                                    SavedEventSettingsCard(event: event)
+                                }
+                            }
+                        }
+
+                        Text("Reminder notifications and cross-device syncing are not connected yet.")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
+                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                }
+            }
+            .navigationTitle("Saved")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+            .task {
+                await loadEvents()
+            }
+            .refreshable {
+                await loadEvents()
+            }
+        }
+    }
+
+    @MainActor
+    private func loadEvents() async {
+        isLoading = events.isEmpty
+        errorMessage = nil
+
+        do {
+            events = try await service.fetchPublishedEvents()
+            isLoading = false
+        } catch {
+            isLoading = false
+            errorMessage = "Saved events could not be loaded. Please try again soon."
+        }
+    }
+}
+
+struct SavedEventSettingsCard: View {
+    @EnvironmentObject private var engagementStore: EventEngagementStore
+    let event: LocalEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .top, spacing: 12) {
+                ListingRemoteImageView(
+                    image: event.primaryImage,
+                    context: "saved settings event=\(String(event.id.uuidString.prefix(8)))",
+                    contentMode: .fill
+                ) {
+                    EventImagePlaceholderView()
+                }
+                .frame(width: 82, height: 70)
+                .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(event.title)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text("\(event.dateText) · \(event.timeText)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .lineLimit(2)
+
+                    Text("\(event.venue), \(event.town.rawValue)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .lineLimit(2)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 7) {
+                ForEach(engagementStore.engagementKind(for: event)) { kind in
+                    Label(kind.rawValue, systemImage: kind.icon)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.leafGreen)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(PCCTheme.leafGreen.opacity(0.09), in: Capsule())
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    engagementStore.toggleSaved(event)
+                } label: {
+                    Label(engagementStore.isSaved(event) ? "Unsave" : "Save", systemImage: "bookmark")
+                }
+
+                Button {
+                    engagementStore.toggleInterested(event)
+                } label: {
+                    Label(engagementStore.isInterested(event) ? "Not Interested" : "Interested", systemImage: "star")
+                }
+
+                Button {
+                    engagementStore.toggleGoing(event)
+                } label: {
+                    Label(engagementStore.isGoing(event) ? "Not Going" : "Going", systemImage: "checkmark.circle")
+                }
+            }
+            .font(.caption.weight(.black))
+            .buttonStyle(.plain)
+            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+        }
+        .padding(14)
+        .pccCardStyle()
     }
 }
 

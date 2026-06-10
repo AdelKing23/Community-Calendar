@@ -414,9 +414,28 @@ struct LocalEvent: Identifiable, Hashable {
     var weekdayShort: String {
         startDate.formatted(.dateTime.weekday(.abbreviated)).uppercased()
     }
+
+    var inferredListingTier: ListingTier {
+        let value = priceLabel.lowercased()
+
+        if value.contains("boost + insights") || value.contains("insights") || value.contains("$15") {
+            return .boostInsights
+        }
+
+        if value.contains("boost") || value.contains("$10") {
+            return .boost
+        }
+
+        if value.contains("commercial") || value.contains("$5") {
+            return .commercialStandard
+        }
+
+        return .communityFree
+    }
 }
 
 struct PendingListingDraft: Hashable {
+    var listingTier: ListingTier = .communityFree
     var title = ""
     var category: EventCategory = .community
     var town: CoastTown = .beachlands
@@ -427,6 +446,10 @@ struct PendingListingDraft: Hashable {
     var contactName = ""
     var contactEmail = ""
     var shortDescription = ""
+
+    var commercialSignals: [ListingCommercialSignal] {
+        ListingCommercialSignalDetector.signals(for: self)
+    }
 
     var canSubmit: Bool {
         [

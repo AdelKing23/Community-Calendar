@@ -1052,12 +1052,18 @@ struct PendingEventInsert: Encodable {
         self.venue = draft.venue.trimmed
         self.startAt = start
         self.endAt = Calendar.current.date(byAdding: .hour, value: 2, to: start) ?? start
-        let price = draft.priceLabel.trimmed
-        self.priceLabel = price.isEmpty ? "Free" : price
-        self.isFree = price.isEmpty || price.localizedCaseInsensitiveContains("free")
+        let price = draft.listingTier == .communityFree ? draft.priceLabel.trimmed : draft.listingTier.priceLabel
+        self.priceLabel = price.isEmpty ? draft.listingTier.priceLabel : price
+        self.isFree = draft.listingTier == .communityFree && (price.isEmpty || price.localizedCaseInsensitiveContains("free"))
         self.audience = "Everyone"
         self.shortDescription = draft.shortDescription.trimmed
-        self.longDescription = draft.shortDescription.trimmed
+        self.longDescription = [
+            draft.shortDescription.trimmed,
+            draft.listingTier.isPaidTier ? "Selected listing option: \(draft.listingTier.title) (\(draft.listingTier.priceText))." : nil,
+            draft.commercialSignals.isEmpty ? nil : "Review signals: \(draft.commercialSignals.map { $0.label }.joined(separator: ", "))."
+        ]
+        .compactMap { $0?.nilIfEmpty }
+        .joined(separator: "\n\n")
         self.contactName = draft.contactName.trimmed.nilIfEmpty
         self.contactEmail = draft.contactEmail.trimmed.nilIfEmpty
         self.isFeatured = false

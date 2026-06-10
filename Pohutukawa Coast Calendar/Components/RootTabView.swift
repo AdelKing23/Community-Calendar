@@ -35,7 +35,8 @@ struct RootTabView: View {
                 case .create:
                     CreateListingScreen(
                         onNavigateHome: { selectedTab = .home },
-                        onNavigateWhatsOn: { selectedTab = .whatsOn }
+                        onNavigateWhatsOn: { selectedTab = .whatsOn },
+                        onNavigateSettings: { selectedTab = .settings }
                     )
                 case .calendar:
                     CalendarScreen()

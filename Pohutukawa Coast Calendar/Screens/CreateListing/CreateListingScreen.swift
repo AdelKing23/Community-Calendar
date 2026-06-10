@@ -32,27 +32,23 @@ struct CreateListingScreen: View {
     @State private var submissionNotice: String?
     @State private var submittedListingID: UUID?
     @State private var submittedListingTitle: String?
-    @State private var myListings: [LocalEvent] = []
-    @State private var myChangeRequests: [EventChangeRequest] = []
-    @State private var isLoadingMyListings = false
-    @State private var myListingsError: String?
-    @State private var changeRequestMessage: String?
-    @State private var selectedUserListing: LocalEvent?
-    @State private var selectedEditListing: LocalEvent?
-    @State private var selectedRemovalListing: LocalEvent?
+    @State private var submittedListingTier: ListingTier?
     @State private var photoPickerItems: [PhotosPickerItem] = []
     @State private var selectedPhotos: [ListingPhotoUpload] = []
     @FocusState private var focusedField: Field?
     private let listingService: EventListingSubmitting & UserListingFetching & EventChangeRequesting = SupabaseEventService()
     let onNavigateHome: () -> Void
     let onNavigateWhatsOn: () -> Void
+    let onNavigateSettings: () -> Void
 
     init(
         onNavigateHome: @escaping () -> Void = {},
-        onNavigateWhatsOn: @escaping () -> Void = {}
+        onNavigateWhatsOn: @escaping () -> Void = {},
+        onNavigateSettings: @escaping () -> Void = {}
     ) {
         self.onNavigateHome = onNavigateHome
         self.onNavigateWhatsOn = onNavigateWhatsOn
+        self.onNavigateSettings = onNavigateSettings
     }
 
     var body: some View {
@@ -78,6 +74,7 @@ struct CreateListingScreen: View {
                         SubmissionReceivedCard(
                             listingID: submittedListingID,
                             listingTitle: submittedListingTitle,
+                            listingTier: submittedListingTier,
                             notice: submissionNotice,
                             onViewListing: showMyListings,
                             onCreateAnother: resetForAnotherListing,
@@ -88,7 +85,6 @@ struct CreateListingScreen: View {
                         SignedInListingBanner(email: userSessionStore.email) {
                             userSessionStore.signOut()
                             resetForAnotherListing()
-                            myListings = []
                         }
 
                         PendingListingForm(
@@ -105,25 +101,6 @@ struct CreateListingScreen: View {
                             submitListing()
                         } onRemovePhoto: { photo in
                             removePhoto(photo)
-                        }
-
-                        MyListingsPanel(
-                            listings: myListings,
-                            changeRequests: myChangeRequests,
-                            isLoading: isLoadingMyListings,
-                            errorMessage: myListingsError,
-                            actionMessage: changeRequestMessage,
-                            onSelectListing: { listing in
-                                selectedUserListing = listing
-                            },
-                            onEditListing: { listing in
-                                selectedEditListing = listing
-                            },
-                            onRemoveListing: { listing in
-                                selectedRemovalListing = listing
-                            }
-                        ) {
-                            Task { await loadMyListings() }
                         }
                     }
                 }
@@ -143,36 +120,6 @@ struct CreateListingScreen: View {
         .onChange(of: photoPickerItems) { _, newItems in
             Task { await loadPhotos(from: newItems) }
         }
-        .task(id: userSessionStore.session?.userID) {
-            guard userSessionStore.isSignedIn else { return }
-            await loadMyListings()
-        }
-        .sheet(item: $selectedUserListing) { listing in
-            UserListingDetailSheet(
-                listing: listing,
-                pendingRequest: pendingRequest(for: listing),
-                latestRequest: latestRequest(for: listing),
-                requests: requests(for: listing),
-                onEdit: {
-                    selectedUserListing = nil
-                    selectedEditListing = listing
-                },
-                onRemove: {
-                    selectedUserListing = nil
-                    selectedRemovalListing = listing
-                }
-            )
-        }
-        .sheet(item: $selectedEditListing) { listing in
-            ListingEditRequestSheet(listing: listing) { draft, note in
-                await submitEditRequest(for: listing, draft: draft, note: note)
-            }
-        }
-        .sheet(item: $selectedRemovalListing) { listing in
-            ListingRemovalRequestSheet(listing: listing) { note in
-                await submitRemovalRequest(for: listing, note: note)
-            }
-        }
     }
 
     private func resetForAnotherListing() {
@@ -185,13 +132,14 @@ struct CreateListingScreen: View {
         didSubmit = false
         submittedListingID = nil
         submittedListingTitle = nil
+        submittedListingTier = nil
         selectedPhotos = []
         photoPickerItems = []
     }
 
     private func showMyListings() {
         didSubmit = false
-        Task { await loadMyListings() }
+        onNavigateSettings()
     }
 
     private func submitListing() {
@@ -210,6 +158,7 @@ struct CreateListingScreen: View {
             do {
                 let photosToUpload = selectedPhotos
                 let submittedTitle = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let selectedTier = draft.listingTier
                 await userSessionStore.refreshIfNeeded()
                 guard let session = userSessionStore.session else {
                     throw UserAuthError.signInFailed
@@ -244,6 +193,7 @@ struct CreateListingScreen: View {
                 await MainActor.run {
                     submittedListingID = listingID
                     submittedListingTitle = submittedTitle
+                    submittedListingTier = selectedTier
                     didSubmit = true
                     isSubmitting = false
                     submissionStatus = nil
@@ -251,7 +201,6 @@ struct CreateListingScreen: View {
                     selectedPhotos = []
                     photoPickerItems = []
                 }
-                await loadMyListings()
             } catch {
                 await MainActor.run {
                     isSubmitting = false
@@ -259,96 +208,6 @@ struct CreateListingScreen: View {
                     submissionError = "The listing could not be sent. Please check your connection and try again."
                 }
             }
-        }
-    }
-
-    @MainActor
-    private func loadMyListings() async {
-        guard let currentSession = userSessionStore.session else {
-            myListings = []
-            myChangeRequests = []
-            myListingsError = nil
-            return
-        }
-
-        isLoadingMyListings = myListings.isEmpty
-        myListingsError = nil
-
-        do {
-            await userSessionStore.refreshIfNeeded()
-            let activeSession = userSessionStore.session ?? currentSession
-            myListings = try await listingService.fetchUserListings(
-                userID: activeSession.userID,
-                accessToken: activeSession.accessToken
-            )
-            myChangeRequests = try await listingService.fetchMyChangeRequests(
-                userID: activeSession.userID,
-                accessToken: activeSession.accessToken
-            )
-            isLoadingMyListings = false
-        } catch {
-            isLoadingMyListings = false
-            myListingsError = "Your listings could not be loaded. Pull down or try again soon."
-        }
-    }
-
-    private func pendingRequest(for listing: LocalEvent) -> EventChangeRequest? {
-        myChangeRequests.first { $0.eventID == listing.id && $0.status == .pending }
-    }
-
-    private func latestRequest(for listing: LocalEvent) -> EventChangeRequest? {
-        myChangeRequests
-            .filter { $0.eventID == listing.id }
-            .sorted { $0.createdAt > $1.createdAt }
-            .first
-    }
-
-    private func requests(for listing: LocalEvent) -> [EventChangeRequest] {
-        myChangeRequests
-            .filter { $0.eventID == listing.id }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    @MainActor
-    private func submitEditRequest(for listing: LocalEvent, draft: ListingEditDraft, note: String?) async {
-        guard let currentSession = userSessionStore.session else { return }
-
-        do {
-            await userSessionStore.refreshIfNeeded()
-            let activeSession = userSessionStore.session ?? currentSession
-            try await listingService.createEditRequest(
-                event: listing,
-                draft: draft,
-                requesterID: activeSession.userID,
-                requesterNote: note,
-                accessToken: activeSession.accessToken
-            )
-            changeRequestMessage = "Edit request sent for \(listing.title)."
-            selectedEditListing = nil
-            await loadMyListings()
-        } catch {
-            changeRequestMessage = "Edit request could not be sent. Please try again."
-        }
-    }
-
-    @MainActor
-    private func submitRemovalRequest(for listing: LocalEvent, note: String?) async {
-        guard let currentSession = userSessionStore.session else { return }
-
-        do {
-            await userSessionStore.refreshIfNeeded()
-            let activeSession = userSessionStore.session ?? currentSession
-            try await listingService.createRemovalRequest(
-                event: listing,
-                requesterID: activeSession.userID,
-                requesterNote: note,
-                accessToken: activeSession.accessToken
-            )
-            changeRequestMessage = "Removal request sent for \(listing.title)."
-            selectedRemovalListing = nil
-            await loadMyListings()
-        } catch {
-            changeRequestMessage = "Removal request could not be sent. Please try again."
         }
     }
 
@@ -734,6 +593,8 @@ struct MyListingCard: View {
                 .foregroundStyle(PCCTheme.ink.opacity(0.56))
                 .lineSpacing(2)
 
+            ListingAnalyticsCompactView(event: listing)
+
             if let pendingRequest {
                 Label("\(pendingRequest.supportTitle) pending support review", systemImage: "clock.badge.exclamationmark")
                     .font(.caption.weight(.black))
@@ -862,6 +723,8 @@ struct UserListingDetailSheet: View {
                     .padding(18)
                     .pccCardStyle()
 
+                    ListingAnalyticsDetailCard(event: listing)
+
                     VStack(alignment: .leading, spacing: 10) {
                         Label(pendingRequest == nil ? "Changes go back through review." : "Request already waiting for review.", systemImage: "lock.shield")
                             .font(.headline.weight(.black))
@@ -933,6 +796,142 @@ struct UserListingDetailSheet: View {
         }
 
         return "For launch safety, edits and removal requests are reviewed before they affect the public listing."
+    }
+}
+
+struct ListingAnalyticsCompactView: View {
+    let event: LocalEvent
+
+    private var analytics: ListingAnalyticsSnapshot {
+        ListingAnalyticsSnapshot.softLaunchEstimate(for: event)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            AnalyticsPill(value: "\(analytics.impressions)", label: "shown")
+            AnalyticsPill(value: "\(analytics.detailViews)", label: "opened")
+            AnalyticsPill(value: "\(analytics.engagementTaps)", label: "engaged")
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Listing analytics. \(analytics.impressions) shown, \(analytics.detailViews) opened, \(analytics.engagementTaps) engaged.")
+    }
+}
+
+struct AnalyticsPill: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.leafGreen)
+            Text(label)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(PCCTheme.leafGreen.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct ListingAnalyticsDetailCard: View {
+    let event: LocalEvent
+
+    private var analytics: ListingAnalyticsSnapshot {
+        ListingAnalyticsSnapshot.softLaunchEstimate(for: event)
+    }
+
+    private var isInsightsTier: Bool {
+        event.inferredListingTier.includesInsights
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isInsightsTier ? "Listing Insights" : "Basic Analytics")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text(isInsightsTier ? "Useful performance detail for deciding if a boost helped." : "A simple launch view of activity. Deeper reporting is included with Boost + Insights.")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .lineSpacing(2)
+                }
+            }
+
+            ListingAnalyticsCompactView(event: event)
+
+            if isInsightsTier {
+                AnalyticsBarGraph(analytics: analytics)
+
+                Text("Use this to compare normal listings against boosted ones once real tracking is connected.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.56))
+            } else {
+                Label("Boost + Insights will add a deeper graph and share/save breakdown.", systemImage: "chart.line.uptrend.xyaxis")
+                    .font(.footnote.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+            }
+
+            Text("Soft-launch numbers are placeholders until server analytics are connected.")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(PCCTheme.ink.opacity(0.42))
+        }
+        .padding(18)
+        .pccCardStyle()
+    }
+}
+
+struct AnalyticsBarGraph: View {
+    let analytics: ListingAnalyticsSnapshot
+
+    private var rows: [(label: String, value: Int)] {
+        [
+            ("Shown", analytics.impressions),
+            ("Opened", analytics.detailViews),
+            ("Engaged", analytics.engagementTaps),
+            ("Saved", analytics.saves),
+            ("Shared", analytics.shares)
+        ]
+    }
+
+    private var maxValue: Int {
+        max(rows.map(\.value).max() ?? 1, 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(rows, id: \.label) { row in
+                HStack(spacing: 10) {
+                    Text(row.label)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .frame(width: 64, alignment: .leading)
+
+                    GeometryReader { proxy in
+                        let width = max(8, proxy.size.width * CGFloat(row.value) / CGFloat(maxValue))
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(row.label == "Shown" ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+                            .frame(width: width)
+                    }
+                    .frame(height: 12)
+
+                    Text("\(row.value)")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .frame(width: 34, alignment: .trailing)
+                }
+            }
+        }
+        .padding(12)
+        .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
     }
 }
 
@@ -1363,6 +1362,8 @@ struct PendingListingForm: View {
                 .font(.title3.weight(.black))
                 .foregroundStyle(PCCTheme.ink)
 
+            ListingTierSelector(draft: $draft)
+
             PCCFormField(title: "Event Name", text: $draft.title, prompt: "Coastal concert, market, class")
                 .focused($focusedField, equals: .title)
             PCCFormField(title: "Venue", text: $draft.venue, prompt: "Hall, beach, club, cafe")
@@ -1384,8 +1385,17 @@ struct PendingListingForm: View {
             DatePicker("Date", selection: $draft.date, displayedComponents: .date)
             DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
 
-            PCCFormField(title: "Cost", text: $draft.priceLabel, prompt: "Free, koha, $20")
-                .focused($focusedField, equals: .cost)
+            if draft.listingTier == .communityFree {
+                PCCFormField(title: "Cost", text: $draft.priceLabel, prompt: "Free, koha, $20")
+                    .focused($focusedField, equals: .cost)
+            } else {
+                PaidTierCostSummary(tier: draft.listingTier)
+            }
+
+            if draft.listingTier == .communityFree && !draft.commercialSignals.isEmpty {
+                CommercialSignalWarning(signals: draft.commercialSignals)
+            }
+
             PCCFormField(title: "Contact Name", text: $draft.contactName, prompt: "Organiser or venue")
                 .focused($focusedField, equals: .contactName)
             PCCFormField(title: "Contact Email", text: $draft.contactEmail, prompt: "name@example.co.nz")
@@ -1444,6 +1454,125 @@ struct PendingListingForm: View {
         .foregroundStyle(PCCTheme.ink)
         .padding(20)
         .pccCardStyle()
+    }
+}
+
+struct ListingTierSelector: View {
+    @Binding var draft: PendingListingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Listing Type")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                Text("Choose the path that best matches this listing. Paid options will be connected after soft-launch testing.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .lineSpacing(2)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(ListingTier.allCases) { tier in
+                    Button {
+                        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                            draft.listingTier = tier
+                            draft.priceLabel = tier.priceLabel
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(tier.title)
+                                    .font(.subheadline.weight(.black))
+                                    .foregroundStyle(draft.listingTier == tier ? .white : PCCTheme.ink)
+                                    .lineLimit(2)
+
+                                Spacer(minLength: 6)
+
+                                Text(tier.priceText)
+                                    .font(.caption.weight(.black))
+                                    .foregroundStyle(draft.listingTier == tier ? .white.opacity(0.92) : PCCTheme.pohutukawaOrange)
+                            }
+
+                            Text(tier.shortDescription)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(draft.listingTier == tier ? .white.opacity(0.82) : PCCTheme.ink.opacity(0.56))
+                                .lineLimit(4)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+                        .padding(12)
+                        .background(
+                            draft.listingTier == tier ? PCCTheme.leafGreen : PCCTheme.cream.opacity(0.64),
+                            in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Label(draft.listingTier.reviewHint, systemImage: draft.listingTier.isPaidTier ? "creditcard.fill" : "checkmark.seal.fill")
+                .font(.caption.weight(.black))
+                .foregroundStyle(draft.listingTier.isPaidTier ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+        }
+        .padding(13)
+        .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct PaidTierCostSummary: View {
+    let tier: ListingTier
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: "creditcard.fill")
+                .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Selected price")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                Text("\(tier.priceText) · \(tier.title)")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+
+                Text("Payment is not charged yet. Support will review and request payment when paid options are connected.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .lineSpacing(2)
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct CommercialSignalWarning: View {
+    let signals: [ListingCommercialSignal]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label("This may need a paid listing", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+            Text("We spotted wording that can look commercial. If this promotes a business, choose Commercial or Boost so Support can approve it faster.")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .lineSpacing(2)
+
+            ForEach(signals.prefix(3)) { signal in
+                Text("\(signal.label): \(signal.detail)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PCCTheme.pohutukawaOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
     }
 }
 
@@ -1592,6 +1721,7 @@ struct PCCFormField: View {
 struct SubmissionReceivedCard: View {
     let listingID: UUID?
     let listingTitle: String?
+    let listingTier: ListingTier?
     let notice: String?
     let onViewListing: () -> Void
     let onCreateAnother: () -> Void
@@ -1619,6 +1749,14 @@ struct SubmissionReceivedCard: View {
                 .foregroundStyle(PCCTheme.ink.opacity(0.68))
                 .lineSpacing(3)
 
+            if let listingTier, listingTier.isPaidTier {
+                Label("\(listingTier.title) selected. No payment has been charged in soft-launch mode; Support will review the listing and payment path.", systemImage: "creditcard.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                    .padding(12)
+                    .background(PCCTheme.pohutukawaOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+
             if let listingID {
                 Text("Listing reference: \(String(listingID.uuidString.prefix(8)))")
                     .font(.caption.weight(.black))
@@ -1636,7 +1774,7 @@ struct SubmissionReceivedCard: View {
 
             VStack(spacing: 10) {
                 Button(action: onViewListing) {
-                    Label("View Your Listing", systemImage: "rectangle.stack.fill")
+                    Label("Open My Listings", systemImage: "rectangle.stack.fill")
                         .font(.headline.weight(.black))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)

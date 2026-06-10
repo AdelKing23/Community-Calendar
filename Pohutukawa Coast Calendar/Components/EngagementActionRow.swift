@@ -2,22 +2,20 @@ import SwiftUI
 
 struct EngagementActionRow: View {
     let event: LocalEvent
-    @State private var interested = false
-    @State private var going = false
-    @State private var saved = false
+    @EnvironmentObject private var engagementStore: EventEngagementStore
 
     var body: some View {
         HStack(spacing: 5) {
-            EngagementButton(title: "Interested", icon: "star", isSelected: interested) {
-                interested.toggle()
+            EngagementButton(title: "Interested", icon: "star", isSelected: engagementStore.isInterested(event)) {
+                engagementStore.toggleInterested(event)
             }
 
-            EngagementButton(title: "Going", icon: "checkmark.circle", isSelected: going) {
-                going.toggle()
+            EngagementButton(title: "Going", icon: "checkmark.circle", isSelected: engagementStore.isGoing(event)) {
+                engagementStore.toggleGoing(event)
             }
 
-            EngagementButton(title: "Save", icon: "bookmark", isSelected: saved) {
-                saved.toggle()
+            EngagementButton(title: "Save", icon: "bookmark", isSelected: engagementStore.isSaved(event)) {
+                engagementStore.toggleSaved(event)
             }
 
             ShareLink(item: shareText) {
