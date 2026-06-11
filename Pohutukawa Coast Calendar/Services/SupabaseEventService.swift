@@ -39,6 +39,7 @@ protocol PublishedEventFetching {
     func fetchPublishedEvents() async throws -> [LocalEvent]
     func fetchPublishedEvents(from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent]
     func fetchPublishedEvents(locationScopeID: String) async throws -> [LocalEvent]
+    func fetchPublishedEvents(submittedBy userID: UUID) async throws -> [LocalEvent]
 }
 
 protocol LocationScopeFetching {
@@ -163,6 +164,28 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response)
         return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public location")
+    }
+
+    func fetchPublishedEvents(submittedBy userID: UUID) async throws -> [LocalEvent] {
+        guard var components = eventsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*,event_images(*)"),
+            URLQueryItem(name: "submitted_by", value: "eq.\(userID.uuidString.lowercased())"),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: Date()))"),
+            URLQueryItem(name: "order", value: "start_at.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public organiser")
     }
 
     func fetchLocationCatalog() async throws -> LocationCatalog {
@@ -972,6 +995,7 @@ struct SupabaseEventRecord: Decodable {
     let contactName: String?
     let contactPhone: String?
     let contactEmail: String?
+    let submittedBy: UUID?
     let isFeatured: Bool
     let isPaidPush: Bool
     let status: String
@@ -996,6 +1020,7 @@ struct SupabaseEventRecord: Decodable {
         case contactName = "contact_name"
         case contactPhone = "contact_phone"
         case contactEmail = "contact_email"
+        case submittedBy = "submitted_by"
         case isFeatured = "is_featured"
         case isPaidPush = "is_paid_push"
         case status
@@ -1028,6 +1053,7 @@ struct SupabaseEventRecord: Decodable {
             contactName: contactName,
             contactPhone: contactPhone,
             contactEmail: contactEmail,
+            submittedBy: submittedBy,
             isFeatured: isFeatured,
             isPaidPush: isPaidPush,
             listingStatus: listingStatus,

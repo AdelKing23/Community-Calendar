@@ -417,6 +417,7 @@ struct LocalEvent: Identifiable, Hashable {
     let contactName: String?
     let contactPhone: String?
     let contactEmail: String?
+    let submittedBy: UUID?
     let isFeatured: Bool
     let isPaidPush: Bool
     let listingStatus: ListingStatus
@@ -449,6 +450,7 @@ struct LocalEvent: Identifiable, Hashable {
         contactName: String? = nil,
         contactPhone: String?,
         contactEmail: String?,
+        submittedBy: UUID? = nil,
         isFeatured: Bool,
         isPaidPush: Bool,
         listingStatus: ListingStatus = .published,
@@ -472,6 +474,7 @@ struct LocalEvent: Identifiable, Hashable {
         self.contactName = contactName
         self.contactPhone = contactPhone
         self.contactEmail = contactEmail
+        self.submittedBy = submittedBy
         self.isFeatured = isFeatured
         self.isPaidPush = isPaidPush
         self.listingStatus = listingStatus
@@ -499,6 +502,11 @@ struct LocalEvent: Identifiable, Hashable {
 
     var inferredTopics: [ListingTopic] {
         ListingTopic.inferredTopics(category: category, searchableText: searchableText)
+    }
+
+    var organiserDisplayName: String {
+        let trimmedName = contactName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmedName.isEmpty ? "Local organiser" : trimmedName
     }
 
     func matches(topic: ListingTopic) -> Bool {
