@@ -26,6 +26,18 @@ Example:
 - `202606110001_location_scope_system.sql` creates the location hierarchy tables, search helpers, event location targets, views, triggers, RLS policies, and initial local/NZ seed data.
 - `202606110002_public_organiser_events.sql` ensures events carry `submitted_by` and adds the index used by public organiser event pages.
 
+## Audit Queries
+
+- `audit_queries.sql` contains read-only queries for comparing the live Supabase project against the migration baseline.
+- Run these with result limits disabled where possible.
+
+## Known Externals
+
+- Auth users and real event/listing rows are not stored in migrations.
+- Storage files are not stored in migrations.
+- Storage bucket metadata/policies and Postgres event triggers should be audited with `audit_queries.sql` before production launch.
+- MVP owner/admin access currently uses an email-based policy check. Replace this with roles/admin membership before wider production use.
+
 ## Operating note
 
 Supabase had early schema, location, and organiser SQL applied manually during MVP setup. These migration files preserve that backend shape in git so future environments can be recreated and reviewed properly.
