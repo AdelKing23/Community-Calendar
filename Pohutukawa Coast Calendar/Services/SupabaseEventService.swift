@@ -208,7 +208,7 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
                 kind: kind,
                 subtitle: record.subtitle ?? record.name,
                 townMatches: Self.localTownMatches(for: record.slug),
-                searchTerms: [record.slug] + aliasesBySlug[record.slug, default: []],
+                searchTerms: Self.locationSearchTerms(for: record.slug, aliases: aliasesBySlug[record.slug, default: []]),
                 ladderIDs: []
             )
         }
@@ -906,6 +906,11 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
 
     private static func localTownMatches(for slug: String) -> Set<CoastTown> {
         LocationScope.scope(id: slug)?.townMatches ?? []
+    }
+
+    private static func locationSearchTerms(for slug: String, aliases: [String]) -> [String] {
+        let localTerms = LocationScope.scope(id: slug)?.searchTerms ?? []
+        return Array(Set([slug] + aliases + localTerms)).sorted()
     }
 
     private func storageObjectURL(storagePath: String) -> URL? {

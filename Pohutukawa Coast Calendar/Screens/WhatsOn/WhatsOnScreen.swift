@@ -463,13 +463,21 @@ struct LocationFinderSheet: View {
                                 .font(.subheadline.weight(.black))
                                 .foregroundStyle(PCCTheme.ink.opacity(0.58))
 
-                            ForEach(results) { scope in
-                                LocationScopeResultRow(
-                                    scope: scope,
-                                    displayLadder: locationCatalog.ladder(for: scope.id),
-                                    isSelected: scope.id == selectedScope.id,
-                                    onSelect: { onSelectScope(scope) }
+                            if results.isEmpty {
+                                LocationNoMatchesCard(
+                                    query: query,
+                                    fallbackScopes: fallbackScopes,
+                                    onSelectScope: onSelectScope
                                 )
+                            } else {
+                                ForEach(results) { scope in
+                                    LocationScopeResultRow(
+                                        scope: scope,
+                                        displayLadder: locationCatalog.ladder(for: scope.id),
+                                        isSelected: scope.id == selectedScope.id,
+                                        onSelect: { onSelectScope(scope) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -479,6 +487,16 @@ struct LocationFinderSheet: View {
             }
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+
+    private var fallbackScopes: [LocationScope] {
+        [
+            locationCatalog.scope(id: LocationScope.defaultID),
+            locationCatalog.scope(id: "auckland"),
+            locationCatalog.scope(id: "new-zealand")
+        ]
+        .compactMap { $0 }
+        .uniquedByID()
     }
 }
 
@@ -577,6 +595,70 @@ struct LocationScopeResultRow: View {
         case .widerArea: return "arrow.up.left.and.arrow.down.right"
         case .region: return "map.fill"
         case .country: return "globe.asia.australia.fill"
+        }
+    }
+}
+
+struct LocationNoMatchesCard: View {
+    let query: String
+    let fallbackScopes: [LocationScope]
+    let onSelectScope: (LocationScope) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                    .frame(width: 32, height: 32)
+                    .background(PCCTheme.pohutukawaOrange.opacity(0.10), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("No exact place yet")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text("Try a wider area while this place is added to the location catalog.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.60))
+                        .lineSpacing(2)
+                }
+            }
+
+            if !fallbackScopes.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(fallbackScopes) { scope in
+                            Button {
+                                onSelectScope(scope)
+                            } label: {
+                                Text(scope.name)
+                                    .font(.caption.weight(.black))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 9)
+                                    .background(PCCTheme.leafGreen, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.trailing, 16)
+                }
+            }
+        }
+        .padding(14)
+        .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("No exact match for \(query). Try a wider area.")
+    }
+}
+
+private extension Array where Element == LocationScope {
+    func uniquedByID() -> [LocationScope] {
+        var seenIDs: Set<String> = []
+        return filter { scope in
+            seenIDs.insert(scope.id).inserted
         }
     }
 }
