@@ -2,10 +2,15 @@ import Foundation
 
 enum CoastTown: String, CaseIterable, Identifiable, Hashable {
     case all = "All Areas"
+    case omana = "Omana"
     case whitford = "Whitford"
     case maraetai = "Maraetai"
     case beachlands = "Beachlands"
     case clevedon = "Clevedon"
+    case kawakawaBay = "Kawakawa Bay"
+    case orerePoint = "Orere Point"
+    case hunua = "Hunua"
+    case ardmore = "Ardmore"
 
     var id: String { rawValue }
 }

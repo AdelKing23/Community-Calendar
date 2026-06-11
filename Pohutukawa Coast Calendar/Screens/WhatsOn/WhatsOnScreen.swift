@@ -2,16 +2,34 @@ import SwiftUI
 
 struct WhatsOnScreen: View {
     @AppStorage("communityCalendar.whatsOn.selectedTopic") private var selectedTopicID = ListingTopic.all.rawValue
+    @AppStorage("communityCalendar.whatsOn.locationScope") private var selectedLocationScopeID = LocationScope.defaultID
+    @AppStorage("communityCalendar.whatsOn.locationFocusScope") private var focusedLocationScopeID = LocationScope.defaultID
     @State private var selectedScope: DateScope = .today
-    @State private var selectedTown: CoastTown = .all
+    @State private var isShowingLocationFinder = false
+    @State private var locationCatalog = LocationCatalog.local
+    @State private var hasLoadedLocationCatalog = false
+    @State private var isUsingBackendLocationFilter = false
     @State private var events: [LocalEvent] = []
     @State private var isLoading = false
     @State private var loadError: String?
 
-    private let eventService: PublishedEventFetching = SupabaseEventService()
+    private let eventService: PublishedEventFetching & LocationScopeFetching = SupabaseEventService()
+
+    private var selectedLocationScope: LocationScope {
+        locationCatalog.defaultScope(for: selectedLocationScopeID)
+    }
+
+    private var selectedLocationLadder: [LocationScope] {
+        locationCatalog.displayLadder(selectedID: selectedLocationScopeID, focusID: focusedLocationScopeID)
+    }
+
+    private var selectedLocationWideningOptions: [LocationScope] {
+        locationCatalog.wideningOptions(selectedID: selectedLocationScopeID, focusID: focusedLocationScopeID)
+    }
 
     private var visibleEvents: [LocalEvent] {
         let today = Calendar.current.startOfDay(for: Date())
+        let locationScope = selectedLocationScope
 
         return events
             .filter { event in
@@ -24,7 +42,7 @@ struct WhatsOnScreen: View {
                     return selectedScope.matches(event) && event.startDate >= today
                 }
             }
-            .filter { selectedTown == .all || $0.town == selectedTown }
+            .filter { isUsingBackendLocationFilter || locationScope.matches($0) }
             .filter { $0.matches(topic: selectedTopic) }
             .sorted {
                 if $0.isPaidPush != $1.isPaidPush {
@@ -63,7 +81,13 @@ struct WhatsOnScreen: View {
 
                         TopicPickerRow(selectedTopicID: $selectedTopicID)
 
-                        TownPickerRow(selectedTown: $selectedTown)
+                        LocationScopeControl(
+                            selectedScope: selectedLocationScope,
+                            displayLadder: selectedLocationLadder,
+                            eventCount: visibleEvents.count,
+                            onChange: { isShowingLocationFinder = true },
+                            onSelectScope: selectLocationScope
+                        )
 
                         if isLoading {
                             LoadingEventsCard()
@@ -92,7 +116,13 @@ struct WhatsOnScreen: View {
                                         .background(PCCTheme.pohutukawaOrange, in: Capsule())
                                 }
 
-                                ScopedEventsContent(scope: selectedScope, events: visibleEvents)
+                                ScopedEventsContent(
+                                    scope: selectedScope,
+                                    locationScope: selectedLocationScope,
+                                    wideningOptions: selectedLocationWideningOptions,
+                                    events: visibleEvents,
+                                    onSelectLocationScope: selectLocationScope
+                                )
                             }
                         }
                     }
@@ -106,11 +136,24 @@ struct WhatsOnScreen: View {
             .navigationBarHidden(true)
         }
         .pccDismissesKeyboardOnTap()
-        .task {
+        .task(id: selectedLocationScopeID) {
             await loadEvents()
         }
         .refreshable {
             await loadEvents()
+        }
+        .sheet(isPresented: $isShowingLocationFinder) {
+            LocationFinderSheet(
+                selectedScope: selectedLocationScope,
+                displayLadder: selectedLocationLadder,
+                locationCatalog: locationCatalog,
+                onSelectScope: { scope in
+                    selectLocationScope(scope)
+                    isShowingLocationFinder = false
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -124,14 +167,37 @@ struct WhatsOnScreen: View {
         }
     }
 
+    private func selectLocationScope(_ scope: LocationScope) {
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
+            if selectedLocationLadder.contains(where: { $0.id == scope.id }) {
+                focusedLocationScopeID = selectedLocationLadder.first?.id ?? scope.id
+            } else {
+                focusedLocationScopeID = scope.id
+            }
+            selectedLocationScopeID = scope.id
+        }
+    }
+
     @MainActor
     private func loadEvents() async {
         isLoading = events.isEmpty
         loadError = nil
 
         do {
-            events = try await eventService.fetchPublishedEvents()
-                .filter(\.isPubliclyVisible)
+            if !hasLoadedLocationCatalog {
+                locationCatalog = (try? await eventService.fetchLocationCatalog()) ?? .local
+                hasLoadedLocationCatalog = true
+            }
+
+            do {
+                events = try await eventService.fetchPublishedEvents(locationScopeID: selectedLocationScope.id)
+                    .filter(\.isPubliclyVisible)
+                isUsingBackendLocationFilter = true
+            } catch {
+                events = try await eventService.fetchPublishedEvents()
+                    .filter(\.isPubliclyVisible)
+                isUsingBackendLocationFilter = false
+            }
             isLoading = false
         } catch {
             isLoading = false
@@ -178,15 +244,18 @@ struct WhatsOnHeader: View {
 
 struct ScopedEventsContent: View {
     let scope: DateScope
+    let locationScope: LocationScope
+    let wideningOptions: [LocationScope]
     let events: [LocalEvent]
+    let onSelectLocationScope: (LocationScope) -> Void
 
     var body: some View {
         if events.isEmpty {
-            FeedMessageCard(
-                icon: "calendar",
+            EmptyScopedEventsCard(
                 title: emptyTitle,
                 message: emptyMessage,
-                retry: nil
+                wideningOptions: Array(wideningOptions.prefix(3)),
+                onSelectLocationScope: onSelectLocationScope
             )
         } else {
             switch scope {
@@ -216,7 +285,7 @@ struct ScopedEventsContent: View {
     }
 
     private var emptyMessage: String {
-        "Approved local listings will appear here."
+        "No approved listings are showing in \(locationScope.name) for this date range. Try widening the area."
     }
 }
 
@@ -263,32 +332,298 @@ struct CompactEventsOverview: View {
     }
 }
 
-struct TownPickerRow: View {
-    @Binding var selectedTown: CoastTown
+struct LocationScopeControl: View {
+    let selectedScope: LocationScope
+    let displayLadder: [LocationScope]
+    let eventCount: Int
+    let onChange: () -> Void
+    let onSelectScope: (LocationScope) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(CoastTown.allCases) { town in
-                    Button {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                            selectedTown = town
-                        }
-                    } label: {
-                        Text(town.rawValue)
-                            .font(.subheadline.weight(.heavy))
-                            .foregroundStyle(selectedTown == town ? .white : PCCTheme.leafGreen)
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 11)
-                            .background(
-                                selectedTown == town ? PCCTheme.pohutukawaOrange : .white.opacity(0.76),
-                                in: Capsule()
-                            )
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: onChange) {
+                HStack(spacing: 12) {
+                    Image(systemName: "location.magnifyingglass")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(PCCTheme.leafGreen, in: Circle())
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Showing \(selectedScope.name)")
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(PCCTheme.ink)
+
+                        Text("\(selectedScope.kind.rawValue) · \(eventCount) listing\(eventCount == 1 ? "" : "s")")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
                     }
-                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.leafGreen)
+                }
+                .padding(14)
+                .background(.white.opacity(0.80), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(displayLadder) { scope in
+                        Button {
+                            onSelectScope(scope)
+                        } label: {
+                            Text(scope.name)
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(scope.id == selectedScope.id ? .white : PCCTheme.leafGreen)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    scope.id == selectedScope.id ? PCCTheme.pohutukawaOrange : .white.opacity(0.74),
+                                    in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.trailing, 20)
+            }
+        }
+    }
+}
+
+struct LocationFinderSheet: View {
+    let selectedScope: LocationScope
+    let displayLadder: [LocationScope]
+    let locationCatalog: LocationCatalog
+    let onSelectScope: (LocationScope) -> Void
+
+    @State private var query = ""
+
+    private var results: [LocationScope] {
+        let matches = locationCatalog.scopes.filter { $0.matchesSearch(query) }
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return locationCatalog.quickScopes + locationCatalog.scopes.filter { scope in
+                !locationCatalog.quickScopes.contains(scope)
+            }
+        }
+        return matches
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PCCTheme.cream.opacity(0.55).ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Find events near...")
+                                .font(.system(size: 32, weight: .black, design: .serif))
+                                .foregroundStyle(PCCTheme.ink)
+
+                            Text("Start specific, then widen when you want more options.")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                        }
+
+                        HStack(spacing: 10) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+
+                            TextField("Search place or area", text: $query)
+                                .font(.body.weight(.bold))
+                                .textInputAutocapitalization(.words)
+
+                            if !query.isEmpty {
+                                Button {
+                                    query = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(PCCTheme.ink.opacity(0.38))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(14)
+                        .background(.white.opacity(0.86), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+                        LocationLadderPreview(
+                            selectedScope: selectedScope,
+                            displayLadder: displayLadder,
+                            onSelectScope: onSelectScope
+                        )
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(query.isEmpty ? "Quick areas" : "Matches")
+                                .font(.subheadline.weight(.black))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+
+                            ForEach(results) { scope in
+                                LocationScopeResultRow(
+                                    scope: scope,
+                                    displayLadder: locationCatalog.ladder(for: scope.id),
+                                    isSelected: scope.id == selectedScope.id,
+                                    onSelect: { onSelectScope(scope) }
+                                )
+                            }
+                        }
+                    }
+                    .padding(18)
+                    .padding(.bottom, 26)
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+struct LocationLadderPreview: View {
+    let selectedScope: LocationScope
+    let displayLadder: [LocationScope]
+    let onSelectScope: (LocationScope) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Current ladder")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(displayLadder) { item in
+                        Button {
+                            onSelectScope(item)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(item.name)
+                                    .lineLimit(1)
+
+                                if item.id != displayLadder.last?.id {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.black))
+                                }
+                            }
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(item.id == selectedScope.id ? .white : PCCTheme.leafGreen)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 9)
+                            .background(item.id == selectedScope.id ? PCCTheme.pohutukawaOrange : .white.opacity(0.78), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.trailing, 18)
+            }
+        }
+        .padding(14)
+        .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct LocationScopeResultRow: View {
+    let scope: LocationScope
+    let displayLadder: [LocationScope]
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(isSelected ? .white : PCCTheme.leafGreen)
+                    .frame(width: 34, height: 34)
+                    .background(isSelected ? PCCTheme.leafGreen : PCCTheme.leafGreen.opacity(0.10), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(scope.name)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text(scope.subtitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .lineLimit(2)
+
+                    Text(displayLadder.map(\.name).joined(separator: "  →  "))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(PCCTheme.pohutukawaOrange.opacity(0.88))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(PCCTheme.leafGreen)
+                }
+            }
+            .padding(13)
+            .background(.white.opacity(isSelected ? 0.92 : 0.74), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var icon: String {
+        switch scope.kind {
+        case .place: return "mappin.and.ellipse"
+        case .community: return "person.3.fill"
+        case .widerArea: return "arrow.up.left.and.arrow.down.right"
+        case .region: return "map.fill"
+        case .country: return "globe.asia.australia.fill"
+        }
+    }
+}
+
+struct EmptyScopedEventsCard: View {
+    let title: String
+    let message: String
+    let wideningOptions: [LocationScope]
+    let onSelectLocationScope: (LocationScope) -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "calendar")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+            Text(title)
+                .font(.title3.weight(.black))
+                .foregroundStyle(PCCTheme.ink)
+                .multilineTextAlignment(.center)
+
+            Text(message)
+                .font(.body.weight(.medium))
+                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .multilineTextAlignment(.center)
+
+            if !wideningOptions.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(wideningOptions) { scope in
+                        Button {
+                            onSelectLocationScope(scope)
+                        } label: {
+                            Text(scope.name)
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(PCCTheme.leafGreen, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
+        .frame(maxWidth: .infinity)
+        .padding(22)
+        .pccCardStyle()
     }
 }
 

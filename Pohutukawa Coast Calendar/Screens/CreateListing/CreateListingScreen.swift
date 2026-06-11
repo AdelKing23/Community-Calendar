@@ -1124,12 +1124,7 @@ struct ListingEditRequestSheet: View {
                         PCCFormField(title: "Event Name", text: $draft.title, prompt: "Event name")
                         PCCFormField(title: "Venue", text: $draft.venue, prompt: "Venue")
 
-                        Picker("Town", selection: $draft.town) {
-                            ForEach(CoastTown.allCases.filter { $0 != .all }) { town in
-                                Text(town.rawValue).tag(town)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                        ListingLocationPicker(town: $draft.town)
 
                         Picker("Category", selection: $draft.category) {
                             ForEach(EventCategory.allCases) { category in
@@ -1374,12 +1369,7 @@ struct PendingListingForm: View {
             PCCFormField(title: "Venue", text: $draft.venue, prompt: "Hall, beach, club, cafe")
                 .focused($focusedField, equals: .venue)
 
-            Picker("Town", selection: $draft.town) {
-                ForEach(CoastTown.allCases.filter { $0 != .all }) { town in
-                    Text(town.rawValue).tag(town)
-                }
-            }
-            .pickerStyle(.segmented)
+            ListingLocationPicker(town: $draft.town)
 
             Picker("Category", selection: $draft.category) {
                 ForEach(EventCategory.allCases) { category in
@@ -1522,6 +1512,98 @@ struct ListingTierSelector: View {
             Label(draft.listingTier.reviewHint, systemImage: draft.listingTier.isPaidTier ? "creditcard.fill" : "checkmark.seal.fill")
                 .font(.caption.weight(.black))
                 .foregroundStyle(draft.listingTier.isPaidTier ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+        }
+        .padding(13)
+        .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct ListingLocationPicker: View {
+    @Binding var town: CoastTown
+    @State private var query = ""
+
+    private var selectedScope: LocationScope {
+        LocationScope.primaryScope(for: town)
+    }
+
+    private var matchingScopes: [LocationScope] {
+        let scopes = LocationScope.listingInputScopes
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return scopes }
+        return scopes.filter { $0.matchesSearch(trimmedQuery) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Location")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                Text("Choose the closest place. The app can still show it in wider areas like \(CommunityArea.defaultAreaName), Franklin and Auckland.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .lineSpacing(2)
+            }
+
+            HStack(spacing: 9) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
+
+                TextField("Search place", text: $query)
+                    .font(.body.weight(.bold))
+                    .textInputAutocapitalization(.words)
+
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(PCCTheme.ink.opacity(0.38))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(12)
+            .background(PCCTheme.cream.opacity(0.74), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(matchingScopes) { scope in
+                        Button {
+                            if let primaryTown = scope.primaryTown {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                                    town = primaryTown
+                                    query = ""
+                                }
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(scope.name)
+                                    .font(.subheadline.weight(.black))
+                                    .lineLimit(1)
+
+                                Text(scope.kind.rawValue)
+                                    .font(.caption2.weight(.bold))
+                                    .opacity(0.78)
+                            }
+                            .foregroundStyle(scope.id == selectedScope.id ? .white : PCCTheme.leafGreen)
+                            .frame(minWidth: 112, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(scope.id == selectedScope.id ? PCCTheme.pohutukawaOrange : .white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.trailing, 18)
+            }
+
+            Text(selectedScope.ladder.map(\.name).joined(separator: "  →  "))
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.leafGreen.opacity(0.86))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .padding(13)
         .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))

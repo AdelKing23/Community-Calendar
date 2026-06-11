@@ -38,6 +38,11 @@ protocol EventChangeRequesting {
 protocol PublishedEventFetching {
     func fetchPublishedEvents() async throws -> [LocalEvent]
     func fetchPublishedEvents(from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent]
+    func fetchPublishedEvents(locationScopeID: String) async throws -> [LocalEvent]
+}
+
+protocol LocationScopeFetching {
+    func fetchLocationCatalog() async throws -> LocationCatalog
 }
 
 protocol OwnerAuthenticating {
@@ -66,7 +71,7 @@ struct OwnerSession: Hashable {
     }
 }
 
-struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventChangeRequesting, PublishedEventFetching, OwnerAuthenticating, OwnerEventReviewing {
+struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventChangeRequesting, PublishedEventFetching, LocationScopeFetching, OwnerAuthenticating, OwnerEventReviewing {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -129,6 +134,95 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response)
         return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public range")
+    }
+
+    func fetchPublishedEvents(locationScopeID: String) async throws -> [LocalEvent] {
+        guard locationScopeID != LocationScope.defaultID || SupabaseConfiguration.isConfigured else {
+            return try await fetchPublishedEvents()
+        }
+
+        let eventIDs = try await fetchPublishedEventIDs(locationScopeID: locationScopeID)
+        guard !eventIDs.isEmpty else { return [] }
+
+        guard var components = eventsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*,event_images(*)"),
+            URLQueryItem(name: "id", value: "in.(\(eventIDs.map(\.uuidString).joined(separator: ",")))"),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: Date()))"),
+            URLQueryItem(name: "order", value: "is_paid_push.desc,is_featured.desc,start_at.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public location")
+    }
+
+    func fetchLocationCatalog() async throws -> LocationCatalog {
+        async let scopes = fetchLocationScopes()
+        async let edges = fetchLocationScopeEdges()
+        async let aliases = fetchLocationAliases()
+
+        let scopeRecords = try await scopes
+        let edgeRecords = try await edges
+        let aliasRecords = try await aliases
+        let aliasesBySlug = Dictionary(grouping: aliasRecords, by: \.locationSlug)
+            .mapValues { $0.map(\.alias) }
+
+        let remoteScopes = scopeRecords.compactMap { record -> LocationScope? in
+            guard let kind = LocationScopeKind(databaseValue: record.scopeType) else { return nil }
+
+            return LocationScope(
+                id: record.slug,
+                name: record.name,
+                kind: kind,
+                subtitle: record.subtitle ?? record.name,
+                townMatches: Self.localTownMatches(for: record.slug),
+                searchTerms: [record.slug] + aliasesBySlug[record.slug, default: []],
+                ladderIDs: []
+            )
+        }
+        .sorted { lhs, rhs in
+            let lhsPriority = scopeRecords.first { $0.slug == lhs.id }?.sortPriority ?? 1000
+            let rhsPriority = scopeRecords.first { $0.slug == rhs.id }?.sortPriority ?? 1000
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            return lhs.name < rhs.name
+        }
+
+        guard !remoteScopes.isEmpty else {
+            throw SupabaseServiceError.invalidResponse
+        }
+
+        let linksByChildID = Dictionary(grouping: edgeRecords.filter { $0.relationshipType == "widens_to" }, by: \.childSlug)
+            .mapValues { edges in
+                edges
+                    .sorted { $0.sortOrder < $1.sortOrder }
+                    .map(\.parentSlug)
+            }
+
+        let quickIDs = [
+            LocationScope.defaultID,
+            "beachlands",
+            "maraetai",
+            "omana",
+            "clevedon",
+            "whitford"
+        ].filter { slug in
+            remoteScopes.contains { $0.id == slug }
+        }
+
+        return LocationCatalog(
+            scopes: remoteScopes,
+            linksByChildID: linksByChildID.isEmpty ? LocationScope.localLinksByChildID : linksByChildID,
+            quickScopeIDs: quickIDs.isEmpty ? LocationScope.quickScopes.map(\.id) : quickIDs
+        )
     }
 
     func submitPendingListing(_ draft: PendingListingDraft, accessToken: String) async throws -> UUID {
@@ -372,6 +466,85 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         }
 
         return events
+    }
+
+    private func fetchLocationScopes() async throws -> [SupabaseLocationScopeRecord] {
+        guard var components = locationScopesURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "slug,name,scope_type,subtitle,sort_priority"),
+            URLQueryItem(name: "is_public", value: "eq.true"),
+            URLQueryItem(name: "is_selectable", value: "eq.true"),
+            URLQueryItem(name: "order", value: "sort_priority.asc,name.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return try decoder.decode([SupabaseLocationScopeRecord].self, from: data)
+    }
+
+    private func fetchLocationScopeEdges() async throws -> [SupabaseLocationScopeEdgeRecord] {
+        guard var components = locationScopeEdgesURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "child_slug,parent_slug,relationship_type,sort_order"),
+            URLQueryItem(name: "relationship_type", value: "eq.widens_to"),
+            URLQueryItem(name: "order", value: "sort_order.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return try decoder.decode([SupabaseLocationScopeEdgeRecord].self, from: data)
+    }
+
+    private func fetchLocationAliases() async throws -> [SupabaseLocationAliasRecord] {
+        guard var components = locationAliasSearchTermsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "location_slug,alias")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return try decoder.decode([SupabaseLocationAliasRecord].self, from: data)
+    }
+
+    private func fetchPublishedEventIDs(locationScopeID: String) async throws -> [UUID] {
+        guard var components = publishedEventLocationTargetsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "event_id,sort_order"),
+            URLQueryItem(name: "location_slug", value: "eq.\(locationScopeID)"),
+            URLQueryItem(name: "order", value: "sort_order.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url))
+        try validate(response)
+        return try decoder.decode([SupabasePublishedEventLocationTargetRecord].self, from: data).map(\.eventID)
     }
 
     func updateEventStatus(id: UUID, status: ListingStatus, accessToken: String) async throws {
@@ -672,6 +845,46 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
     }
 
+    private var locationScopesURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("location_scopes"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private var locationScopeEdgesURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("location_scope_edges"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private var locationAliasSearchTermsURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("location_alias_search_terms"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private var publishedEventLocationTargetsURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("published_event_location_targets"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private static func localTownMatches(for slug: String) -> Set<CoastTown> {
+        LocationScope.scope(id: slug)?.townMatches ?? []
+    }
+
     private func storageObjectURL(storagePath: String) -> URL? {
         storagePath.split(separator: "/").reduce(
             SupabaseConfiguration.storageURL?
@@ -859,6 +1072,54 @@ struct SupabaseEventImageRecord: Decodable {
             height: height,
             signedURL: signedURL
         )
+    }
+}
+
+struct SupabaseLocationScopeRecord: Decodable {
+    let slug: String
+    let name: String
+    let scopeType: String
+    let subtitle: String?
+    let sortPriority: Int
+
+    enum CodingKeys: String, CodingKey {
+        case slug
+        case name
+        case scopeType = "scope_type"
+        case subtitle
+        case sortPriority = "sort_priority"
+    }
+}
+
+struct SupabaseLocationScopeEdgeRecord: Decodable {
+    let childSlug: String
+    let parentSlug: String
+    let relationshipType: String
+    let sortOrder: Int
+
+    enum CodingKeys: String, CodingKey {
+        case childSlug = "child_slug"
+        case parentSlug = "parent_slug"
+        case relationshipType = "relationship_type"
+        case sortOrder = "sort_order"
+    }
+}
+
+struct SupabaseLocationAliasRecord: Decodable {
+    let locationSlug: String
+    let alias: String
+
+    enum CodingKeys: String, CodingKey {
+        case locationSlug = "location_slug"
+        case alias
+    }
+}
+
+struct SupabasePublishedEventLocationTargetRecord: Decodable {
+    let eventID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "event_id"
     }
 }
 
