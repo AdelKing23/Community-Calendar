@@ -4,7 +4,7 @@ enum SupabaseServiceError: LocalizedError {
     case notConfigured
     case invalidResponse
     case authFailed
-    case requestFailed(Int)
+    case requestFailed(Int, String?)
 
     var errorDescription: String? {
         switch self {
@@ -14,8 +14,12 @@ enum SupabaseServiceError: LocalizedError {
             return "The server returned an unexpected response."
         case .authFailed:
             return "Login failed."
-        case .requestFailed:
-            return "The events service is unavailable."
+        case .requestFailed(let statusCode, let message):
+            let detail = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let detail, !detail.isEmpty {
+                return "The events service returned \(statusCode): \(detail)"
+            }
+            return "The events service returned \(statusCode)."
         }
     }
 }
@@ -46,6 +50,26 @@ protocol LocationScopeFetching {
     func fetchLocationCatalog() async throws -> LocationCatalog
 }
 
+protocol PollResponding {
+    func submitPollResponse(eventID: UUID, selectedOption: String?, customAnswer: String?, accessToken: String) async throws
+    func fetchPollResponseCounts(eventID: UUID) async throws -> PollResults
+    func fetchOwnerPollResponseCounts(eventID: UUID, accessToken: String) async throws -> PollResults
+    func fetchMyPollResponse(eventID: UUID, userID: UUID, accessToken: String) async throws -> PollUserResponse?
+    func fetchPollCustomResponses(eventID: UUID, accessToken: String) async throws -> [PollCustomResponse]
+}
+
+protocol ListingAnalyticsFetching {
+    func fetchListingAnalytics(eventID: UUID, accessToken: String) async throws -> ListingAnalyticsSnapshot
+}
+
+protocol EventAnalyticsRecording {
+    func recordEventAnalytics(eventID: UUID, eventType: String, source: String?, locationScopeID: String?, accessToken: String?) async throws
+}
+
+protocol SupportRequestSubmitting {
+    func submitSupportRequest(topic: String, message: String, listingReference: String?, accessToken: String) async throws -> UUID
+}
+
 protocol OwnerAuthenticating {
     func signInOwner(email: String, password: String) async throws -> OwnerSession
     func refreshOwnerSession(refreshToken: String) async throws -> OwnerSession
@@ -72,7 +96,7 @@ struct OwnerSession: Hashable {
     }
 }
 
-struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventChangeRequesting, PublishedEventFetching, LocationScopeFetching, OwnerAuthenticating, OwnerEventReviewing {
+struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventChangeRequesting, PublishedEventFetching, LocationScopeFetching, PollResponding, ListingAnalyticsFetching, EventAnalyticsRecording, SupportRequestSubmitting, OwnerAuthenticating, OwnerEventReviewing {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -112,7 +136,8 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
 
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response)
-        return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public")
+        let localEvents = await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public")
+        return await applyingActivePromotions(to: localEvents, accessToken: nil)
     }
 
     func fetchPublishedEvents(from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent] {
@@ -134,7 +159,8 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
 
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response)
-        return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public range")
+        let localEvents = await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public range")
+        return await applyingActivePromotions(to: localEvents, accessToken: nil)
     }
 
     func fetchPublishedEvents(locationScopeID: String) async throws -> [LocalEvent] {
@@ -163,7 +189,8 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
 
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response)
-        return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public location")
+        let localEvents = await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public location")
+        return await applyingActivePromotions(to: localEvents, accessToken: nil)
     }
 
     func fetchPublishedEvents(submittedBy userID: UUID) async throws -> [LocalEvent] {
@@ -185,7 +212,124 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
 
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response)
-        return await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public organiser")
+        let localEvents = await events(from: try decoder.decode([SupabaseEventRecord].self, from: data), accessToken: nil, logContext: "public organiser")
+        return await applyingActivePromotions(to: localEvents, accessToken: nil)
+    }
+
+    func submitPollResponse(eventID: UUID, selectedOption: String?, customAnswer: String?, accessToken: String) async throws {
+        guard var components = eventPollResponsesURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "on_conflict", value: "event_id,respondent_id")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try encoder.encode(
+            PollResponseUpsert(
+                eventID: eventID,
+                selectedOption: selectedOption?.trimmed.nilIfEmpty,
+                customAnswer: customAnswer?
+                    .trimmed
+                    .prefix(PollDetails.customAnswerLimit)
+                    .description
+                    .nilIfEmpty
+            )
+        )
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
+    }
+
+    func fetchPollResponseCounts(eventID: UUID) async throws -> PollResults {
+        guard let url = rpcURL(functionName: "poll_response_counts_for_event") else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(PollCountsRequest(eventID: eventID))
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
+
+        let records = try decoder.decode([PollResponseCountRecord].self, from: data)
+        return PollResults(
+            counts: records.map {
+                PollResponseCount(optionText: $0.optionText, responseCount: $0.responseCount)
+            }
+        )
+    }
+
+    func fetchOwnerPollResponseCounts(eventID: UUID, accessToken: String) async throws -> PollResults {
+        guard let url = rpcURL(functionName: "poll_owner_response_counts_for_event") else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(PollCountsRequest(eventID: eventID))
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
+
+        let records = try decoder.decode([PollResponseCountRecord].self, from: data)
+        return PollResults(
+            counts: records.map {
+                PollResponseCount(optionText: $0.optionText, responseCount: $0.responseCount)
+            }
+        )
+    }
+
+    func fetchMyPollResponse(eventID: UUID, userID: UUID, accessToken: String) async throws -> PollUserResponse? {
+        guard var components = eventPollResponsesURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "selected_option,custom_answer,updated_at"),
+            URLQueryItem(name: "event_id", value: "eq.\(eventID.uuidString.lowercased())"),
+            URLQueryItem(name: "respondent_id", value: "eq.\(userID.uuidString.lowercased())"),
+            URLQueryItem(name: "limit", value: "1")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
+        try validate(response, data: data)
+
+        return try decoder.decode([SupabasePollResponseRecord].self, from: data)
+            .first?
+            .pollUserResponse
+    }
+
+    func fetchPollCustomResponses(eventID: UUID, accessToken: String) async throws -> [PollCustomResponse] {
+        guard let url = rpcURL(functionName: "poll_custom_responses_for_event") else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(PollCountsRequest(eventID: eventID))
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
+
+        return try decoder.decode([SupabasePollCustomResponseRecord].self, from: data)
+            .map(\.pollCustomResponse)
     }
 
     func fetchLocationCatalog() async throws -> LocationCatalog {
@@ -248,6 +392,80 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         )
     }
 
+    func fetchListingAnalytics(eventID: UUID, accessToken: String) async throws -> ListingAnalyticsSnapshot {
+        guard var components = eventAnalyticsDailyURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "impressions,detail_views,interested_taps,going_taps,save_taps,share_taps,poll_answers,promotion_impressions"),
+            URLQueryItem(name: "event_id", value: "eq.\(eventID.uuidString.lowercased())")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
+        try validate(response, data: data)
+
+        let rows = try decoder.decode([SupabaseListingAnalyticsDailyRecord].self, from: data)
+        return rows.reduce(.zero) { partial, row in
+            ListingAnalyticsSnapshot(
+                impressions: partial.impressions + row.impressions,
+                detailViews: partial.detailViews + row.detailViews,
+                engagementTaps: partial.engagementTaps + row.interestedTaps + row.goingTaps + row.pollAnswers,
+                saves: partial.saves + row.saveTaps,
+                shares: partial.shares + row.shareTaps
+            )
+        }
+    }
+
+    func recordEventAnalytics(eventID: UUID, eventType: String, source: String?, locationScopeID: String?, accessToken: String?) async throws {
+        guard let url = rpcURL(functionName: "record_event_analytics") else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(
+            EventAnalyticsRecordRequest(
+                eventID: eventID,
+                eventType: eventType,
+                source: source,
+                locationScopeSlug: locationScopeID,
+                sessionID: nil,
+                metadata: [:]
+            )
+        )
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
+    }
+
+    func submitSupportRequest(topic: String, message: String, listingReference: String?, accessToken: String) async throws -> UUID {
+        guard let url = rpcURL(functionName: "submit_support_request") else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(
+            SupportRequestSubmitRequest(
+                topic: topic,
+                message: message,
+                listingReference: listingReference
+            )
+        )
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
+
+        return try decoder.decode(UUID.self, from: data)
+    }
+
     func submitPendingListing(_ draft: PendingListingDraft, accessToken: String) async throws -> UUID {
         guard var components = eventsURLComponents else {
             throw SupabaseServiceError.notConfigured
@@ -261,18 +479,30 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
             throw SupabaseServiceError.notConfigured
         }
 
+        let insert = PendingEventInsert(
+            draft: draft,
+            includeStructuredPollColumns: true
+        )
         var request = request(url: url, accessToken: accessToken)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("return=representation", forHTTPHeaderField: "Prefer")
-        request.httpBody = try encoder.encode(PendingEventInsert(draft: draft))
+        request.httpBody = try encoder.encode(insert)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseServiceError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw SupabaseServiceError.requestFailed(httpResponse.statusCode)
+            let body = String(data: data, encoding: .utf8)
+            debugService(step: "submit listing", message: "failed status=\(httpResponse.statusCode), body=\(body ?? "<unreadable response body>")")
+
+            if draft.listingKind == .poll,
+               shouldRetryPollInsertWithoutStructuredColumns(statusCode: httpResponse.statusCode, responseBody: body) {
+                return try await submitPendingListingWithoutStructuredPollColumns(insert, url: url, accessToken: accessToken)
+            }
+
+            throw SupabaseServiceError.requestFailed(httpResponse.statusCode, body)
         }
 
         guard let inserted = try decoder.decode([InsertedEventResponse].self, from: data).first else {
@@ -280,6 +510,40 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         }
 
         return inserted.id
+    }
+
+    private func submitPendingListingWithoutStructuredPollColumns(_ insert: PendingEventInsert, url: URL, accessToken: String) async throws -> UUID {
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+        request.httpBody = try encoder.encode(insert.withoutStructuredPollColumns())
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let body = String(data: data, encoding: .utf8)
+            debugService(step: "submit listing fallback", message: "failed status=\(httpResponse.statusCode), body=\(body ?? "<unreadable response body>")")
+            throw SupabaseServiceError.requestFailed(httpResponse.statusCode, body)
+        }
+
+        guard let inserted = try decoder.decode([InsertedEventResponse].self, from: data).first else {
+            throw SupabaseServiceError.invalidResponse
+        }
+
+        return inserted.id
+    }
+
+    private func shouldRetryPollInsertWithoutStructuredColumns(statusCode: Int, responseBody: String?) -> Bool {
+        guard statusCode == 400 || statusCode == 404 else { return false }
+        let body = responseBody?.lowercased() ?? ""
+        return body.contains("schema cache")
+            || body.contains("listing_kind")
+            || body.contains("poll_question")
+            || body.contains("poll_options")
+            || body.contains("poll_allows_custom_answer")
     }
 
     func uploadListingImage(_ image: ListingPhotoUpload, eventID: UUID, userID: UUID, position: Int, accessToken: String) async throws {
@@ -489,6 +753,55 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         }
 
         return events
+    }
+
+    private func applyingActivePromotions(to events: [LocalEvent], accessToken: String?) async -> [LocalEvent] {
+        let eventIDs = events.map(\.id)
+        guard !eventIDs.isEmpty,
+              let promotions = try? await fetchActivePromotions(eventIDs: eventIDs, accessToken: accessToken),
+              !promotions.isEmpty else {
+            return events
+        }
+
+        return events.map { event in
+            guard let promotion = promotions[event.id] else { return event }
+            return event.applyingActivePromotion(rank: promotion.placementRank, paidAt: promotion.paidAt)
+        }
+    }
+
+    private func fetchActivePromotions(eventIDs: [UUID], accessToken: String?) async throws -> [UUID: SupabaseActiveEventPromotionRecord] {
+        guard var components = activeEventPromotionsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let idList = eventIDs
+            .map { $0.uuidString.lowercased() }
+            .joined(separator: ",")
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "event_id,tier,placement,starts_at,ends_at,paid_at,placement_rank"),
+            URLQueryItem(name: "event_id", value: "in.(\(idList))"),
+            URLQueryItem(name: "order", value: "placement_rank.desc,paid_at.asc")
+        ]
+
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+
+        let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
+        try validate(response, data: data)
+
+        return try decoder.decode([SupabaseActiveEventPromotionRecord].self, from: data)
+            .reduce(into: [:]) { partial, promotion in
+                guard let existing = partial[promotion.eventID] else {
+                    partial[promotion.eventID] = promotion
+                    return
+                }
+
+                if promotion.sortsBefore(existing) {
+                    partial[promotion.eventID] = promotion
+                }
+            }
     }
 
     private func fetchLocationScopes() async throws -> [SupabaseLocationScopeRecord] {
@@ -806,7 +1119,7 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         guard (200..<300).contains(httpResponse.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "<unreadable response body>"
             debugPhotoUpload(step: "signed URL", message: "failed status=\(httpResponse.statusCode), path=\(storagePath), body=\(body)")
-            throw SupabaseServiceError.requestFailed(httpResponse.statusCode)
+            throw SupabaseServiceError.requestFailed(httpResponse.statusCode, body)
         }
 
         let signed = try decoder.decode(StorageSignedURLResponse.self, from: data)
@@ -904,6 +1217,40 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
         return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
     }
 
+    private var eventPollResponsesURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("event_poll_responses"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private var eventAnalyticsDailyURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("event_analytics_daily"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private var activeEventPromotionsURLComponents: URLComponents? {
+        guard let restURL = SupabaseConfiguration.restURL?.appendingPathComponent("active_event_promotions"),
+              SupabaseConfiguration.isConfigured else {
+            return nil
+        }
+
+        return URLComponents(url: restURL, resolvingAgainstBaseURL: false)
+    }
+
+    private func rpcURL(functionName: String) -> URL? {
+        guard SupabaseConfiguration.isConfigured else { return nil }
+        return SupabaseConfiguration.restURL?
+            .appendingPathComponent("rpc")
+            .appendingPathComponent(functionName)
+    }
+
     private static func localTownMatches(for slug: String) -> Set<CoastTown> {
         LocationScope.scope(id: slug)?.townMatches ?? []
     }
@@ -946,7 +1293,16 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
             throw SupabaseServiceError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw SupabaseServiceError.requestFailed(httpResponse.statusCode)
+            throw SupabaseServiceError.requestFailed(httpResponse.statusCode, nil)
+        }
+    }
+
+    private func validate(_ response: URLResponse, data: Data) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw SupabaseServiceError.requestFailed(httpResponse.statusCode, String(data: data, encoding: .utf8))
         }
     }
 
@@ -962,12 +1318,18 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, EventC
 
         let body = String(data: data, encoding: .utf8) ?? "<unreadable response body>"
         debugPhotoUpload(step: step, message: "failed status=\(httpResponse.statusCode), path=\(storagePath), body=\(body)")
-        throw SupabaseServiceError.requestFailed(httpResponse.statusCode)
+        throw SupabaseServiceError.requestFailed(httpResponse.statusCode, body)
     }
 
     private func debugPhotoUpload(step: String, message: String) {
         #if DEBUG
         print("[PhotoUpload] \(step): \(message)")
+        #endif
+    }
+
+    private func debugService(step: String, message: String) {
+        #if DEBUG
+        print("[SupabaseEventService] \(step): \(message)")
         #endif
     }
 
@@ -989,6 +1351,7 @@ struct SupabaseEventRecord: Decodable {
     let title: String
     let category: String
     let town: String
+    let locationDisplayName: String?
     let venue: String
     let startAt: Date
     let endAt: Date
@@ -1004,6 +1367,10 @@ struct SupabaseEventRecord: Decodable {
     let isFeatured: Bool
     let isPaidPush: Bool
     let status: String
+    let listingKind: String?
+    let pollQuestion: String?
+    let pollOptions: [String]?
+    let pollAllowsCustomAnswer: Bool?
     let unverifiedUserListing: Bool?
     let eventImages: [SupabaseEventImageRecord]?
     let createdAt: Date?
@@ -1014,6 +1381,7 @@ struct SupabaseEventRecord: Decodable {
         case title
         case category
         case town
+        case locationDisplayName = "location_display_name"
         case venue
         case startAt = "start_at"
         case endAt = "end_at"
@@ -1029,6 +1397,10 @@ struct SupabaseEventRecord: Decodable {
         case isFeatured = "is_featured"
         case isPaidPush = "is_paid_push"
         case status
+        case listingKind = "listing_kind"
+        case pollQuestion = "poll_question"
+        case pollOptions = "poll_options"
+        case pollAllowsCustomAnswer = "poll_allows_custom_answer"
         case unverifiedUserListing = "unverified_user_listing"
         case eventImages = "event_images"
         case createdAt = "created_at"
@@ -1042,11 +1414,22 @@ struct SupabaseEventRecord: Decodable {
             return nil
         }
 
+        let parsedPollDetails = PollDetails(reviewText: longDescription)
+        let resolvedPollDetails = pollQuestion.map {
+            PollDetails(
+                question: $0,
+                options: pollOptions ?? [],
+                allowsCustomAnswer: pollAllowsCustomAnswer ?? false
+            )
+        } ?? parsedPollDetails
+        let resolvedListingKind = listingKind.flatMap(ListingKind.init(rawValue:)) ?? (resolvedPollDetails != nil ? .poll : .event)
+
         return LocalEvent(
             id: id,
             title: title,
             category: category,
             town: town,
+            locationDisplayName: locationDisplayName,
             venue: venue,
             startDate: startAt,
             endDate: endAt,
@@ -1062,11 +1445,159 @@ struct SupabaseEventRecord: Decodable {
             isFeatured: isFeatured,
             isPaidPush: isPaidPush,
             listingStatus: listingStatus,
+            listingKind: resolvedListingKind,
+            pollDetails: resolvedPollDetails,
             unverifiedUserListing: unverifiedUserListing ?? false,
             images: images,
             createdAt: createdAt ?? startAt,
             updatedAt: updatedAt
         )
+    }
+}
+
+struct PollResponseUpsert: Encodable {
+    let eventID: UUID
+    let selectedOption: String?
+    let customAnswer: String?
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "event_id"
+        case selectedOption = "selected_option"
+        case customAnswer = "custom_answer"
+    }
+}
+
+struct PollCountsRequest: Encodable {
+    let eventID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "p_event_id"
+    }
+}
+
+struct EventAnalyticsRecordRequest: Encodable {
+    let eventID: UUID
+    let eventType: String
+    let source: String?
+    let locationScopeSlug: String?
+    let sessionID: String?
+    let metadata: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "p_event_id"
+        case eventType = "p_event_type"
+        case source = "p_source"
+        case locationScopeSlug = "p_location_scope_slug"
+        case sessionID = "p_session_id"
+        case metadata = "p_metadata"
+    }
+}
+
+struct SupportRequestSubmitRequest: Encodable {
+    let topic: String
+    let message: String
+    let listingReference: String?
+
+    enum CodingKeys: String, CodingKey {
+        case topic = "p_topic"
+        case message = "p_message"
+        case listingReference = "p_listing_reference"
+    }
+}
+
+struct SupabaseListingAnalyticsDailyRecord: Decodable {
+    let impressions: Int
+    let detailViews: Int
+    let interestedTaps: Int
+    let goingTaps: Int
+    let saveTaps: Int
+    let shareTaps: Int
+    let pollAnswers: Int
+    let promotionImpressions: Int
+
+    enum CodingKeys: String, CodingKey {
+        case impressions
+        case detailViews = "detail_views"
+        case interestedTaps = "interested_taps"
+        case goingTaps = "going_taps"
+        case saveTaps = "save_taps"
+        case shareTaps = "share_taps"
+        case pollAnswers = "poll_answers"
+        case promotionImpressions = "promotion_impressions"
+    }
+}
+
+struct SupabaseActiveEventPromotionRecord: Decodable {
+    let eventID: UUID
+    let tier: String
+    let placement: String
+    let startsAt: Date
+    let endsAt: Date
+    let paidAt: Date?
+    let placementRank: Int
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "event_id"
+        case tier
+        case placement
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case paidAt = "paid_at"
+        case placementRank = "placement_rank"
+    }
+
+    func sortsBefore(_ other: SupabaseActiveEventPromotionRecord) -> Bool {
+        if placementRank != other.placementRank {
+            return placementRank > other.placementRank
+        }
+
+        return (paidAt ?? .distantFuture) < (other.paidAt ?? .distantFuture)
+    }
+}
+
+struct PollResponseCountRecord: Decodable {
+    let optionText: String
+    let responseCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case optionText = "option_text"
+        case responseCount = "response_count"
+    }
+}
+
+struct SupabasePollResponseRecord: Decodable {
+    let selectedOption: String?
+    let customAnswer: String?
+    let updatedAt: Date?
+
+    var pollUserResponse: PollUserResponse {
+        PollUserResponse(
+            selectedOption: selectedOption,
+            customAnswer: customAnswer,
+            updatedAt: updatedAt
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case selectedOption = "selected_option"
+        case customAnswer = "custom_answer"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct SupabasePollCustomResponseRecord: Decodable {
+    let id: UUID
+    let customAnswer: String
+    let createdAt: Date
+
+    var pollCustomResponse: PollCustomResponse {
+        PollCustomResponse(id: id, customAnswer: customAnswer, createdAt: createdAt)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case customAnswer = "custom_answer"
+        case createdAt = "created_at"
     }
 }
 
@@ -1316,6 +1847,8 @@ struct PendingEventInsert: Encodable {
     let title: String
     let category: String
     let town: String
+    let primaryLocationScopeID: String?
+    let locationDisplayName: String?
     let venue: String
     let startAt: Date
     let endAt: Date
@@ -1329,8 +1862,13 @@ struct PendingEventInsert: Encodable {
     let isFeatured: Bool
     let isPaidPush: Bool
     let status: String
+    let listingKind: String
+    let pollQuestion: String?
+    let pollOptions: [String]?
+    let pollAllowsCustomAnswer: Bool
+    private var includeStructuredPollColumns: Bool
 
-    init(draft: PendingListingDraft) {
+    init(draft: PendingListingDraft, includeStructuredPollColumns: Bool = true) {
         let start = Calendar.current.date(
             bySettingHour: Calendar.current.component(.hour, from: draft.time),
             minute: Calendar.current.component(.minute, from: draft.time),
@@ -1341,16 +1879,21 @@ struct PendingEventInsert: Encodable {
         self.title = draft.title.trimmed
         self.category = draft.category.rawValue
         self.town = draft.town.rawValue
-        self.venue = draft.venue.trimmed
+        self.primaryLocationScopeID = UUID(uuidString: draft.locationScopeID) == nil ? nil : draft.locationScopeID
+        self.locationDisplayName = draft.locationDisplayName.nilIfEmpty
+        self.venue = draft.venue.trimmed.nilIfEmpty ?? "Community poll in \(draft.locationDisplayName)"
         self.startAt = start
         self.endAt = Calendar.current.date(byAdding: .hour, value: 2, to: start) ?? start
         let price = draft.listingTier == .communityFree ? draft.priceLabel.trimmed : draft.listingTier.priceLabel
         self.priceLabel = price.isEmpty ? draft.listingTier.priceLabel : price
         self.isFree = draft.listingTier == .communityFree && (price.isEmpty || price.localizedCaseInsensitiveContains("free"))
         self.audience = "Everyone"
-        self.shortDescription = draft.shortDescription.trimmed
+        let resolvedShortDescription = draft.shortDescription.trimmed.nilIfEmpty ?? draft.pollDetails?.question ?? draft.title.trimmed
+        self.shortDescription = resolvedShortDescription
         self.longDescription = [
-            draft.shortDescription.trimmed,
+            draft.listingKind == .poll ? "Listing kind: Poll" : nil,
+            resolvedShortDescription,
+            draft.pollReviewText,
             draft.listingTier.isPaidTier ? "Selected listing option: \(draft.listingTier.title) (\(draft.listingTier.priceText))." : nil,
             draft.commercialSignals.isEmpty ? nil : "Review signals: \(draft.commercialSignals.map { $0.label }.joined(separator: ", "))."
         ]
@@ -1361,12 +1904,54 @@ struct PendingEventInsert: Encodable {
         self.isFeatured = false
         self.isPaidPush = false
         self.status = ListingStatus.pendingReview.rawValue
+        self.listingKind = draft.listingKind.rawValue
+        self.pollQuestion = draft.pollDetails?.question
+        self.pollOptions = draft.pollDetails?.options
+        self.pollAllowsCustomAnswer = draft.pollDetails?.allowsCustomAnswer ?? false
+        self.includeStructuredPollColumns = includeStructuredPollColumns
+    }
+
+    func withoutStructuredPollColumns() -> PendingEventInsert {
+        var copy = self
+        copy.includeStructuredPollColumns = false
+        return copy
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        try container.encode(category, forKey: .category)
+        try container.encode(town, forKey: .town)
+        try container.encodeIfPresent(primaryLocationScopeID, forKey: .primaryLocationScopeID)
+        try container.encodeIfPresent(locationDisplayName, forKey: .locationDisplayName)
+        try container.encode(venue, forKey: .venue)
+        try container.encode(startAt, forKey: .startAt)
+        try container.encode(endAt, forKey: .endAt)
+        try container.encode(priceLabel, forKey: .priceLabel)
+        try container.encode(isFree, forKey: .isFree)
+        try container.encode(audience, forKey: .audience)
+        try container.encode(shortDescription, forKey: .shortDescription)
+        try container.encode(longDescription, forKey: .longDescription)
+        try container.encodeIfPresent(contactName, forKey: .contactName)
+        try container.encodeIfPresent(contactEmail, forKey: .contactEmail)
+        try container.encode(isFeatured, forKey: .isFeatured)
+        try container.encode(isPaidPush, forKey: .isPaidPush)
+        try container.encode(status, forKey: .status)
+
+        if includeStructuredPollColumns {
+            try container.encode(listingKind, forKey: .listingKind)
+            try container.encodeIfPresent(pollQuestion, forKey: .pollQuestion)
+            try container.encodeIfPresent(pollOptions, forKey: .pollOptions)
+            try container.encode(pollAllowsCustomAnswer, forKey: .pollAllowsCustomAnswer)
+        }
     }
 
     enum CodingKeys: String, CodingKey {
         case title
         case category
         case town
+        case primaryLocationScopeID = "primary_location_scope_id"
+        case locationDisplayName = "location_display_name"
         case venue
         case startAt = "start_at"
         case endAt = "end_at"
@@ -1380,6 +1965,10 @@ struct PendingEventInsert: Encodable {
         case isFeatured = "is_featured"
         case isPaidPush = "is_paid_push"
         case status
+        case listingKind = "listing_kind"
+        case pollQuestion = "poll_question"
+        case pollOptions = "poll_options"
+        case pollAllowsCustomAnswer = "poll_allows_custom_answer"
     }
 }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WhatsOnScreen: View {
+    @EnvironmentObject private var reminderStore: EventReminderStore
     @AppStorage("communityCalendar.whatsOn.selectedTopic") private var selectedTopicID = ListingTopic.all.rawValue
     @AppStorage("communityCalendar.whatsOn.locationScope") private var selectedLocationScopeID = LocationScope.defaultID
     @AppStorage("communityCalendar.whatsOn.locationFocusScope") private var focusedLocationScopeID = LocationScope.defaultID
@@ -44,12 +45,7 @@ struct WhatsOnScreen: View {
             }
             .filter { isUsingBackendLocationFilter || locationScope.matches($0) }
             .filter { $0.matches(topic: selectedTopic) }
-            .sorted {
-                if $0.isPaidPush != $1.isPaidPush {
-                    return $0.isPaidPush && !$1.isPaidPush
-                }
-                return $0.startDate < $1.startDate
-            }
+            .sorted(by: EventFeedOrdering.discovery)
     }
 
     private var selectedTopic: ListingTopic {
@@ -58,13 +54,8 @@ struct WhatsOnScreen: View {
 
     private var featuredEvents: [LocalEvent] {
         events
-            .filter { $0.isFeatured || $0.isPaidPush }
-            .sorted {
-                if $0.isPaidPush != $1.isPaidPush {
-                    return $0.isPaidPush && !$1.isPaidPush
-                }
-                return $0.startDate < $1.startDate
-            }
+            .filter { $0.isFeatured || $0.isPromoted }
+            .sorted(by: EventFeedOrdering.discovery)
     }
 
     var body: some View {
@@ -74,7 +65,7 @@ struct WhatsOnScreen: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
-                        WhatsOnHeader(eventCount: visibleEvents.count)
+                        WhatsOnHeader(reminderCount: reminderStore.activeReminderCount)
                             .padding(.top, 4)
 
                         PCCSegmentedTabs(selection: $selectedScope)
@@ -207,7 +198,7 @@ struct WhatsOnScreen: View {
 }
 
 struct WhatsOnHeader: View {
-    let eventCount: Int
+    let reminderCount: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -224,16 +215,20 @@ struct WhatsOnHeader: View {
 
                 Spacer()
 
-                VStack(spacing: 4) {
-                    Text("\(eventCount)")
-                        .font(.title2.weight(.black))
+                VStack(spacing: 5) {
+                    Image(systemName: reminderCount > 0 ? "bell.fill" : "bell")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(reminderCount > 0 ? PCCTheme.pohutukawaOrange : PCCTheme.ink)
+
+                    Text("\(reminderCount)")
+                        .font(.title3.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text("events")
+                    Text("alerts")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(PCCTheme.ink.opacity(0.58))
                 }
-                .padding(13)
+                .frame(width: 72, height: 72)
                 .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
             }
         }
@@ -262,12 +257,16 @@ struct ScopedEventsContent: View {
             case .today:
                 VStack(spacing: 12) {
                     ForEach(events) { event in
-                        NavigationLink {
-                            EventDetailScreen(event: event)
-                        } label: {
-                            EventFeedCard(event: event)
+                        if event.isPoll {
+                            PollFeedCard(event: event)
+                        } else {
+                            NavigationLink {
+                                EventDetailScreen(event: event)
+                            } label: {
+                                EventFeedCard(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             case .thisWeek, .thisMonth:

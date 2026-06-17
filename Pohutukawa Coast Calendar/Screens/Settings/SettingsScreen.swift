@@ -78,7 +78,7 @@ struct SettingsScreen: View {
                             }
                             .buttonStyle(.plain)
                         } footer: {
-                            Text("Analytics are privacy-friendly and aggregated. Soft-launch numbers are placeholders until server tracking is connected.")
+                            Text("Analytics are privacy-friendly and aggregated from real listing activity.")
                         }
 
                         SettingsActionSection(title: "Saved & Reminders") {
@@ -88,10 +88,10 @@ struct SettingsScreen: View {
                                 SettingsRow(
                                     content: SettingsRowContent(
                                         id: "saved-reminders",
-                                        icon: "bookmark",
+                                        icon: "bell.badge",
                                         title: "Saved events",
-                                        subtitle: "Saved, going and interested events will appear here.",
-                                        detail: "Soon",
+                                        subtitle: "Saved, going, interested and reminder events appear here.",
+                                        detail: "Open",
                                         style: .disclosure,
                                         isEnabled: true
                                     )
@@ -109,8 +109,8 @@ struct SettingsScreen: View {
                                         id: "payments",
                                         icon: "creditcard",
                                         title: "Payments and receipts",
-                                        subtitle: "Listing payments and receipts will appear here once paid options are live.",
-                                        detail: "Soon",
+                                        subtitle: "Check paid listing products and launch payment readiness.",
+                                        detail: "Open",
                                         style: .disclosure,
                                         isEnabled: true
                                     )
@@ -118,7 +118,7 @@ struct SettingsScreen: View {
                             }
                             .buttonStyle(.plain)
                         } footer: {
-                            Text("Community Calendar will not store card details. Payments will be handled securely by Stripe.")
+                            Text("Community Calendar will not store card details. In-app boosts use Apple purchase handling where required; Stripe can still support external invoices, tickets or sponsorship later.")
                         }
 
                         SettingsActionSection(title: "Wallpaper") {
@@ -155,7 +155,7 @@ struct SettingsScreen: View {
                                     isEnabled: true
                                 )
                             ],
-                            footer: "More communities coming soon."
+                            footer: "Use location search to browse supported places and wider areas."
                         )
 
                         SettingsActionSection(title: "Contact Support") {
@@ -167,7 +167,7 @@ struct SettingsScreen: View {
                                         id: "contact",
                                         icon: "envelope",
                                         title: "Contact \(CommunityArea.appBrandName)",
-                                        subtitle: "Send a short support request from this app once support sending is connected.",
+                                        subtitle: "Send a private support request from this app.",
                                         detail: "Open",
                                         style: .disclosure,
                                         isEnabled: true
@@ -202,13 +202,14 @@ struct SettingsScreen: View {
                 WallpaperPickerScreen()
             }
             .sheet(isPresented: $showContactSupport) {
-                ContactSupportPlaceholderScreen()
+                ContactSupportScreen()
+                    .environmentObject(userSessionStore)
             }
             .sheet(isPresented: $showPayments) {
-                PaymentsPlaceholderScreen()
+                PaymentsScreen()
             }
             .sheet(isPresented: $showSavedReminders) {
-                SavedRemindersPlaceholderScreen()
+                SavedRemindersScreen()
             }
             .sheet(isPresented: $showListingAnalytics) {
                 ListingAnalyticsSettingsScreen()
@@ -576,8 +577,8 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
             ]
         case .paymentRefunds:
             return [
-                "Paid listing and promotion tools are coming soon.",
-                "Payments will be handled securely by Stripe or another payment provider. Community Calendar will not store card details.",
+                "Paid listing and promotion tools must be purchased through the payment options shown in the app before the promotion is activated.",
+                "Payments are handled securely by the payment provider. Community Calendar does not store card details in the app.",
                 "Paid promotion improves placement or visibility where offered, but it does not guarantee attendance, sales, bookings or enquiries.",
                 "Refunds or credits may be offered at Community Calendar’s discretion unless required by law."
             ]
@@ -833,7 +834,7 @@ struct PCCWallpaperThumb: View {
     }
 }
 
-struct ContactSupportPlaceholderScreen: View {
+struct ContactSupportScreen: View {
     enum Topic: String, CaseIterable, Identifiable {
         case listing = "Listing help"
         case account = "Account"
@@ -844,11 +845,21 @@ struct ContactSupportPlaceholderScreen: View {
         var id: String { rawValue }
     }
 
+    @EnvironmentObject private var userSessionStore: UserSessionStore
     @Environment(\.dismiss) private var dismiss
     @State private var topic: Topic = .listing
     @State private var listingReference = ""
     @State private var message = ""
-    @State private var showComingSoon = false
+    @State private var isSending = false
+    @State private var supportRequestID: UUID?
+    @State private var errorMessage: String?
+    private let service: SupportRequestSubmitting = SupabaseEventService()
+
+    private var canSend: Bool {
+        userSessionStore.isSignedIn
+            && !isSending
+            && message.trimmingCharacters(in: .whitespacesAndNewlines).count >= 5
+    }
 
     var body: some View {
         NavigationStack {
@@ -861,7 +872,19 @@ struct ContactSupportPlaceholderScreen: View {
                             .font(.system(size: 34, weight: .black, design: .serif))
                             .foregroundStyle(PCCTheme.ink)
 
+                        Text("Send a private request to Support. Your message is attached to your app account so we can follow up without showing a personal email in the app.")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .lineSpacing(3)
+
                         VStack(alignment: .leading, spacing: 14) {
+                            if !userSessionStore.isSignedIn {
+                                Label("Sign in from Settings before sending a support request.", systemImage: "person.crop.circle.badge.exclamationmark")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
                             Picker("Topic", selection: $topic) {
                                 ForEach(Topic.allCases) { topic in
                                     Text(topic.rawValue).tag(topic)
@@ -885,17 +908,24 @@ struct ContactSupportPlaceholderScreen: View {
                                     .background(PCCTheme.cream.opacity(0.70), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                             }
 
-                            if showComingSoon {
-                                Label("Support request sending is coming soon. For soft launch testing, send feedback directly to the app owner.", systemImage: "paperplane")
+                            if let supportRequestID {
+                                Label("Support request sent. Reference \(supportRequestID.uuidString.prefix(8).uppercased()).", systemImage: "checkmark.seal.fill")
                                     .font(.subheadline.weight(.bold))
                                     .foregroundStyle(PCCTheme.leafGreen)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
+                            if let errorMessage {
+                                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(PCCTheme.pohutukawaRed)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
                             Button {
-                                showComingSoon = true
+                                submitSupportRequest()
                             } label: {
-                                Text("Send Support Request")
+                                Label(isSending ? "Sending" : "Send Support Request", systemImage: isSending ? "hourglass" : "paperplane.fill")
                                     .font(.headline.weight(.black))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 15)
@@ -903,6 +933,8 @@ struct ContactSupportPlaceholderScreen: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(.white)
                             .background(PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                            .disabled(!canSend)
+                            .opacity(canSend ? 1 : 0.52)
                         }
                         .padding(18)
                         .pccCardStyle()
@@ -928,10 +960,50 @@ struct ContactSupportPlaceholderScreen: View {
             }
         }
     }
+
+    private func submitSupportRequest() {
+        guard canSend else { return }
+
+        Task {
+            await MainActor.run {
+                isSending = true
+                errorMessage = nil
+                supportRequestID = nil
+            }
+
+            do {
+                await userSessionStore.refreshIfNeeded()
+                guard let session = userSessionStore.session else {
+                    throw UserAuthError.signInFailed
+                }
+
+                let trimmedReference = listingReference.trimmingCharacters(in: .whitespacesAndNewlines)
+                let requestID = try await service.submitSupportRequest(
+                    topic: topic.rawValue,
+                    message: message.trimmingCharacters(in: .whitespacesAndNewlines),
+                    listingReference: trimmedReference.isEmpty ? nil : trimmedReference,
+                    accessToken: session.accessToken
+                )
+
+                await MainActor.run {
+                    supportRequestID = requestID
+                    message = ""
+                    listingReference = ""
+                    isSending = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isSending = false
+                }
+            }
+        }
+    }
 }
 
-struct PaymentsPlaceholderScreen: View {
+struct PaymentsScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var purchaseService = StoreKitPurchaseService()
 
     var body: some View {
         NavigationStack {
@@ -949,7 +1021,7 @@ struct PaymentsPlaceholderScreen: View {
                                 .font(.system(size: 36, weight: .black, design: .serif))
                                 .foregroundStyle(PCCTheme.ink)
 
-                            Text("Paid listing options are being prepared for launch. No card details are stored by Community Calendar.")
+                            Text("Paid listing options load from App Store Connect. Purchases stay gated until receipt tracking is connected to the listing backend.")
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(PCCTheme.ink.opacity(0.66))
                                 .lineSpacing(3)
@@ -957,27 +1029,33 @@ struct PaymentsPlaceholderScreen: View {
                         .padding(20)
                         .pccCardStyle()
 
+                        StoreKitStatusCard(state: purchaseService.state) {
+                            Task {
+                                await purchaseService.loadProducts()
+                            }
+                        }
+
                         VStack(alignment: .leading, spacing: 10) {
-                            ForEach(ListingTier.allCases) { tier in
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text(tier.priceText)
-                                        .font(.headline.weight(.black))
-                                        .foregroundStyle(tier.isPaidTier ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
-                                        .frame(width: 54, alignment: .leading)
-
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(tier.title)
-                                            .font(.headline.weight(.black))
-                                            .foregroundStyle(PCCTheme.ink)
-
-                                        Text(tier.shortDescription)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(PCCTheme.ink.opacity(0.62))
-                                            .lineSpacing(2)
-                                    }
+                            if purchaseService.productSummaries.isEmpty {
+                                ForEach(ListingTier.allCases) { tier in
+                                    PaymentTierReadinessRow(
+                                        priceText: tier.priceText,
+                                        title: tier.title,
+                                        description: tier.shortDescription,
+                                        productID: tier.storeKitProductID,
+                                        isPaid: tier.isPaidTier
+                                    )
                                 }
-                                .padding(13)
-                                .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                            } else {
+                                ForEach(purchaseService.productSummaries) { product in
+                                    PaymentTierReadinessRow(
+                                        priceText: product.displayPrice,
+                                        title: product.tier.title,
+                                        description: product.description.isEmpty ? product.tier.shortDescription : product.description,
+                                        productID: product.id,
+                                        isPaid: product.tier.isPaidTier
+                                    )
+                                }
                             }
                         }
                         .padding(18)
@@ -992,13 +1070,20 @@ struct PaymentsPlaceholderScreen: View {
                         SettingsInfoMessage(
                             icon: "shippingbox",
                             title: "Purchase setup",
-                            message: "StoreKit product IDs are prepared for Commercial, Boost, and Boost + Insights. Purchase buttons stay off until App Store products and payment tracking are connected."
+                            message: "StoreKit product IDs are prepared for Commercial, Boost, and Boost + Insights. Purchase buttons stay off until App Store products and payment tracking are connected to each listing."
                         )
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, PCCKeyboardSpacing.standardTopPadding)
                     .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
                 }
+            }
+            .task {
+                purchaseService.startTransactionListener()
+                await purchaseService.loadProducts()
+            }
+            .onDisappear {
+                purchaseService.stopTransactionListener()
             }
             .navigationTitle("Payments")
             .navigationBarTitleDisplayMode(.inline)
@@ -1012,6 +1097,124 @@ struct PaymentsPlaceholderScreen: View {
                 }
             }
         }
+    }
+}
+
+struct StoreKitStatusCard: View {
+    let state: StoreKitPaymentState
+    let onReload: () -> Void
+
+    private var title: String {
+        switch state {
+        case .idle:
+            return "Checking App Store products"
+        case .loadingProducts:
+            return "Loading products"
+        case .ready(let productCount):
+            return "\(productCount) App Store products ready"
+        case .productsUnavailable:
+            return "Products unavailable"
+        case .purchasing:
+            return "Purchase in progress"
+        case .purchased:
+            return "Purchase recorded by Apple"
+        case .pending:
+            return "Purchase pending"
+        case .cancelled:
+            return "Purchase cancelled"
+        case .failed:
+            return "StoreKit check failed"
+        }
+    }
+
+    private var message: String {
+        switch state {
+        case .idle, .loadingProducts:
+            return "The app is asking StoreKit for the configured product IDs."
+        case .ready:
+            return "Products are visible to the app. The next step is linking a verified purchase to a specific listing or boost window."
+        case .productsUnavailable:
+            return "No matching App Store products are available to this build yet. Check App Store Connect product IDs."
+        case .purchasing:
+            return "Keep this screen open while Apple completes the purchase."
+        case .purchased(let productID):
+            return "Apple returned a verified transaction for \(productID). Backend receipt tracking still needs to be connected before launch."
+        case .pending:
+            return "Apple marked the purchase as pending. The app should wait for a transaction update."
+        case .cancelled:
+            return "The purchase was cancelled before payment completed."
+        case .failed(let detail):
+            return detail
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "checklist.checked")
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text(message)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .lineSpacing(2)
+                }
+            }
+
+            Button(action: onReload) {
+                Label("Check Again", systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.black))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(PCCTheme.leafGreen)
+            .background(.white.opacity(0.70), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        }
+        .padding(18)
+        .pccCardStyle()
+    }
+}
+
+struct PaymentTierReadinessRow: View {
+    let priceText: String
+    let title: String
+    let description: String
+    let productID: String?
+    let isPaid: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(priceText)
+                .font(.headline.weight(.black))
+                .foregroundStyle(isPaid ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
+                .frame(width: 58, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+
+                Text(description)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .lineSpacing(2)
+
+                if let productID {
+                    Text(productID)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                }
+            }
+        }
+        .padding(13)
+        .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
     }
 }
 
@@ -1381,8 +1584,9 @@ struct SettingsInfoMessage: View {
     }
 }
 
-struct SavedRemindersPlaceholderScreen: View {
+struct SavedRemindersScreen: View {
     @EnvironmentObject private var engagementStore: EventEngagementStore
+    @EnvironmentObject private var reminderStore: EventReminderStore
     @Environment(\.dismiss) private var dismiss
     @State private var events: [LocalEvent] = []
     @State private var isLoading = false
@@ -1407,7 +1611,7 @@ struct SavedRemindersPlaceholderScreen: View {
                                 .font(.system(size: 36, weight: .black, design: .serif))
                                 .foregroundStyle(PCCTheme.ink)
 
-                            Text("Events you save, mark interested, or mark going appear here on this device.")
+                            Text("Events you save, mark interested, or mark going appear here on this device. Going can also remind you before the event starts.")
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(PCCTheme.ink.opacity(0.66))
                                 .lineSpacing(3)
@@ -1429,7 +1633,7 @@ struct SavedRemindersPlaceholderScreen: View {
                             }
                         }
 
-                        Text("Reminder notifications and cross-device syncing are not connected yet.")
+                        Text("\(reminderStore.activeReminderCount) event reminder\(reminderStore.activeReminderCount == 1 ? "" : "s") set on this device. Cross-device syncing can come later.")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(PCCTheme.ink.opacity(0.52))
                     }
@@ -1475,6 +1679,7 @@ struct SavedRemindersPlaceholderScreen: View {
 
 struct SavedEventSettingsCard: View {
     @EnvironmentObject private var engagementStore: EventEngagementStore
+    @EnvironmentObject private var reminderStore: EventReminderStore
     let event: LocalEvent
 
     var body: some View {
@@ -1500,7 +1705,7 @@ struct SavedEventSettingsCard: View {
                         .foregroundStyle(PCCTheme.ink.opacity(0.58))
                         .lineLimit(2)
 
-                    Text("\(event.venue), \(event.town.rawValue)")
+                    Text("\(event.venue), \(event.displayLocationName)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(PCCTheme.ink.opacity(0.54))
                         .lineLimit(2)
@@ -1518,6 +1723,15 @@ struct SavedEventSettingsCard: View {
                         .padding(.vertical, 6)
                         .background(PCCTheme.leafGreen.opacity(0.09), in: Capsule())
                 }
+
+                if reminderStore.hasReminder(for: event) {
+                    Label("Reminder", systemImage: "bell.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.pohutukawaOrange)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(PCCTheme.pohutukawaOrange.opacity(0.11), in: Capsule())
+                }
             }
 
             HStack(spacing: 8) {
@@ -1534,7 +1748,7 @@ struct SavedEventSettingsCard: View {
                 }
 
                 Button {
-                    engagementStore.toggleGoing(event)
+                    toggleGoing()
                 } label: {
                     Label(engagementStore.isGoing(event) ? "Not Going" : "Going", systemImage: "checkmark.circle")
                 }
@@ -1545,6 +1759,11 @@ struct SavedEventSettingsCard: View {
         }
         .padding(14)
         .pccCardStyle()
+    }
+
+    private func toggleGoing() {
+        let isGoing = engagementStore.toggleGoing(event)
+        reminderStore.syncReminder(for: event, isGoing: isGoing)
     }
 }
 

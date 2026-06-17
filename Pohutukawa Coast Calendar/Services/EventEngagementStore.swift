@@ -36,8 +36,10 @@ final class EventEngagementStore: ObservableObject {
         toggle(event.id, in: &interestedEventIDs, key: interestedKey)
     }
 
-    func toggleGoing(_ event: LocalEvent) {
+    @discardableResult
+    func toggleGoing(_ event: LocalEvent) -> Bool {
         toggle(event.id, in: &goingEventIDs, key: goingKey)
+        return isGoing(event)
     }
 
     func toggleSaved(_ event: LocalEvent) {

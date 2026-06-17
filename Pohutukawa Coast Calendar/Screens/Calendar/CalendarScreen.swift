@@ -332,7 +332,7 @@ private struct CalendarEventRow: View {
                         .font(.caption.weight(.black))
                         .foregroundStyle(PCCTheme.leafGreen)
 
-                    Text(event.town.rawValue)
+                    Text(event.displayLocationName)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(PCCTheme.ink.opacity(0.50))
                 }

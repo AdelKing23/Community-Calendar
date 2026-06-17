@@ -176,6 +176,149 @@ enum ListingStatus: String, Hashable {
     case archived
 }
 
+enum ListingKind: String, Hashable, Codable {
+    case event
+    case poll
+
+    var label: String {
+        switch self {
+        case .event: return "Listing"
+        case .poll: return "Poll"
+        }
+    }
+}
+
+struct PollDetails: Hashable, Codable {
+    static let maxOptions = 10
+    static let customAnswerLimit = 250
+
+    let question: String
+    let options: [String]
+    let allowsCustomAnswer: Bool
+
+    var isValid: Bool {
+        !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && options.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count >= 2
+    }
+
+    init(question: String, options: [String], allowsCustomAnswer: Bool) {
+        self.question = question
+        self.options = Array(
+            options
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .prefix(Self.maxOptions)
+        )
+        self.allowsCustomAnswer = allowsCustomAnswer
+    }
+
+    init?(reviewText: String?) {
+        guard let block = Self.reviewBlock(in: reviewText) else { return nil }
+
+        let lines = block
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var question = ""
+        var options: [String] = []
+        var isReadingOptions = false
+        var allowsCustomAnswer = false
+
+        for line in lines {
+            if line.hasPrefix("Question:") {
+                question = String(line.dropFirst("Question:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                isReadingOptions = false
+            } else if line == "Options:" {
+                isReadingOptions = true
+            } else if line.hasPrefix("Custom answer:") {
+                allowsCustomAnswer = line.localizedCaseInsensitiveContains("Allowed")
+                isReadingOptions = false
+            } else if isReadingOptions,
+                      let dotIndex = line.firstIndex(of: ".") {
+                let option = String(line[line.index(after: dotIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !option.isEmpty {
+                    options.append(option)
+                }
+            }
+        }
+
+        self.init(question: question, options: options, allowsCustomAnswer: allowsCustomAnswer)
+
+        guard isValid else { return nil }
+    }
+
+    static func strippedReviewBlock(from text: String) -> String {
+        guard let start = text.range(of: "[POLL]"),
+              let end = text.range(of: "[/POLL]", range: start.upperBound..<text.endIndex) else {
+            return text
+        }
+
+        let stripped = text[..<start.lowerBound] + text[end.upperBound...]
+        return stripped
+            .components(separatedBy: .newlines)
+            .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines) != "Listing kind: Poll" }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func reviewBlock(in text: String?) -> String? {
+        guard let text,
+              let start = text.range(of: "[POLL]"),
+              let end = text.range(of: "[/POLL]", range: start.upperBound..<text.endIndex) else {
+            return nil
+        }
+
+        return String(text[start.upperBound..<end.lowerBound])
+    }
+}
+
+struct PollResponseCount: Identifiable, Hashable, Codable {
+    let optionText: String
+    let responseCount: Int
+
+    var id: String { optionText }
+}
+
+struct PollResults: Hashable, Codable {
+    let counts: [PollResponseCount]
+
+    static let empty = PollResults(counts: [])
+
+    var totalResponses: Int {
+        counts.reduce(0) { $0 + $1.responseCount }
+    }
+
+    func count(for option: String) -> Int {
+        counts.first { $0.optionText == option }?.responseCount ?? 0
+    }
+}
+
+struct PollUserResponse: Hashable, Codable {
+    let selectedOption: String?
+    let customAnswer: String?
+    let updatedAt: Date?
+
+    var isCustomAnswer: Bool {
+        selectedOption == nil && customAnswer?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    var displayAnswer: String {
+        if let selectedOption,
+           !selectedOption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return selectedOption
+        }
+
+        return "Other"
+    }
+}
+
+struct PollCustomResponse: Identifiable, Hashable, Codable {
+    let id: UUID
+    let customAnswer: String
+    let createdAt: Date
+}
+
 enum EventChangeType: String, Hashable, Codable {
     case editRequest = "edit_request"
     case removalRequest = "removal_request"
@@ -406,6 +549,7 @@ struct LocalEvent: Identifiable, Hashable {
     let title: String
     let category: EventCategory
     let town: CoastTown
+    let locationDisplayName: String?
     let venue: String
     let startDate: Date
     let endDate: Date
@@ -421,17 +565,54 @@ struct LocalEvent: Identifiable, Hashable {
     let isFeatured: Bool
     let isPaidPush: Bool
     let listingStatus: ListingStatus
+    let listingKind: ListingKind
+    let pollDetails: PollDetails?
     let unverifiedUserListing: Bool
     let images: [EventImage]
     let createdAt: Date
     let updatedAt: Date?
+    let activePromotionRank: Int
+    let activePromotionPaidAt: Date?
 
     var isPubliclyVisible: Bool {
         listingStatus == .published
     }
 
+    nonisolated var effectivePromotionRank: Int {
+        max(activePromotionRank, isPaidPush ? ListingPromotionPlacement.topTen.rawValue : 0)
+    }
+
+    nonisolated var isPromoted: Bool {
+        effectivePromotionRank > 0
+    }
+
+    nonisolated var promotionBadgeTitle: String {
+        if effectivePromotionRank >= ListingPromotionPlacement.priorityFirst.rawValue {
+            return "Top Boost"
+        }
+
+        if effectivePromotionRank >= ListingPromotionPlacement.topTen.rawValue {
+            return "Boosted"
+        }
+
+        return "Featured"
+    }
+
     var primaryImage: EventImage? {
         images.sorted { $0.position < $1.position }.first
+    }
+
+    var displayLocationName: String {
+        let trimmed = locationDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? town.rawValue : trimmed
+    }
+
+    var isPoll: Bool {
+        listingKind == .poll || pollDetails != nil || longDescription.contains("[POLL]")
+    }
+
+    var publicLongDescription: String {
+        PollDetails.strippedReviewBlock(from: longDescription)
     }
 
     init(
@@ -439,6 +620,7 @@ struct LocalEvent: Identifiable, Hashable {
         title: String,
         category: EventCategory,
         town: CoastTown,
+        locationDisplayName: String? = nil,
         venue: String,
         startDate: Date,
         endDate: Date,
@@ -454,15 +636,20 @@ struct LocalEvent: Identifiable, Hashable {
         isFeatured: Bool,
         isPaidPush: Bool,
         listingStatus: ListingStatus = .published,
+        listingKind: ListingKind = .event,
+        pollDetails: PollDetails? = nil,
         unverifiedUserListing: Bool = false,
         images: [EventImage] = [],
         createdAt: Date = .distantPast,
-        updatedAt: Date? = nil
+        updatedAt: Date? = nil,
+        activePromotionRank: Int = 0,
+        activePromotionPaidAt: Date? = nil
     ) {
         self.id = id
         self.title = title
         self.category = category
         self.town = town
+        self.locationDisplayName = locationDisplayName
         self.venue = venue
         self.startDate = startDate
         self.endDate = endDate
@@ -478,10 +665,47 @@ struct LocalEvent: Identifiable, Hashable {
         self.isFeatured = isFeatured
         self.isPaidPush = isPaidPush
         self.listingStatus = listingStatus
+        self.listingKind = listingKind
+        self.pollDetails = pollDetails
         self.unverifiedUserListing = unverifiedUserListing
         self.images = images
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.activePromotionRank = activePromotionRank
+        self.activePromotionPaidAt = activePromotionPaidAt
+    }
+
+    func applyingActivePromotion(rank: Int, paidAt: Date?) -> LocalEvent {
+        LocalEvent(
+            id: id,
+            title: title,
+            category: category,
+            town: town,
+            locationDisplayName: locationDisplayName,
+            venue: venue,
+            startDate: startDate,
+            endDate: endDate,
+            priceLabel: priceLabel,
+            isFree: isFree,
+            audience: audience,
+            shortDescription: shortDescription,
+            longDescription: longDescription,
+            contactName: contactName,
+            contactPhone: contactPhone,
+            contactEmail: contactEmail,
+            submittedBy: submittedBy,
+            isFeatured: isFeatured,
+            isPaidPush: isPaidPush,
+            listingStatus: listingStatus,
+            listingKind: listingKind,
+            pollDetails: pollDetails,
+            unverifiedUserListing: unverifiedUserListing,
+            images: images,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            activePromotionRank: rank,
+            activePromotionPaidAt: paidAt
+        )
     }
 
     var searchableText: String {
@@ -558,11 +782,54 @@ struct LocalEvent: Identifiable, Hashable {
     }
 }
 
+enum EventFeedOrdering {
+    nonisolated static func discovery(_ lhs: LocalEvent, _ rhs: LocalEvent) -> Bool {
+        if lhs.effectivePromotionRank != rhs.effectivePromotionRank {
+            return lhs.effectivePromotionRank > rhs.effectivePromotionRank
+        }
+
+        if lhs.effectivePromotionRank >= ListingPromotionPlacement.priorityFirst.rawValue,
+           lhs.activePromotionPaidAt != rhs.activePromotionPaidAt {
+            return (lhs.activePromotionPaidAt ?? .distantFuture) < (rhs.activePromotionPaidAt ?? .distantFuture)
+        }
+
+        if lhs.isFeatured != rhs.isFeatured {
+            return lhs.isFeatured && !rhs.isFeatured
+        }
+
+        return lhs.startDate < rhs.startDate
+    }
+
+    nonisolated static func board(_ lhs: LocalEvent, _ rhs: LocalEvent) -> Bool {
+        if lhs.effectivePromotionRank != rhs.effectivePromotionRank {
+            return lhs.effectivePromotionRank > rhs.effectivePromotionRank
+        }
+
+        if lhs.effectivePromotionRank >= ListingPromotionPlacement.priorityFirst.rawValue,
+           lhs.activePromotionPaidAt != rhs.activePromotionPaidAt {
+            return (lhs.activePromotionPaidAt ?? .distantFuture) < (rhs.activePromotionPaidAt ?? .distantFuture)
+        }
+
+        if lhs.isFeatured != rhs.isFeatured {
+            return lhs.isFeatured && !rhs.isFeatured
+        }
+
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt > rhs.createdAt
+        }
+
+        return lhs.startDate > rhs.startDate
+    }
+}
+
 struct PendingListingDraft: Hashable {
+    var listingKind: ListingKind = .event
     var listingTier: ListingTier = .communityFree
     var title = ""
     var category: EventCategory = .community
     var town: CoastTown = .beachlands
+    var locationScopeID = "beachlands"
+    var locationDisplayName = "Beachlands"
     var venue = ""
     var date = Date()
     var time = Date()
@@ -570,6 +837,9 @@ struct PendingListingDraft: Hashable {
     var contactName = ""
     var contactEmail = ""
     var shortDescription = ""
+    var pollQuestion = ""
+    var pollOptions: [String] = ["", ""]
+    var allowsCustomPollAnswer = false
 
     var commercialSignals: [ListingCommercialSignal] {
         ListingCommercialSignalDetector.signals(for: self)
@@ -583,10 +853,51 @@ struct PendingListingDraft: Hashable {
     }
 
     var canSubmit: Bool {
-        [
+        if listingKind == .poll {
+            return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && pollDetails?.isValid == true
+        }
+
+        return [
             title,
             venue,
             shortDescription
         ].allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var pollDetails: PollDetails? {
+        let trimmedQuestion = pollQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        let options = pollOptions
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(PollDetails.maxOptions)
+
+        guard !trimmedQuestion.isEmpty else { return nil }
+
+        return PollDetails(
+            question: trimmedQuestion,
+            options: Array(options),
+            allowsCustomAnswer: allowsCustomPollAnswer
+        )
+    }
+
+    var pollReviewText: String? {
+        guard let pollDetails else { return nil }
+
+        let options = pollDetails.options
+            .enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }
+            .joined(separator: "\n")
+
+        return """
+        [POLL]
+        Question: \(pollDetails.question)
+
+        Options:
+        \(options)
+
+        Custom answer: \(pollDetails.allowsCustomAnswer ? "Allowed, max \(PollDetails.customAnswerLimit) characters" : "Not allowed")
+        [/POLL]
+        """
     }
 }

@@ -10,7 +10,11 @@ struct CompactEventCard: View {
                 context: "compact event=\(String(event.id.uuidString.prefix(8)))",
                 contentMode: .fill
             ) {
-                EventImagePlaceholderView()
+                if event.isPoll {
+                    PollImagePlaceholderView()
+                } else {
+                    EventImagePlaceholderView()
+                }
             }
             .frame(height: 58)
             .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -26,9 +30,18 @@ struct CompactEventCard: View {
 
                 Spacer()
 
-                Text(event.category.shortLabel)
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(PCCTheme.leafGreen)
+                if event.isPoll {
+                    Label("Poll", systemImage: "chart.bar.doc.horizontal")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(PCCTheme.leafGreen, in: Capsule())
+                } else {
+                    Text(event.category.shortLabel)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(PCCTheme.leafGreen)
+                }
             }
 
             Text(event.title)
@@ -42,7 +55,7 @@ struct CompactEventCard: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(PCCTheme.ink.opacity(0.62))
 
-            Text(event.venue)
+            Text(event.isPoll ? "Closes \(event.dateText)" : event.venue)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(PCCTheme.ink.opacity(0.54))
                 .lineLimit(1)

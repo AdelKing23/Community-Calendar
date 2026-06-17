@@ -10,6 +10,8 @@ struct CreateListingScreen: View {
         case contactName
         case contactEmail
         case description
+        case pollQuestion
+        case pollOption(Int)
     }
 
     enum AuthMode {
@@ -35,8 +37,11 @@ struct CreateListingScreen: View {
     @State private var submittedListingTier: ListingTier?
     @State private var photoPickerItems: [PhotosPickerItem] = []
     @State private var selectedPhotos: [ListingPhotoUpload] = []
+    @State private var locationCatalog = LocationCatalog.local
+    @State private var hasLoadedLocationCatalog = false
     @FocusState private var focusedField: Field?
     private let listingService: EventListingSubmitting & UserListingFetching & EventChangeRequesting = SupabaseEventService()
+    private let locationService: LocationScopeFetching = SupabaseEventService()
     let onNavigateHome: () -> Void
     let onNavigateWhatsOn: () -> Void
     let onNavigateSettings: () -> Void
@@ -89,6 +94,7 @@ struct CreateListingScreen: View {
 
                         PendingListingForm(
                             draft: $draft,
+                            locationCatalog: locationCatalog,
                             focusedField: $focusedField,
                             photoPickerItems: $photoPickerItems,
                             selectedPhotos: selectedPhotos,
@@ -119,6 +125,9 @@ struct CreateListingScreen: View {
         }
         .onChange(of: photoPickerItems) { _, newItems in
             Task { await loadPhotos(from: newItems) }
+        }
+        .task {
+            await loadLocationCatalog()
         }
     }
 
@@ -205,7 +214,7 @@ struct CreateListingScreen: View {
                 await MainActor.run {
                     isSubmitting = false
                     submissionStatus = nil
-                    submissionError = "The listing could not be sent. Please check your connection and try again."
+                    submissionError = error.localizedDescription
                 }
             }
         }
@@ -265,6 +274,14 @@ struct CreateListingScreen: View {
 
     private func removePhoto(_ photo: ListingPhotoUpload) {
         selectedPhotos.removeAll { $0.id == photo.id }
+    }
+
+    @MainActor
+    private func loadLocationCatalog() async {
+        guard !hasLoadedLocationCatalog else { return }
+
+        locationCatalog = (try? await locationService.fetchLocationCatalog()) ?? .local
+        hasLoadedLocationCatalog = true
     }
 
     @MainActor
@@ -553,7 +570,11 @@ struct MyListingCard: View {
                 context: "my listing card event=\(String(listing.id.uuidString.prefix(8)))",
                 contentMode: .fill
             ) {
-                EventImagePlaceholderView()
+                if listing.isPoll {
+                    PollImagePlaceholderView()
+                } else {
+                    EventImagePlaceholderView()
+                }
             }
             .frame(height: 112)
             .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -564,7 +585,7 @@ struct MyListingCard: View {
                         .font(.headline.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text("\(listing.town.rawValue) · \(listing.venue)")
+                    Text(listing.isPoll ? "\(listing.displayLocationName) · Poll closes \(listing.dateText)" : "\(listing.displayLocationName) · \(listing.venue)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(PCCTheme.ink.opacity(0.62))
                 }
@@ -580,8 +601,13 @@ struct MyListingCard: View {
             }
 
             HStack(spacing: 9) {
-                Label(listing.dateText, systemImage: "calendar")
-                Label(listing.timeText, systemImage: "clock")
+                if listing.isPoll {
+                    Label("Poll", systemImage: "chart.bar.doc.horizontal")
+                    Label(listing.listingStatus == .published ? "Collecting answers" : "Review first", systemImage: "checklist")
+                } else {
+                    Label(listing.dateText, systemImage: "calendar")
+                    Label(listing.timeText, systemImage: "clock")
+                }
             }
             .font(.caption.weight(.bold))
             .foregroundStyle(PCCTheme.ink.opacity(0.58))
@@ -685,7 +711,11 @@ struct UserListingDetailSheet: View {
                         context: "my listing detail event=\(String(listing.id.uuidString.prefix(8)))",
                         contentMode: .fit
                     ) {
-                        EventImagePlaceholderView()
+                        if listing.isPoll {
+                            PollImagePlaceholderView()
+                        } else {
+                            EventImagePlaceholderView()
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 180)
@@ -714,14 +744,24 @@ struct UserListingDetailSheet: View {
                     .pccCardStyle()
 
                     VStack(alignment: .leading, spacing: 12) {
-                        UserListingInfoRow(icon: "calendar", title: "Date", value: listing.dateText)
-                        UserListingInfoRow(icon: "clock", title: "Time", value: listing.timeText)
-                        UserListingInfoRow(icon: "mappin.and.ellipse", title: "Location", value: "\(listing.venue), \(listing.town.rawValue)")
-                        UserListingInfoRow(icon: "tag", title: "Price", value: listing.priceLabel)
-                        UserListingInfoRow(icon: "person.2", title: "Audience", value: listing.audience)
+                        if listing.isPoll {
+                            UserListingInfoRow(icon: "calendar.badge.clock", title: "Closes", value: listing.dateText)
+                            UserListingInfoRow(icon: "location", title: "Area", value: listing.displayLocationName)
+                            UserListingInfoRow(icon: "person.crop.circle", title: "Asked by", value: listing.organiserDisplayName)
+                        } else {
+                            UserListingInfoRow(icon: "calendar", title: "Date", value: listing.dateText)
+                            UserListingInfoRow(icon: "clock", title: "Time", value: listing.timeText)
+                            UserListingInfoRow(icon: "mappin.and.ellipse", title: "Location", value: "\(listing.venue), \(listing.displayLocationName)")
+                            UserListingInfoRow(icon: "tag", title: "Price", value: listing.priceLabel)
+                            UserListingInfoRow(icon: "person.2", title: "Audience", value: listing.audience)
+                        }
                     }
                     .padding(18)
                     .pccCardStyle()
+
+                    if listing.isPoll {
+                        PollOwnerResultsPanel(event: listing)
+                    }
 
                     ListingAnalyticsDetailCard(event: listing)
 
@@ -799,21 +839,238 @@ struct UserListingDetailSheet: View {
     }
 }
 
+struct PollOwnerResultsPanel: View {
+    let event: LocalEvent
+    private let service: PollResponding
+
+    @EnvironmentObject private var userSessionStore: UserSessionStore
+    @State private var results: PollResults = .empty
+    @State private var customResponses: [PollCustomResponse] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    init(event: LocalEvent, service: PollResponding = SupabaseEventService()) {
+        self.event = event
+        self.service = service
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "chart.bar.doc.horizontal")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Poll Results")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    Text("Option totals are anonymous. Custom answers stay private to you and Support.")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .lineSpacing(2)
+                }
+            }
+
+            if isLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(PCCTheme.pohutukawaOrange)
+                    Text("Loading poll results")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                }
+            } else if let errorMessage {
+                Label(errorMessage, systemImage: "wifi.exclamationmark")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PCCTheme.pohutukawaRed)
+            } else {
+                VStack(spacing: 8) {
+                    if resultRows.isEmpty {
+                        Text("No answers yet.")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(resultRows, id: \.option) { row in
+                            PollOwnerResultRow(
+                                title: row.option,
+                                count: row.count,
+                                total: max(results.totalResponses, 1)
+                            )
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("Custom answers")
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(PCCTheme.ink)
+
+                    if customResponses.isEmpty {
+                        Text("No custom answers have been submitted.")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                    } else {
+                        ForEach(customResponses.prefix(8)) { response in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(response.customAnswer)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(PCCTheme.ink.opacity(0.76))
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                Text(response.createdAt.formatted(.dateTime.day().month().hour().minute()))
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(PCCTheme.ink.opacity(0.45))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                        }
+                    }
+                }
+                .padding(12)
+                .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            }
+        }
+        .padding(18)
+        .pccCardStyle()
+        .task(id: event.id) {
+            await loadResults()
+        }
+    }
+
+    private var resultRows: [(option: String, count: Int)] {
+        results.counts
+            .sorted {
+                if $0.responseCount != $1.responseCount {
+                    return $0.responseCount > $1.responseCount
+                }
+                return $0.optionText.localizedCaseInsensitiveCompare($1.optionText) == .orderedAscending
+            }
+            .map { ($0.optionText, $0.responseCount) }
+    }
+
+    @MainActor
+    private func loadResults() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            await userSessionStore.refreshIfNeeded()
+
+            if let session = userSessionStore.session {
+                results = try await service.fetchOwnerPollResponseCounts(
+                    eventID: event.id,
+                    accessToken: session.accessToken
+                )
+                customResponses = try await service.fetchPollCustomResponses(
+                    eventID: event.id,
+                    accessToken: session.accessToken
+                )
+            } else {
+                results = try await service.fetchPollResponseCounts(eventID: event.id)
+            }
+
+            isLoading = false
+        } catch {
+            errorMessage = "Poll results could not be loaded yet."
+            isLoading = false
+        }
+    }
+}
+
+private struct PollOwnerResultRow: View {
+    let title: String
+    let count: Int
+    let total: Int
+
+    private var percentage: Double {
+        guard total > 0 else { return 0 }
+        return Double(count) / Double(total)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(PCCTheme.ink)
+                    .lineLimit(2)
+
+                Spacer()
+
+                Text("\(count)")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.white.opacity(0.82), in: Capsule())
+            }
+
+            GeometryReader { proxy in
+                Capsule()
+                    .fill(PCCTheme.pohutukawaOrange.opacity(0.72))
+                    .frame(width: max(0, proxy.size.width * percentage), alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(PCCTheme.ink.opacity(0.08), in: Capsule())
+            }
+            .frame(height: 5)
+        }
+        .padding(11)
+        .background(.white.opacity(0.64), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
 struct ListingAnalyticsCompactView: View {
     let event: LocalEvent
+    private let service: ListingAnalyticsFetching
 
-    private var analytics: ListingAnalyticsSnapshot {
-        ListingAnalyticsSnapshot.softLaunchEstimate(for: event)
+    @EnvironmentObject private var userSessionStore: UserSessionStore
+    @State private var analytics: ListingAnalyticsSnapshot = .zero
+    @State private var isLoading = false
+
+    init(event: LocalEvent, service: ListingAnalyticsFetching = SupabaseEventService()) {
+        self.event = event
+        self.service = service
     }
 
     var body: some View {
         HStack(spacing: 8) {
-            AnalyticsPill(value: "\(analytics.impressions)", label: "shown")
-            AnalyticsPill(value: "\(analytics.detailViews)", label: "opened")
-            AnalyticsPill(value: "\(analytics.engagementTaps)", label: "engaged")
+            AnalyticsPill(value: isLoading ? "..." : "\(analytics.impressions)", label: "shown")
+            AnalyticsPill(value: isLoading ? "..." : "\(analytics.detailViews)", label: "opened")
+            AnalyticsPill(value: isLoading ? "..." : "\(analytics.engagementTaps)", label: "engaged")
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Listing analytics. \(analytics.impressions) shown, \(analytics.detailViews) opened, \(analytics.engagementTaps) engaged.")
+        .task(id: event.id) {
+            await loadAnalytics()
+        }
+    }
+
+    @MainActor
+    private func loadAnalytics() async {
+        guard userSessionStore.isSignedIn else {
+            analytics = .zero
+            return
+        }
+
+        isLoading = true
+        await userSessionStore.refreshIfNeeded()
+
+        do {
+            if let session = userSessionStore.session {
+                analytics = try await service.fetchListingAnalytics(
+                    eventID: event.id,
+                    accessToken: session.accessToken
+                )
+            }
+        } catch {
+            analytics = .zero
+        }
+
+        isLoading = false
     }
 }
 
@@ -838,9 +1095,16 @@ struct AnalyticsPill: View {
 
 struct ListingAnalyticsDetailCard: View {
     let event: LocalEvent
+    private let service: ListingAnalyticsFetching
 
-    private var analytics: ListingAnalyticsSnapshot {
-        ListingAnalyticsSnapshot.softLaunchEstimate(for: event)
+    @EnvironmentObject private var userSessionStore: UserSessionStore
+    @State private var analytics: ListingAnalyticsSnapshot = .zero
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    init(event: LocalEvent, service: ListingAnalyticsFetching = SupabaseEventService()) {
+        self.event = event
+        self.service = service
     }
 
     private var isInsightsTier: Bool {
@@ -859,19 +1123,23 @@ struct ListingAnalyticsDetailCard: View {
                         .font(.headline.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text(isInsightsTier ? "Useful performance detail for deciding if a boost helped." : "A simple launch view of activity. Deeper reporting is included with Boost + Insights.")
+                    Text(isInsightsTier ? "Useful performance detail for deciding if a boost helped." : "A simple view of real listing activity. Deeper reporting is included with Boost + Insights.")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(PCCTheme.ink.opacity(0.62))
                         .lineSpacing(2)
                 }
             }
 
-            ListingAnalyticsCompactView(event: event)
+            HStack(spacing: 8) {
+                AnalyticsPill(value: isLoading ? "..." : "\(analytics.impressions)", label: "shown")
+                AnalyticsPill(value: isLoading ? "..." : "\(analytics.detailViews)", label: "opened")
+                AnalyticsPill(value: isLoading ? "..." : "\(analytics.engagementTaps)", label: "engaged")
+            }
 
             if isInsightsTier {
                 AnalyticsBarGraph(analytics: analytics)
 
-                Text("Use this to compare normal listings against boosted ones once real tracking is connected.")
+                Text("Use this to compare normal listings against boosted windows as activity builds.")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(PCCTheme.ink.opacity(0.56))
             } else {
@@ -880,12 +1148,47 @@ struct ListingAnalyticsDetailCard: View {
                     .foregroundStyle(PCCTheme.pohutukawaOrange)
             }
 
-            Text("Soft-launch numbers are placeholders until server analytics are connected.")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.42))
+            if let errorMessage {
+                Label(errorMessage, systemImage: "wifi.exclamationmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(PCCTheme.pohutukawaRed)
+            } else if analytics == .zero {
+                Text("No tracked activity yet.")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.42))
+            }
         }
         .padding(18)
         .pccCardStyle()
+        .task(id: event.id) {
+            await loadAnalytics()
+        }
+    }
+
+    @MainActor
+    private func loadAnalytics() async {
+        guard userSessionStore.isSignedIn else {
+            analytics = .zero
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        await userSessionStore.refreshIfNeeded()
+
+        do {
+            if let session = userSessionStore.session {
+                analytics = try await service.fetchListingAnalytics(
+                    eventID: event.id,
+                    accessToken: session.accessToken
+                )
+            }
+        } catch {
+            analytics = .zero
+            errorMessage = "Analytics could not be loaded yet."
+        }
+
+        isLoading = false
     }
 }
 
@@ -916,7 +1219,8 @@ struct AnalyticsBarGraph: View {
                         .frame(width: 64, alignment: .leading)
 
                     GeometryReader { proxy in
-                        let width = max(8, proxy.size.width * CGFloat(row.value) / CGFloat(maxValue))
+                        let availableWidth = proxy.size.width.isFinite ? max(proxy.size.width, 0) : 0
+                        let width = max(8, availableWidth * CGFloat(row.value) / CGFloat(maxValue))
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(row.label == "Shown" ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen)
                             .frame(width: width)
@@ -1124,7 +1428,7 @@ struct ListingEditRequestSheet: View {
                         PCCFormField(title: "Event Name", text: $draft.title, prompt: "Event name")
                         PCCFormField(title: "Venue", text: $draft.venue, prompt: "Venue")
 
-                        ListingLocationPicker(town: $draft.town)
+                        LegacyListingLocationPicker(town: $draft.town)
 
                         Picker("Category", selection: $draft.category) {
                             ForEach(EventCategory.allCases) { category in
@@ -1346,6 +1650,7 @@ struct CreateListingHero: View {
 
 struct PendingListingForm: View {
     @Binding var draft: PendingListingDraft
+    let locationCatalog: LocationCatalog
     @FocusState.Binding var focusedField: CreateListingScreen.Field?
     @Binding var photoPickerItems: [PhotosPickerItem]
     let selectedPhotos: [ListingPhotoUpload]
@@ -1362,14 +1667,19 @@ struct PendingListingForm: View {
                 .font(.title3.weight(.black))
                 .foregroundStyle(PCCTheme.ink)
 
+            ListingKindSelector(kind: $draft.listingKind)
+
             ListingTierSelector(draft: $draft)
 
-            PCCFormField(title: "Event Name", text: $draft.title, prompt: "Coastal concert, market, class")
+            PCCFormField(title: draft.listingKind == .poll ? "Poll Title" : "Event Name", text: $draft.title, prompt: draft.listingKind == .poll ? "Community feedback, club vote, quick survey" : "Coastal concert, market, class")
                 .focused($focusedField, equals: .title)
-            PCCFormField(title: "Venue", text: $draft.venue, prompt: "Hall, beach, club, cafe")
-                .focused($focusedField, equals: .venue)
 
-            ListingLocationPicker(town: $draft.town)
+            if draft.listingKind == .event {
+                PCCFormField(title: "Venue", text: $draft.venue, prompt: "Hall, beach, club, cafe")
+                    .focused($focusedField, equals: .venue)
+            }
+
+            ListingLocationPicker(draft: $draft, locationCatalog: locationCatalog)
 
             Picker("Category", selection: $draft.category) {
                 ForEach(EventCategory.allCases) { category in
@@ -1378,6 +1688,10 @@ struct PendingListingForm: View {
             }
 
             ListingTopicPreview(topics: draft.inferredTopics)
+
+            if draft.listingKind == .poll {
+                PollBuilderSection(draft: $draft, focusedField: $focusedField)
+            }
 
             DatePicker("Date", selection: $draft.date, displayedComponents: .date)
             DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
@@ -1402,7 +1716,7 @@ struct PendingListingForm: View {
                 .focused($focusedField, equals: .contactEmail)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Short Description")
+                Text(draft.listingKind == .poll ? "Extra Context" : "Short Description")
                     .font(.caption.weight(.black))
                     .foregroundStyle(PCCTheme.ink.opacity(0.54))
 
@@ -1412,6 +1726,16 @@ struct PendingListingForm: View {
                     .scrollContentBackground(.hidden)
                     .padding(10)
                     .background(PCCTheme.cream.opacity(0.7), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+                    .overlay(alignment: .topLeading) {
+                        if draft.shortDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(draft.listingKind == .poll ? "Optional: tell people why you are asking." : "")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(PCCTheme.ink.opacity(0.34))
+                                .padding(.horizontal, 15)
+                                .padding(.vertical, 18)
+                                .allowsHitTesting(false)
+                        }
+                    }
             }
 
             ListingPhotoPickerSection(
@@ -1437,7 +1761,7 @@ struct PendingListingForm: View {
             }
 
             Button(action: onSubmit) {
-                Label(isSubmitting ? "Sending Listing" : "Submit for Review", systemImage: isSubmitting ? "hourglass" : "paperplane.fill")
+                Label(isSubmitting ? "Sending \(draft.listingKind.label)" : "Submit \(draft.listingKind.label) for Review", systemImage: isSubmitting ? "hourglass" : "paperplane.fill")
                     .font(.headline.weight(.black))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
@@ -1519,18 +1843,27 @@ struct ListingTierSelector: View {
 }
 
 struct ListingLocationPicker: View {
-    @Binding var town: CoastTown
+    @Binding var draft: PendingListingDraft
+    let locationCatalog: LocationCatalog
     @State private var query = ""
 
     private var selectedScope: LocationScope {
-        LocationScope.primaryScope(for: town)
+        locationCatalog.scope(id: draft.locationScopeID)
+            ?? LocationScope.primaryScope(for: draft.town)
     }
 
     private var matchingScopes: [LocationScope] {
-        let scopes = LocationScope.listingInputScopes
+        let scopes = locationCatalog.listingInputScopes.sorted { lhs, rhs in
+            if lhs.kind.rawValue != rhs.kind.rawValue {
+                return lhs.kind.rawValue < rhs.kind.rawValue
+            }
+            return lhs.name < rhs.name
+        }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return scopes }
-        return scopes.filter { $0.matchesSearch(trimmedQuery) }
+        guard !trimmedQuery.isEmpty else {
+            return Array((locationCatalog.quickScopes + scopes).uniquedByID().prefix(24))
+        }
+        return Array(scopes.filter { $0.matchesSearch(trimmedQuery) }.prefix(30))
     }
 
     var body: some View {
@@ -1540,7 +1873,7 @@ struct ListingLocationPicker: View {
                     .font(.caption.weight(.black))
                     .foregroundStyle(PCCTheme.ink.opacity(0.54))
 
-                Text("Choose the closest place. The app can still show it in wider areas like \(CommunityArea.defaultAreaName), Franklin and Auckland.")
+                Text("Choose the closest named place. Search uses the wider NZ location catalogue while keeping local ladders where we have them.")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(PCCTheme.ink.opacity(0.58))
                     .lineSpacing(2)
@@ -1571,11 +1904,11 @@ struct ListingLocationPicker: View {
                 HStack(spacing: 8) {
                     ForEach(matchingScopes) { scope in
                         Button {
-                            if let primaryTown = scope.primaryTown {
-                                withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
-                                    town = primaryTown
-                                    query = ""
-                                }
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                                draft.locationScopeID = scope.id
+                                draft.locationDisplayName = scope.name
+                                draft.town = scope.primaryTown ?? .all
+                                query = ""
                             }
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
@@ -1599,7 +1932,7 @@ struct ListingLocationPicker: View {
                 .padding(.trailing, 18)
             }
 
-            Text(selectedScope.ladder.map(\.name).joined(separator: "  →  "))
+            Text(locationCatalog.ladder(for: selectedScope.id).map(\.name).joined(separator: "  →  "))
                 .font(.caption.weight(.black))
                 .foregroundStyle(PCCTheme.leafGreen.opacity(0.86))
                 .lineLimit(1)
@@ -1607,6 +1940,164 @@ struct ListingLocationPicker: View {
         }
         .padding(13)
         .background(PCCTheme.leafGreen.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+}
+
+struct LegacyListingLocationPicker: View {
+    @Binding var town: CoastTown
+
+    var body: some View {
+        Picker("Location", selection: $town) {
+            ForEach(CoastTown.allCases.filter { $0 != .all }) { town in
+                Text(town.rawValue).tag(town)
+            }
+        }
+    }
+}
+
+private extension Array where Element == LocationScope {
+    func uniquedByID() -> [LocationScope] {
+        var seen: Set<String> = []
+        return filter { scope in
+            seen.insert(scope.id).inserted
+        }
+    }
+}
+
+struct ListingKindSelector: View {
+    @Binding var kind: ListingKind
+
+    var body: some View {
+        HStack(spacing: 10) {
+            kindButton(.event, icon: "calendar.badge.plus", title: "Listing", subtitle: "Event or community notice")
+            kindButton(.poll, icon: "chart.bar.doc.horizontal", title: "Poll", subtitle: "Ask and collect feedback")
+        }
+    }
+
+    private func kindButton(_ value: ListingKind, icon: String, title: String, subtitle: String) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                kind = value
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.headline.weight(.black))
+
+                Text(title)
+                    .font(.headline.weight(.black))
+
+                Text(subtitle)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+            }
+            .foregroundStyle(kind == value ? .white : PCCTheme.ink)
+            .frame(maxWidth: .infinity, minHeight: 102, alignment: .topLeading)
+            .padding(13)
+            .background(kind == value ? PCCTheme.leafGreen : PCCTheme.cream.opacity(0.66), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct PollBuilderSection: View {
+    @Binding var draft: PendingListingDraft
+    @FocusState.Binding var focusedField: CreateListingScreen.Field?
+
+    private var optionCountText: String {
+        "\(draft.pollOptions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)/\(PollDetails.maxOptions)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Poll")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+
+                    Text("Add 2 to 10 answer options. The next answer field appears as people fill them in.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                }
+
+                Spacer()
+
+                Text(optionCountText)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+            }
+
+            PCCFormField(title: "Question", text: $draft.pollQuestion, prompt: "What should the community choose?")
+                .focused($focusedField, equals: .pollQuestion)
+
+            VStack(spacing: 8) {
+                ForEach(Array(draft.pollOptions.indices), id: \.self) { index in
+                    HStack(spacing: 8) {
+                        TextField("Answer \(index + 1)", text: optionBinding(index))
+                            .font(.body.weight(.bold))
+                            .textInputAutocapitalization(.sentences)
+                            .focused($focusedField, equals: .pollOption(index))
+                            .padding(12)
+                            .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+                        if draft.pollOptions.count > 2 {
+                            Button {
+                                draft.pollOptions.remove(at: index)
+                                normalizeOptions()
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.title3.weight(.bold))
+                                    .foregroundStyle(PCCTheme.pohutukawaRed.opacity(0.72))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            Toggle(isOn: $draft.allowsCustomPollAnswer) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Allow custom answer")
+                        .font(.subheadline.weight(.black))
+                    Text("People can write their own response, capped at \(PollDetails.customAnswerLimit) characters.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                }
+            }
+            .tint(PCCTheme.leafGreen)
+        }
+        .padding(13)
+        .background(PCCTheme.pohutukawaOrange.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+    }
+
+    private func optionBinding(_ index: Int) -> Binding<String> {
+        Binding(
+            get: { draft.pollOptions.indices.contains(index) ? draft.pollOptions[index] : "" },
+            set: { value in
+                guard draft.pollOptions.indices.contains(index) else { return }
+                draft.pollOptions[index] = value
+                normalizeOptions()
+            }
+        )
+    }
+
+    private func normalizeOptions() {
+        while draft.pollOptions.count < 2 {
+            draft.pollOptions.append("")
+        }
+
+        let hasRoom = draft.pollOptions.count < PollDetails.maxOptions
+        let lastOptionHasText = !(draft.pollOptions.last ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if hasRoom && lastOptionHasText {
+            draft.pollOptions.append("")
+        }
+
+        while draft.pollOptions.count > 2,
+              draft.pollOptions.suffix(2).allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            draft.pollOptions.removeLast()
+        }
     }
 }
 

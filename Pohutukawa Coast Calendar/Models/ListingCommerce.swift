@@ -69,6 +69,28 @@ enum ListingTier: String, CaseIterable, Identifiable, Hashable {
         self == .boostInsights
     }
 
+    var promotionPlacement: ListingPromotionPlacement {
+        switch self {
+        case .communityFree, .commercialStandard:
+            return .standard
+        case .boost:
+            return .topTen
+        case .boostInsights:
+            return .priorityFirst
+        }
+    }
+
+    var maximumPromotionDuration: TimeInterval? {
+        switch self {
+        case .communityFree, .commercialStandard:
+            return nil
+        case .boost:
+            return 60 * 60 * 24 * 3
+        case .boostInsights:
+            return 60 * 60 * 24 * 7
+        }
+    }
+
     var storeKitProductID: String? {
         switch self {
         case .communityFree:
@@ -89,6 +111,37 @@ enum ListingTier: String, CaseIterable, Identifiable, Hashable {
         case .boost: return 2
         case .boostInsights: return 3
         }
+    }
+}
+
+enum ListingPromotionPlacement: Int, Hashable, Comparable {
+    case standard = 0
+    case topTen = 1
+    case priorityFirst = 2
+
+    static func < (lhs: ListingPromotionPlacement, rhs: ListingPromotionPlacement) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+struct PromotionWindowPolicy {
+    static func clampedWindow(
+        tier: ListingTier,
+        eventStart: Date,
+        eventEnd: Date,
+        requestedStart: Date,
+        requestedEnd: Date?,
+        now: Date = Date()
+    ) -> DateInterval? {
+        guard let maximumDuration = tier.maximumPromotionDuration else { return nil }
+
+        let start = max(requestedStart, now)
+        let requestedOrDefaultEnd = requestedEnd ?? start.addingTimeInterval(maximumDuration)
+        let cappedDurationEnd = start.addingTimeInterval(maximumDuration)
+        let end = min(requestedOrDefaultEnd, cappedDurationEnd, eventEnd)
+
+        guard end > start, eventStart > now else { return nil }
+        return DateInterval(start: start, end: end)
     }
 }
 
@@ -186,22 +239,13 @@ struct ListingAnalyticsSnapshot: Hashable {
     let saves: Int
     let shares: Int
 
-    static func softLaunchEstimate(for event: LocalEvent) -> ListingAnalyticsSnapshot {
-        let base = abs(event.id.uuidString.hashValue)
-        let impressions = max(1, base % 140)
-        let detailViews = max(0, impressions / 5)
-        let engagementTaps = max(0, detailViews / 3)
-        let saves = max(0, engagementTaps / 3)
-        let shares = max(0, engagementTaps / 4)
-
-        return ListingAnalyticsSnapshot(
-            impressions: impressions,
-            detailViews: detailViews,
-            engagementTaps: engagementTaps,
-            saves: saves,
-            shares: shares
-        )
-    }
+    static let zero = ListingAnalyticsSnapshot(
+        impressions: 0,
+        detailViews: 0,
+        engagementTaps: 0,
+        saves: 0,
+        shares: 0
+    )
 
     var conversionPercentText: String {
         guard impressions > 0 else { return "0%" }

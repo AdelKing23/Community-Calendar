@@ -8,21 +8,7 @@ struct HomeScreen: View {
     private let eventService: PublishedEventFetching = SupabaseEventService()
 
     private var boardEvents: [LocalEvent] {
-        events.sorted {
-            if $0.isPaidPush != $1.isPaidPush {
-                return $0.isPaidPush && !$1.isPaidPush
-            }
-
-            if $0.isFeatured != $1.isFeatured {
-                return $0.isFeatured && !$1.isFeatured
-            }
-
-            if $0.createdAt != $1.createdAt {
-                return $0.createdAt > $1.createdAt
-            }
-
-            return $0.startDate > $1.startDate
-        }
+        events.sorted(by: EventFeedOrdering.board)
     }
 
     var body: some View {
@@ -63,12 +49,16 @@ struct HomeScreen: View {
                                     )
                                 } else {
                                     ForEach(boardEvents) { event in
-                                        NavigationLink {
-                                            EventDetailScreen(event: event)
-                                        } label: {
-                                            HomePostCard(event: event)
+                                        if event.isPoll {
+                                            PollPostCard(event: event)
+                                        } else {
+                                            NavigationLink {
+                                                EventDetailScreen(event: event)
+                                            } label: {
+                                                HomePostCard(event: event)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
-                                        .buttonStyle(.plain)
                                     }
                                 }
                             }

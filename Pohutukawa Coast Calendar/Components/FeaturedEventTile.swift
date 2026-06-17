@@ -12,7 +12,7 @@ struct FeaturedEventTile: View {
 
                 Spacer()
 
-                if event.isPaidPush {
+                if event.isPromoted {
                     Image(systemName: "star.fill")
                         .foregroundStyle(PCCTheme.pohutukawaOrange)
                 }

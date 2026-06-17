@@ -2,6 +2,9 @@ import SwiftUI
 
 struct EventDetailScreen: View {
     let event: LocalEvent
+    private let analyticsService: EventAnalyticsRecording = SupabaseEventService()
+
+    @EnvironmentObject private var userSessionStore: UserSessionStore
 
     var body: some View {
         ZStack {
@@ -9,13 +12,17 @@ struct EventDetailScreen: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
-                    EventDetailHero(event: event)
-                    EventInfoPanel(event: event)
-                    if let organiserID = event.submittedBy {
-                        EventOrganiserPanel(event: event, organiserID: organiserID)
+                    if event.isPoll {
+                        PollDetailContent(event: event)
+                    } else {
+                        EventDetailHero(event: event)
+                        EventInfoPanel(event: event)
+                        if let organiserID = event.submittedBy {
+                            EventOrganiserPanel(event: event, organiserID: organiserID)
+                        }
+                        EventAboutPanel(event: event)
+                        PublicContactNotice()
                     }
-                    EventAboutPanel(event: event)
-                    PublicContactNotice()
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, PCCKeyboardSpacing.standardTopPadding)
@@ -23,8 +30,148 @@ struct EventDetailScreen: View {
             }
             .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
         }
-        .navigationTitle("Event")
+        .navigationTitle(event.isPoll ? "Poll" : "Event")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: event.id) {
+            await recordDetailView()
+        }
+    }
+
+    private func recordDetailView() async {
+        await userSessionStore.refreshIfNeeded()
+        try? await analyticsService.recordEventAnalytics(
+            eventID: event.id,
+            eventType: "detail_view",
+            source: "event_detail",
+            locationScopeID: nil,
+            accessToken: userSessionStore.session?.accessToken
+        )
+    }
+}
+
+struct PollDetailContent: View {
+    let event: LocalEvent
+
+    var body: some View {
+        PollDetailHero(event: event)
+        PollDetailInfoPanel(event: event)
+
+        if let pollDetails = event.pollDetails {
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Cast your answer", systemImage: "checklist")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+                PollInlineResponseView(event: event, pollDetails: pollDetails)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .pccCardStyle()
+        } else {
+            PollUnavailablePanel()
+        }
+
+        if let organiserID = event.submittedBy {
+            EventOrganiserPanel(event: event, organiserID: organiserID)
+        }
+
+        PollAboutPanel(event: event)
+    }
+}
+
+struct PollDetailHero: View {
+    let event: LocalEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            ListingRemoteImageView(
+                image: event.primaryImage,
+                context: "detail poll=\(String(event.id.uuidString.prefix(8)))",
+                contentMode: .fit
+            ) {
+                PollImagePlaceholderView()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 184)
+            .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
+
+            HStack(spacing: 10) {
+                PollBadge()
+
+                Text(event.category.shortLabel)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(PCCTheme.pohutukawaOrange, in: Capsule())
+
+                Spacer(minLength: 8)
+
+                Text(event.displayLocationName)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(PCCTheme.leafGreen.opacity(0.08), in: Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(event.title)
+                    .font(.system(size: 34, weight: .black, design: .serif))
+                    .foregroundStyle(PCCTheme.ink)
+                    .lineSpacing(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(event.shortDescription)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(22)
+        .pccCardStyle()
+    }
+}
+
+struct PollDetailInfoPanel: View {
+    let event: LocalEvent
+
+    var body: some View {
+        VStack(spacing: 12) {
+            EventInfoRow(icon: "calendar.badge.clock", title: "Closes", value: event.dateText)
+            EventInfoRow(icon: "location", title: "Area", value: event.displayLocationName)
+            EventInfoRow(icon: "person.crop.circle", title: "Asked by", value: event.organiserDisplayName)
+        }
+        .padding(18)
+        .background(PCCTheme.leafGreen.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.cardRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: PCCTheme.cardRadius, style: .continuous)
+                .stroke(.white.opacity(0.55), lineWidth: 1)
+        )
+    }
+}
+
+struct PollAboutPanel: View {
+    let event: LocalEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Why this poll is running")
+                .font(.title3.weight(.black))
+                .foregroundStyle(PCCTheme.ink)
+
+            Text(event.publicLongDescription.isEmpty ? "No extra context was added." : event.publicLongDescription)
+                .font(.body.weight(.medium))
+                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .lineSpacing(4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .pccCardStyle()
     }
 }
 
@@ -46,13 +193,17 @@ struct EventDetailHero: View {
             .clipShape(RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
 
             HStack(alignment: .center, spacing: 10) {
-                Text(event.category.rawValue.uppercased())
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.pohutukawaOrange)
+                if event.isPoll {
+                    PollBadge()
+                } else {
+                    Text(event.category.rawValue.uppercased())
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(PCCTheme.pohutukawaOrange)
+                }
 
                 Spacer(minLength: 8)
 
-                Text(event.town.rawValue)
+                Text(event.displayLocationName)
                     .font(.caption.weight(.black))
                     .foregroundStyle(PCCTheme.leafGreen)
                     .padding(.horizontal, 10)
@@ -75,8 +226,8 @@ struct EventDetailHero: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if event.isPaidPush {
-                Text("Featured local listing")
+            if event.isPromoted {
+                Text(event.promotionBadgeTitle)
                     .font(.caption.weight(.black))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
@@ -87,6 +238,34 @@ struct EventDetailHero: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
         .pccCardStyle()
+    }
+}
+
+struct EventPollPanel: View {
+    let event: LocalEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Community poll", systemImage: "chart.bar.doc.horizontal")
+                .font(.caption.weight(.black))
+                .foregroundStyle(PCCTheme.pohutukawaOrange)
+
+            if let pollDetails = event.pollDetails {
+                PollInlineResponseView(event: event, pollDetails: pollDetails)
+            } else {
+                Text("This listing is marked as a poll. Response collection will appear here once the poll backend is enabled for published listings.")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                    .lineSpacing(3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(PCCTheme.pohutukawaOrange.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.cardRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: PCCTheme.cardRadius, style: .continuous)
+                .stroke(.white.opacity(0.55), lineWidth: 1)
+        )
     }
 }
 
@@ -143,7 +322,7 @@ struct EventInfoPanel: View {
         VStack(spacing: 12) {
             EventInfoRow(icon: "calendar", title: "Date", value: event.dateText)
             EventInfoRow(icon: "clock", title: "Time", value: event.timeText)
-            EventInfoRow(icon: "mappin.and.ellipse", title: "Venue", value: "\(event.venue), \(event.town.rawValue)")
+            EventInfoRow(icon: "mappin.and.ellipse", title: "Venue", value: "\(event.venue), \(event.displayLocationName)")
             EventInfoRow(icon: "dollarsign.circle", title: "Cost", value: event.priceLabel)
             EventInfoRow(icon: "person.2", title: "Good for", value: event.audience)
         }
@@ -319,12 +498,16 @@ struct OrganiserDaySection: View {
                         .foregroundStyle(PCCTheme.leafGreen)
 
                     ForEach(bucket.events) { event in
-                        NavigationLink {
-                            EventDetailScreen(event: event)
-                        } label: {
-                            EventFeedCard(event: event)
+                        if event.isPoll {
+                            PollFeedCard(event: event)
+                        } else {
+                            NavigationLink {
+                                EventDetailScreen(event: event)
+                            } label: {
+                                EventFeedCard(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -473,7 +656,7 @@ struct EventAboutPanel: View {
                 .font(.title3.weight(.black))
                 .foregroundStyle(PCCTheme.ink)
 
-            Text(event.longDescription)
+            Text(event.publicLongDescription)
                 .font(.body.weight(.medium))
                 .foregroundStyle(PCCTheme.ink.opacity(0.68))
                 .lineSpacing(4)

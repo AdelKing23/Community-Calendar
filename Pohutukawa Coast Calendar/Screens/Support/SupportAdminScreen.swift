@@ -381,7 +381,7 @@ struct PendingListingReviewCard: View {
                         .font(.title3.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text("\(event.category.rawValue) · \(event.town.rawValue)")
+                    Text("\(event.category.rawValue) · \(event.displayLocationName)")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(PCCTheme.leafGreen)
                 }
@@ -598,7 +598,7 @@ struct ChangeRequestReviewCard: View {
             if let event = request.event {
                 VStack(alignment: .leading, spacing: 7) {
                     SupportDetailRow(icon: "calendar", title: "Current Date", value: event.dateText)
-                    SupportDetailRow(icon: "mappin.and.ellipse", title: "Current Venue", value: "\(event.venue), \(event.town.rawValue)")
+                    SupportDetailRow(icon: "mappin.and.ellipse", title: "Current Venue", value: "\(event.venue), \(event.displayLocationName)")
                     SupportDetailRow(icon: "tag", title: "Current Price", value: event.priceLabel)
                 }
             }
@@ -895,7 +895,7 @@ struct SupportEventListPanel: View {
                                     .font(.headline.weight(.black))
                                     .foregroundStyle(PCCTheme.ink)
 
-                                Text("\(event.town.rawValue) · \(event.venue)")
+                                Text("\(event.displayLocationName) · \(event.venue)")
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(PCCTheme.ink.opacity(0.62))
 
