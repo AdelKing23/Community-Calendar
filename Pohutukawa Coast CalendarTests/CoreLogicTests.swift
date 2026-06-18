@@ -186,6 +186,102 @@ final class CoreLogicTests: XCTestCase {
         )
     }
 
+    func testApplePurchaseProductMappingDistinguishesCommercialFromPromotions() throws {
+        let commercial = try AppleListingPurchaseProduct(productID: "communitycalendar.commercial.standard")
+        let boost = try AppleListingPurchaseProduct(productID: "communitycalendar.boost.standard")
+        let boostInsights = try AppleListingPurchaseProduct(productID: "communitycalendar.boost.insights")
+
+        XCTAssertEqual(commercial.listingTier, .commercialStandard)
+        XCTAssertFalse(commercial.createsPromotion)
+        XCTAssertNil(commercial.promotionPlacement)
+
+        XCTAssertEqual(boost.listingTier, .boost)
+        XCTAssertEqual(boost.promotionPlacement, .topTen)
+        XCTAssertFalse(boost.includesPaidInsights)
+
+        XCTAssertEqual(boostInsights.listingTier, .boostInsights)
+        XCTAssertEqual(boostInsights.promotionPlacement, .priorityFirst)
+        XCTAssertTrue(boostInsights.includesPaidInsights)
+    }
+
+    func testUnknownAppleProductIsRejected() {
+        XCTAssertThrowsError(try AppleListingPurchaseProduct(productID: "communitycalendar.unknown")) { error in
+            XCTAssertEqual(error as? AppleListingPurchaseError, .unsupportedProductID("communitycalendar.unknown"))
+        }
+    }
+
+    func testDuplicateAppleTransactionIsIdempotentForSameBinding() {
+        let binding = AppleTransactionBinding(
+            transactionID: "1000001",
+            purchaserUserID: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!,
+            eventID: UUID(uuidString: "00000000-0000-4000-8000-000000000002")!,
+            productID: "communitycalendar.boost.standard"
+        )
+
+        XCTAssertEqual(
+            AppleTransactionReplayPolicy.decision(existing: binding, incoming: binding),
+            .alreadyProcessed
+        )
+    }
+
+    func testAppleTransactionCannotBeReboundToAnotherEvent() {
+        let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+        let existing = AppleTransactionBinding(
+            transactionID: "1000001",
+            purchaserUserID: userID,
+            eventID: UUID(uuidString: "00000000-0000-4000-8000-000000000002")!,
+            productID: "communitycalendar.boost.standard"
+        )
+        let incoming = AppleTransactionBinding(
+            transactionID: "1000001",
+            purchaserUserID: userID,
+            eventID: UUID(uuidString: "00000000-0000-4000-8000-000000000003")!,
+            productID: "communitycalendar.boost.standard"
+        )
+
+        XCTAssertEqual(
+            AppleTransactionReplayPolicy.decision(existing: existing, incoming: incoming),
+            .rejectedRebind
+        )
+    }
+
+    func testAppleTransactionCannotBeReboundToAnotherUser() {
+        let eventID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
+        let existing = AppleTransactionBinding(
+            transactionID: "1000001",
+            purchaserUserID: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!,
+            eventID: eventID,
+            productID: "communitycalendar.boost.standard"
+        )
+        let incoming = AppleTransactionBinding(
+            transactionID: "1000001",
+            purchaserUserID: UUID(uuidString: "00000000-0000-4000-8000-000000000004")!,
+            eventID: eventID,
+            productID: "communitycalendar.boost.standard"
+        )
+
+        XCTAssertEqual(
+            AppleTransactionReplayPolicy.decision(existing: existing, incoming: incoming),
+            .rejectedRebind
+        )
+    }
+
+    func testBackendActivationStatusesPermitFinishing() {
+        XCTAssertTrue(AppleTransactionFinishPolicy.shouldFinish(after: .activated))
+        XCTAssertTrue(AppleTransactionFinishPolicy.shouldFinish(after: .alreadyProcessed))
+    }
+
+    func testRejectedOrFailedBackendDoesNotPermitFinishing() {
+        XCTAssertFalse(AppleTransactionFinishPolicy.shouldFinish(after: .rejected))
+    }
+
+    func testOnlyVerifiedStoreKitPurchasesCallBackend() {
+        XCTAssertTrue(AppleTransactionFinishPolicy.shouldCallBackend(for: .verified))
+        XCTAssertFalse(AppleTransactionFinishPolicy.shouldCallBackend(for: .userCancelled))
+        XCTAssertFalse(AppleTransactionFinishPolicy.shouldCallBackend(for: .pendingApproval))
+        XCTAssertFalse(AppleTransactionFinishPolicy.shouldCallBackend(for: .unverified))
+    }
+
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

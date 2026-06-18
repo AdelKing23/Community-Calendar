@@ -1118,6 +1118,12 @@ struct StoreKitStatusCard: View {
             return "Purchase in progress"
         case .purchased:
             return "Purchase recorded by Apple"
+        case .activating:
+            return "Activating purchase"
+        case .activated:
+            return "Purchase activated"
+        case .awaitingBackendRetry:
+            return "Purchase waiting to retry"
         case .pending:
             return "Purchase pending"
         case .cancelled:
@@ -1139,6 +1145,12 @@ struct StoreKitStatusCard: View {
             return "Keep this screen open while Apple completes the purchase."
         case .purchased(let productID):
             return "Apple returned a verified transaction for \(productID). Backend receipt tracking still needs to be connected before launch."
+        case .activating:
+            return "The app is waiting for the backend to record the verified Apple transaction."
+        case .activated(let productID):
+            return "\(productID) was recorded by the backend and can be finished with Apple."
+        case .awaitingBackendRetry(let productID):
+            return "\(productID) has not been confirmed by the backend yet. StoreKit can redeliver it for retry."
         case .pending:
             return "Apple marked the purchase as pending. The app should wait for a transaction update."
         case .cancelled:

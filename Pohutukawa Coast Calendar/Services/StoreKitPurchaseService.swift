@@ -9,6 +9,9 @@ enum StoreKitPaymentState: Equatable {
     case productsUnavailable
     case purchasing
     case purchased(productID: String)
+    case activating
+    case activated(productID: String)
+    case awaitingBackendRetry(productID: String)
     case pending
     case cancelled
     case failed(String)
@@ -48,6 +51,12 @@ final class StoreKitPurchaseService: ObservableObject {
     @Published private(set) var state: StoreKitPaymentState = .idle
 
     private var transactionUpdatesTask: Task<Void, Never>?
+    private let pendingIntentStore: PendingApplePurchaseIntentStoring
+    private var processingTransactionIDs: Set<String> = []
+
+    init(pendingIntentStore: PendingApplePurchaseIntentStoring? = nil) {
+        self.pendingIntentStore = pendingIntentStore ?? UserDefaultsApplePurchaseIntentStore()
+    }
 
     deinit {
         transactionUpdatesTask?.cancel()
@@ -68,17 +77,24 @@ final class StoreKitPurchaseService: ObservableObject {
         .sorted { $0.tier.sortRank < $1.tier.sortRank }
     }
 
-    func startTransactionListener() {
+    func startTransactionListener(
+        processor: AppleListingPurchaseProcessing? = nil,
+        accessTokenProvider: @escaping () async -> String? = { nil }
+    ) {
         guard transactionUpdatesTask == nil else { return }
 
-        transactionUpdatesTask = Task {
+        transactionUpdatesTask = Task { [weak self] in
             for await result in Transaction.updates {
                 do {
-                    let transaction = try verifiedTransaction(from: result)
-                    purchasedProductIDs.insert(transaction.productID)
-                    await transaction.finish()
+                    guard let self else { return }
+                    let transaction = try self.verifiedTransaction(from: result)
+                    await self.handleRecoveredTransaction(
+                        transaction,
+                        processor: processor,
+                        accessTokenProvider: accessTokenProvider
+                    )
                 } catch {
-                    state = .failed("A purchase update could not be verified.")
+                    self?.setFailure("A purchase update could not be verified.")
                 }
             }
         }
@@ -135,11 +151,64 @@ final class StoreKitPurchaseService: ObservableObject {
         case .success(let verification):
             let transaction = try verifiedTransaction(from: verification)
             purchasedProductIDs.insert(transaction.productID)
-            await transaction.finish()
             state = .purchased(productID: transaction.productID)
             return transaction
         case .userCancelled:
             state = .cancelled
+            return nil
+        case .pending:
+            state = .pending
+            return nil
+        @unknown default:
+            state = .failed("The purchase could not be completed.")
+            return nil
+        }
+    }
+
+    @discardableResult
+    func purchase(
+        _ tier: ListingTier,
+        intent: AppleListingPurchaseIntent,
+        accessToken: String,
+        processor: AppleListingPurchaseProcessing
+    ) async throws -> AppleListingPurchaseBackendResult? {
+        guard let productID = tier.storeKitProductID else {
+            throw StoreKitPurchaseError.missingProductID
+        }
+
+        if products.isEmpty {
+            await loadProducts()
+        }
+
+        guard productID == intent.productID,
+              let product = products.first(where: { $0.id == productID }) else {
+            state = .productsUnavailable
+            throw StoreKitPurchaseError.productUnavailable
+        }
+
+        pendingIntentStore.save(intent)
+        state = .purchasing
+
+        let result = try await product.purchase(options: [.appAccountToken(intent.appAccountToken)])
+
+        switch result {
+        case .success(let verification):
+            let transaction = try verifiedTransaction(from: verification)
+            return try await processVerifiedTransaction(
+                transaction,
+                intent: intent,
+                accessToken: accessToken,
+                processor: processor
+            )
+        case .userCancelled:
+            state = .cancelled
+            pendingIntentStore.removeIntent(for: StoreKitVerifiedTransactionEvidence(
+                transactionID: "",
+                originalTransactionID: nil,
+                productID: intent.productID,
+                signedTransactionJWS: nil,
+                appAccountToken: intent.appAccountToken
+            ))
             return nil
         case .pending:
             state = .pending
@@ -169,6 +238,85 @@ final class StoreKitPurchaseService: ObservableObject {
         case .unverified:
             throw StoreKitPurchaseError.unverifiedTransaction
         }
+    }
+
+    private func processVerifiedTransaction(
+        _ transaction: Transaction,
+        intent: AppleListingPurchaseIntent,
+        accessToken: String,
+        processor: AppleListingPurchaseProcessing
+    ) async throws -> AppleListingPurchaseBackendResult {
+        let evidence = evidence(from: transaction)
+        guard !processingTransactionIDs.contains(evidence.transactionID) else {
+            state = .awaitingBackendRetry(productID: transaction.productID)
+            throw StoreKitPurchaseError.productUnavailable
+        }
+
+        processingTransactionIDs.insert(evidence.transactionID)
+        state = .activating
+
+        do {
+            let result = try await processor.processVerifiedPurchase(
+                evidence: evidence,
+                intent: intent,
+                accessToken: accessToken
+            )
+
+            if AppleTransactionFinishPolicy.shouldFinish(after: result.status) {
+                await transaction.finish()
+                purchasedProductIDs.insert(transaction.productID)
+                pendingIntentStore.removeIntent(for: evidence)
+                state = .activated(productID: transaction.productID)
+            } else {
+                state = .awaitingBackendRetry(productID: transaction.productID)
+            }
+
+            processingTransactionIDs.remove(evidence.transactionID)
+            return result
+        } catch {
+            state = .awaitingBackendRetry(productID: transaction.productID)
+            processingTransactionIDs.remove(evidence.transactionID)
+            throw error
+        }
+    }
+
+    private func handleRecoveredTransaction(
+        _ transaction: Transaction,
+        processor: AppleListingPurchaseProcessing?,
+        accessTokenProvider: () async -> String?
+    ) async {
+        let evidence = evidence(from: transaction)
+        guard let processor,
+              let intent = pendingIntentStore.intent(for: evidence),
+              let accessToken = await accessTokenProvider() else {
+            state = .awaitingBackendRetry(productID: transaction.productID)
+            return
+        }
+
+        do {
+            _ = try await processVerifiedTransaction(
+                transaction,
+                intent: intent,
+                accessToken: accessToken,
+                processor: processor
+            )
+        } catch {
+            state = .awaitingBackendRetry(productID: transaction.productID)
+        }
+    }
+
+    private func evidence(from transaction: Transaction) -> StoreKitVerifiedTransactionEvidence {
+        StoreKitVerifiedTransactionEvidence(
+            transactionID: String(transaction.id),
+            originalTransactionID: String(transaction.originalID),
+            productID: transaction.productID,
+            signedTransactionJWS: nil,
+            appAccountToken: transaction.appAccountToken
+        )
+    }
+
+    private func setFailure(_ message: String) {
+        state = .failed(message)
     }
 }
 
