@@ -18,9 +18,17 @@ Apple products:
 
 Do not commit secret values.
 
+Supabase provides its own reserved default secrets. Do not create custom secrets
+that start with `SUPABASE_`.
+
+Default Supabase secrets used by this function:
+
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEYS`
+- `SUPABASE_SECRET_KEYS`
+
+Custom secrets to add:
+
 - `APPLE_ISSUER_ID`
 - `APPLE_KEY_ID`
 - `APPLE_PRIVATE_KEY`

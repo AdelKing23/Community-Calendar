@@ -59,19 +59,27 @@ Expected:
 
 ## Required Secrets
 
-Set these with real values only in Supabase, never in git:
+Supabase provides reserved default secrets. Do not add custom secrets beginning
+with `SUPABASE_`; the dashboard will reject them.
 
-```sh
-supabase secrets set --project-ref fujngeynyosnplviyvbg \
-  SUPABASE_URL="https://fujngeynyosnplviyvbg.supabase.co" \
-  SUPABASE_ANON_KEY="..." \
-  SUPABASE_SERVICE_ROLE_KEY="..." \
-  APPLE_ISSUER_ID="..." \
-  APPLE_KEY_ID="..." \
-  APPLE_PRIVATE_KEY="..." \
-  APPLE_BUNDLE_ID="com.atlasdigital.Pohutukawa-Coast-Calendar" \
-  APPLE_ENVIRONMENT="Sandbox"
-```
+The function reads these default Supabase secrets:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEYS`
+- `SUPABASE_SECRET_KEYS`
+
+Add only these custom Apple secrets in Supabase Edge Function Secrets:
+
+- `APPLE_ISSUER_ID`
+- `APPLE_KEY_ID`
+- `APPLE_PRIVATE_KEY`
+- `APPLE_BUNDLE_ID`
+- `APPLE_ENVIRONMENT`
+
+Use these values where fixed:
+
+- `APPLE_BUNDLE_ID`: `com.atlasdigital.Pohutukawa-Coast-Calendar`
+- `APPLE_ENVIRONMENT`: `Sandbox`
 
 `APPLE_PRIVATE_KEY` should be the full `.p8` private key content. If setting it
 from a local key file, use a shell method that does not print the key value into

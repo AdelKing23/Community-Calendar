@@ -47,9 +47,17 @@ Example:
 
 Required secrets, without values in git:
 
+Supabase default secrets are reserved and already available to Edge Functions.
+Do not add custom secrets starting with `SUPABASE_`.
+
+Default Supabase secrets used:
+
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEYS`
+- `SUPABASE_SECRET_KEYS`
+
+Custom secrets to add:
+
 - `APPLE_ISSUER_ID`
 - `APPLE_KEY_ID`
 - `APPLE_PRIVATE_KEY`

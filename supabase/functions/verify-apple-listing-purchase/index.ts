@@ -127,8 +127,14 @@ Deno.serve(async (request) => {
 
 function readConfig() {
   const supabaseUrl = requiredEnv("SUPABASE_URL");
-  const supabaseAnonKey = requiredEnv("SUPABASE_ANON_KEY");
-  const supabaseServiceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const supabaseAnonKey = requiredSupabaseKey(
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_PUBLISHABLE_KEYS",
+  );
+  const supabaseServiceRoleKey = requiredSupabaseKey(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SECRET_KEYS",
+  );
   const appleIssuerID = requiredEnv("APPLE_ISSUER_ID");
   const appleKeyID = requiredEnv("APPLE_KEY_ID");
   const applePrivateKey = requiredEnv("APPLE_PRIVATE_KEY");
@@ -358,6 +364,49 @@ function requiredEnv(name: string): string {
     throw new Error(`${name} is not configured`);
   }
   return value;
+}
+
+function requiredSupabaseKey(legacyName: string, defaultDictionaryName: string): string {
+  const legacyValue = Deno.env.get(legacyName);
+  if (legacyValue) {
+    return legacyValue;
+  }
+
+  const dictionaryValue = Deno.env.get(defaultDictionaryName);
+  if (!dictionaryValue) {
+    throw new Error(`${defaultDictionaryName} is not configured`);
+  }
+
+  const parsed = JSON.parse(dictionaryValue);
+  const firstKey = firstStringValue(parsed);
+  if (!firstKey) {
+    throw new Error(`${defaultDictionaryName} does not contain a usable key`);
+  }
+
+  return firstKey;
+}
+
+function firstStringValue(value: unknown): string | null {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = firstStringValue(item);
+      if (match) {
+        return match;
+      }
+    }
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      const match = firstStringValue(item);
+      if (match) {
+        return match;
+      }
+    }
+  }
+  return null;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
