@@ -64,9 +64,11 @@ with `SUPABASE_`; the dashboard will reject them.
 
 The function reads these default Supabase secrets:
 
-- `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEYS`
 - `SUPABASE_SECRET_KEYS`
+
+The function uses `SUPABASE_URL` if Supabase provides it; otherwise it falls
+back to `https://fujngeynyosnplviyvbg.supabase.co`.
 
 Add only these custom Apple secrets in Supabase Edge Function Secrets:
 

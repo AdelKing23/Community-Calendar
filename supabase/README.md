@@ -52,9 +52,11 @@ Do not add custom secrets starting with `SUPABASE_`.
 
 Default Supabase secrets used:
 
-- `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEYS`
 - `SUPABASE_SECRET_KEYS`
+
+The Edge Function uses `SUPABASE_URL` if Supabase provides it; otherwise it
+falls back to the app's project URL: `https://fujngeynyosnplviyvbg.supabase.co`.
 
 Custom secrets to add:
 

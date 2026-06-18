@@ -23,9 +23,11 @@ that start with `SUPABASE_`.
 
 Default Supabase secrets used by this function:
 
-- `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEYS`
 - `SUPABASE_SECRET_KEYS`
+
+The function uses `SUPABASE_URL` if Supabase provides it; otherwise it falls
+back to this project URL: `https://fujngeynyosnplviyvbg.supabase.co`.
 
 Custom secrets to add:
 

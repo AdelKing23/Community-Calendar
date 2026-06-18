@@ -28,6 +28,7 @@ const productAllowlist = new Set([
   "communitycalendar.boost.insights",
 ]);
 
+const projectSupabaseURL = "https://fujngeynyosnplviyvbg.supabase.co";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (request) => {
@@ -126,7 +127,7 @@ Deno.serve(async (request) => {
 });
 
 function readConfig() {
-  const supabaseUrl = requiredEnv("SUPABASE_URL");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? projectSupabaseURL;
   const supabaseAnonKey = requiredSupabaseKey(
     "SUPABASE_ANON_KEY",
     "SUPABASE_PUBLISHABLE_KEYS",
