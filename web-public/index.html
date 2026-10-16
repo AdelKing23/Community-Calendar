@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Coast Calendar</title>
+  <style>
+    :root { color-scheme: light; --ink:#1c1917; --muted:#57534e; --orange:#c2410c; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:#fff7ed; color:var(--ink); }
+    header, main { max-width:720px; margin:0 auto; padding:20px; }
+    .hero { background:linear-gradient(180deg,rgba(28,25,23,.15),rgba(28,25,23,.55)), url("/jetty-harbour.png") center/cover; color:#fff; border-radius:24px; padding:36px 24px 28px; }
+    .hero h1 span { color:#fdba74; }
+    .hero .lead { color:#ffedd5; }
+    h1 { font-size:2rem; margin:0; } h1 span { color:var(--orange); display:block; }
+    .lead, .meta, .empty { color:var(--muted); }
+    .pills { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+    .pills button { border:0; background:#fff; padding:8px 12px; border-radius:999px; font-weight:700; cursor:pointer; }
+    .pills button.on { background:#c2410c; color:#fff; }
+    .card { background:#fff; border-radius:16px; padding:16px 18px; margin:0 0 12px; }
+    .err { background:#fff1f2; color:#9f1239; padding:12px 16px; border-radius:12px; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>Coast <span>Calendar</span></h1>
+    <p class="lead">Published listings and hosts from the same Supabase board as the iPhone app.</p>
+    <p class="lead"><a href="/privacy/">Privacy</a> · <a href="/support/">Support</a></p>
+    <div id="auth" class="card" style="margin-top:16px">
+      <p id="authStatus" class="meta">Checking session…</p>
+      <form id="authForm">
+        <p><input id="email" type="email" placeholder="Email" required style="width:100%;padding:10px;margin:6px 0;box-sizing:border-box"></p>
+        <p><input id="password" type="password" placeholder="Password" required minlength="6" style="width:100%;padding:10px;margin:6px 0;box-sizing:border-box"></p>
+        <p class="err" id="authErr" style="display:none"></p>
+        <p>
+          <button type="submit" data-mode="in">Sign in</button>
+          <button type="button" id="signUp">Create account</button>
+          <button type="button" id="signOut" style="display:none">Sign out</button>
+        </p>
+      </form>
+    </div>
+    <div class="pills" id="pills"></div>
+  </header>
+  <main>
+    <h2>What's On</h2>
+    <div id="list"><p class="empty">Loading…</p></div>
+    <h2>Hosts</h2>
+    <div id="hosts"><p class="empty">Loading…</p></div>
+    <div id="detail" class="card" style="display:none;margin-top:20px"></div>
+  </main>
+  <script>
+    const url = "https://fujngeynyosnplviyvbg.supabase.co/rest/v1";
+    const key = "sb_publishable_YsW8_4ahQtnqyDzVgMRsSg_jfgtVfMx";
+    const headers = { apikey: key, Authorization: "Bearer " + key };
+    const sessionKey = "coast_calendar_web_session";
+    function currentSession() {
+      try { return JSON.parse(localStorage.getItem(sessionKey) || "null"); }
+      catch { return null; }
+    }
+    function authHeaders() {
+      const s = currentSession();
+      return s && s.access_token
+        ? { apikey: key, Authorization: "Bearer " + s.access_token }
+        : headers;
+    }
+    function showAuth() {
+      const s = currentSession();
+      const status = document.getElementById("authStatus");
+      const out = document.getElementById("signOut");
+      if (s && s.user && s.user.email) {
+        status.textContent = "Signed in as " + s.user.email;
+        out.style.display = "";
+      } else {
+        status.textContent = "Sign in to save listings later. Same account as the iPhone app.";
+        out.style.display = "none";
+      }
+    }
+    async function authCall(path, body) {
+      const r = await fetch("https://fujngeynyosnplviyvbg.supabase.co/auth/v1/" + path, {
+        method: "POST",
+        headers: { apikey: key, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error_description || data.msg || data.error || "Auth failed");
+      return data;
+    }
+    function saveSession(data) {
+      const session = data.session || data;
+      if (!session.access_token) throw new Error("No session returned. Check email confirmation.");
+      localStorage.setItem(sessionKey, JSON.stringify(session));
+    }
+    const areas = [
+      { id: "all", label: "All" },
+      { id: "beachlands", label: "Beachlands" },
+      { id: "pohutukawa-coast", label: "Pōhutukawa Coast" },
+      { id: "maraetai", label: "Maraetai" },
+      { id: "franklin", label: "Franklin" }
+    ];
+    let scope = "all";
+    let events = [];
+    let hosts = [];
+
+    async function signPath(path) {
+      if (!path) return "";
+      if (path.startsWith("http")) return path;
+      const r = await fetch("https://fujngeynyosnplviyvbg.supabase.co/storage/v1/object/sign/listing-images/" + path, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 3600 })
+      });
+      const data = await r.json().catch(() => ({}));
+      const signed = data.signedURL || data.signedUrl || "";
+      if (!signed) return "";
+      if (signed.startsWith("http")) return signed;
+      return "https://fujngeynyosnplviyvbg.supabase.co/storage/v1" + (signed.startsWith("/") ? signed : "/" + signed);
+    }
+    const signedCache = {};
+    async function mediaUrl(path) {
+      if (!path) return "";
+      if (signedCache[path]) return signedCache[path];
+      signedCache[path] = await signPath(path);
+      return signedCache[path];
+    }
+    function when(iso) {
+      try { return new Date(iso).toLocaleString("en-NZ", { dateStyle: "medium", timeStyle: "short" }); }
+      catch { return iso; }
+    }
+    function blob(row) {
+      return [row.town, row.location_display_name, row.venue, row.area_scope_id, row.display_name]
+        .join(" ").toLowerCase();
+    }
+    function match(row) {
+      if (scope === "all") return true;
+      return blob(row).includes(scope.replaceAll("-", " ")) || blob(row).includes(scope);
+    }
+    function render() {
+      document.getElementById("pills").innerHTML = areas.map((a) =>
+        `<button class="${a.id===scope?"on":""}" data-id="${a.id}">${a.label}</button>`
+      ).join("");
+      const ev = events.filter(match);
+      const ho = hosts.filter(match);
+      document.getElementById("list").innerHTML = ev.length ? ev.map((e, i) => `
+        <article class="card" data-ev="${i}" style="cursor:pointer">
+          ${e._hero ? `<img src="${e._hero}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px">` : ""}
+          <h3>${e.title || "Untitled"}</h3>
+          <div class="meta">${when(e.start_at)} · ${e.location_display_name || e.town || ""} · ${e.venue || ""}</div>
+          <p>${e.short_description || ""}</p>
+        </article>`).join("") : "<p class='empty'>No published listings in this area.</p>";
+      document.getElementById("hosts").innerHTML = ho.length ? ho.map((h, i) => `
+        <article class="card" data-ho="${i}" style="cursor:pointer">
+          ${h._hero ? `<img src="${h._hero}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px">` : ""}
+          <h3>${h.display_name || "Host"}</h3>
+          <div class="meta">${h.area_scope_id || ""}</div>
+          <p>${h.bio || ""}</p>
+        </article>`).join("") : "<p class='empty'>No published hosts in this area.</p>";
+    }
+    async function setGoing(ev) {
+      const s = currentSession();
+      if (!s || !s.user) { alert("Sign in first"); return; }
+      const body = { event_id: ev.id, user_id: s.user.id, engagement_type: "going" };
+      const r = await fetch("https://fujngeynyosnplviyvbg.supabase.co/rest/v1/user_event_engagements", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(body)
+      });
+      const text = await r.text();
+      if (!r.ok) throw new Error(text.slice(0, 220));
+    }
+    function openEvent(ev) {
+      const box = document.getElementById("detail");
+      box.style.display = "";
+      box.innerHTML = `
+        <h2>${ev.title || ""}</h2>
+        <div class="meta">${when(ev.start_at)} · ${ev.location_display_name || ev.town || ""} · ${ev.venue || ""}</div>
+        <p>${ev.short_description || ""}</p>
+        <p><button type="button" id="goBtn">Going</button></p>
+        <p class="err" id="goErr" style="display:none"></p>`;
+      box.querySelector("#goBtn").onclick = async () => {
+        const err = document.getElementById("goErr");
+        err.style.display = "none";
+        try {
+          await setGoing(ev);
+          document.getElementById("goBtn").textContent = "You're going";
+        } catch (ex) {
+          err.style.display = "";
+          err.textContent = String(ex.message);
+        }
+      };
+      box.scrollIntoView({ behavior: "smooth" });
+    }
+    document.getElementById("list").addEventListener("click", (e) => {
+      const card = e.target.closest("[data-ev]");
+      if (!card) return;
+      const ev = events.filter(match)[Number(card.dataset.ev)];
+      if (ev) openEvent(ev);
+    });
+    document.getElementById("hosts").addEventListener("click", (e) => {
+      const card = e.target.closest("[data-ho]");
+      if (!card) return;
+      const h = hosts.filter(match)[Number(card.dataset.ho)];
+      if (!h) return;
+      const box = document.getElementById("detail");
+      box.style.display = "";
+      const img = h.hero_image_path || h.avatar_image_path;
+      box.innerHTML = `
+        ${img ? `<img src="${mediaUrl(img)}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px">` : ""}
+        <h2>${h.display_name || ""}</h2>
+        <div class="meta">${h.area_scope_id || ""} · ${h.public_location_text || ""}</div>
+        <p>${h.bio || ""}</p>
+        <p><button type="button" id="followBtn">Follow</button></p>
+        <p class="err" id="foErr" style="display:none"></p>`;
+      box.querySelector("#followBtn").onclick = async () => {
+        const err = document.getElementById("foErr");
+        err.style.display = "none";
+        const s = currentSession();
+        if (!s || !s.user) { err.style.display = ""; err.textContent = "Sign in first"; return; }
+        try {
+          const r = await fetch("https://fujngeynyosnplviyvbg.supabase.co/rest/v1/member_follows", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ user_id: s.user.id, business_profile_id: h.id })
+          });
+          const text = await r.text();
+          if (!r.ok) throw new Error(text.slice(0, 220));
+          document.getElementById("followBtn").textContent = "Following";
+        } catch (ex) {
+          err.style.display = "";
+          err.textContent = String(ex.message);
+        }
+      };
+      box.scrollIntoView({ behavior: "smooth" });
+    });
+    document.getElementById("pills").addEventListener("click", (e) => {
+      const id = e.target.getAttribute("data-id");
+      if (!id) return;
+      scope = id;
+      render();
+    });
+
+    document.getElementById("authForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = document.getElementById("authErr");
+      err.style.display = "none";
+      try {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        saveSession(await authCall("token?grant_type=password", { email, password }));
+        showAuth();
+      } catch (ex) {
+        err.style.display = "";
+        err.textContent = String(ex.message);
+      }
+    });
+    document.getElementById("signUp").addEventListener("click", async () => {
+      const err = document.getElementById("authErr");
+      err.style.display = "none";
+      try {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        const data = await authCall("signup", { email, password });
+        if (data.access_token) saveSession(data);
+        showAuth();
+        if (!currentSession()) err.style.display = "", err.textContent = "Check your email to confirm, then sign in.";
+      } catch (ex) {
+        err.style.display = "";
+        err.textContent = String(ex.message);
+      }
+    });
+    document.getElementById("signOut").addEventListener("click", () => {
+      localStorage.removeItem(sessionKey);
+      showAuth();
+    });
+    showAuth();
+
+    const cutoff = new Date(Date.now() - 2*24*60*60*1000).toISOString();
+    const eq = new URL(url + "/public_events");
+    eq.searchParams.set("select", "id,title,category,town,location_display_name,venue,start_at,end_at,price_label,short_description");
+    eq.searchParams.set("start_at", "gte." + cutoff);
+    eq.searchParams.set("order", "start_at.asc");
+    eq.searchParams.set("limit", "40");
+
+    Promise.all([
+      fetch(eq, { headers }).then((r) => r.json()),
+      fetch(url + "/public_host_directory?select=*&limit=40", { headers }).then((r) => r.json())
+    ]).then(async ([e, h]) => {
+      events = Array.isArray(e) ? e : [];
+      hosts = Array.isArray(h) ? h : [];
+      const ids = events.map((x) => x.id).filter(Boolean);
+      if (ids.length) {
+        const imgQ = new URL("https://fujngeynyosnplviyvbg.supabase.co/rest/v1/public_event_images");
+        imgQ.searchParams.set("select", "event_id,storage_path");
+        imgQ.searchParams.set("event_id", "in.(" + ids.map((id) => `"${id}"`).join(",") + ")");
+        const imgs = await fetch(imgQ, { headers }).then((r) => r.json()).catch(() => []);
+        if (Array.isArray(imgs)) {
+          for (const im of imgs) {
+            const ev = events.find((x) => x.id === im.event_id);
+            if (ev && !ev.hero_image_path) ev.hero_image_path = im.storage_path || im.path || im.image_path;
+          }
+        }
+      }
+      for (const host of hosts) {
+        host._hero = await mediaUrl(host.hero_image_path || host.avatar_image_path);
+      }
+      for (const ev of events) {
+        ev._hero = await mediaUrl(ev.hero_image_path);
+      }
+      render();
+    }).catch((err) => {
+      document.getElementById("list").innerHTML = "<p class='err'>" + String(err.message) + "</p>";
+    });
+  </script>
+</body>
+</html>
