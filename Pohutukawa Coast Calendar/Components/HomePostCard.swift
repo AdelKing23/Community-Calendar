@@ -93,7 +93,7 @@ struct EventImagePlaceholderView: View {
                     .frame(width: 56, height: 56)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Pōhutukawa Coast")
+                    Text("Coast Calendar")
                         .font(.headline.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 

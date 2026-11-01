@@ -7,11 +7,11 @@ struct EmptyStateView: View {
                 .font(.system(size: 36, weight: .semibold))
                 .foregroundStyle(PCCTheme.pohutukawaOrange)
 
-            Text("Nothing scheduled yet")
+            Text("It’s a quiet time right now")
                 .font(.title3.weight(.black))
                 .foregroundStyle(PCCTheme.ink)
 
-            Text("New local listings will appear here as they’re published.")
+            Text("List something to be the first thing this week.")
                 .font(.body.weight(.medium))
                 .foregroundStyle(PCCTheme.ink.opacity(0.62))
                 .multilineTextAlignment(.center)

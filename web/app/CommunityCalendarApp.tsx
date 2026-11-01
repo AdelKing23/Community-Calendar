@@ -2705,6 +2705,7 @@ export default function CommunityCalendarApp() {
   const [weeklyViews, setWeeklyViews] = useState<number | null>(null);
   const [finderQuery, setFinderQuery] = useState("");
   const [hostQuery, setHostQuery] = useState("");
+  const homeAreaName = locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "your area";
   function toggleTopic(slug: string) {
     setSelectedTopics((current) => current.includes(slug)
       ? current.filter((item) => item !== slug)
@@ -3253,7 +3254,7 @@ export default function CommunityCalendarApp() {
         p_avatar_image_position_y: 50,
       }, session.access_token);
       await loadSignedInData();
-      setNotice({ kind: "good", text: "Application submitted. Your membership application is pending review by Pōhutukawa Coast Calendar Support." });
+      setNotice({ kind: "good", text: "Application submitted. Your membership application is pending review by Coast Calendar Support." });
       return true;
     } catch (error) {
       setNotice({ kind: "warn", text: messageFromError(error) });
@@ -3619,7 +3620,7 @@ export default function CommunityCalendarApp() {
                   <p className="eyebrow">Coast Calendar</p>
                   <h1>Coast Calendar</h1>
                   <p className="intro">Welcome to our community of communities. Stay informed and up to date with what is on in your area.</p>
-                  <p className="panel-note">Your local guide to markets, music, family days, fundraisers and everything happening around Pōhutukawa Coast.</p>
+                  <p className="panel-note">Your local guide to markets, music, family days, fundraisers and everything happening around {homeAreaName}.</p>
 
                 </>
               ) : view === "whatsOn" ? (
@@ -3716,7 +3717,7 @@ export default function CommunityCalendarApp() {
               <span className="area-pill">{(homeEventIDs ?? []).length} listings</span>
             </div>
             {visibleEvents.length === 0 ? (
-              <EmptyState title="A quiet moment on the coast" text="New local listings will appear here as they’re published." />
+              <EmptyState title="It’s a quiet time right now" text="List something to be the first thing this week." />
             ) : (
               <div className="event-list" style={{ marginTop: 18 }}>
                 {visibleEvents.slice(0, 30).map((event) => (
@@ -3791,7 +3792,7 @@ export default function CommunityCalendarApp() {
                 </button>
               ))}
             </div>
-            {visibleEvents.length === 0 ? <EmptyState title={dateScope === "today" ? "Nothing scheduled here today" : dateScope === "week" ? "A quiet week in this area" : dateScope === "month" ? "No listings match this month" : "Nothing coming up in this area"} text={`Try a wider area or another topic to discover more around ${locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "your area"}.`}>
+            {visibleEvents.length === 0 ? <EmptyState title={dateScope === "today" ? "Nothing scheduled here today" : dateScope === "week" ? "It’s a quiet time right now" : dateScope === "month" ? "No listings match this month" : "Nothing coming up in this area"} text={dateScope === "week" ? "List something to be the first thing this week." : `Try a wider area or another topic to discover more around ${homeAreaName}.`}>
               {ancestorScopesOf(homeScope, locationScopes, locationEdges).length ? (
                 <div className="widen-row">
                   <span className="widen-row__label">Widen to</span>
@@ -3944,7 +3945,7 @@ export default function CommunityCalendarApp() {
               <datalist id="host-places">{locationScopes.slice(0, 400).map((scope) => <option key={scope.id} value={scope.name} />)}</datalist>
               {hostQuery ? <button type="button" className="chip" onClick={() => setHostQuery("")}>All areas</button> : <span className="chip chip--active">All areas</span>}
             </div>
-            {hosts.length === 0 ? <EmptyState title="Hosts will appear here" text="As organisations publish listings around Pōhutukawa Coast, their public pages will collect here." /> : (
+            {hosts.length === 0 ? <EmptyState title="Hosts will appear here" text={`As organisations publish listings around ${homeAreaName}, their public pages will collect here.`} /> : (
               <div className="host-grid">
                 {hosts.filter((host) => {
                   const q = hostQuery.trim().toLowerCase();
@@ -4707,7 +4708,7 @@ function GetSetUpGuide({ session, profile, subscriptions, busy, onBack, onSignIn
         <div className="pcc-card setup-card">
           {status === "pending_review" || status === "pending" ? (<>
             <h3>⏳ Application submitted</h3>
-            <p className="panel-note">Your membership application is pending review by Pōhutukawa Coast Calendar Support. We'll let you know when it has been reviewed.</p>
+            <p className="panel-note">Your membership application is pending review by Coast Calendar Support. We'll let you know when it has been reviewed.</p>
           </>) : status === "rejected" ? (<>
             <h3>⚠️ Needs changes</h3>
             <p className="panel-note">{(profile as HostRecord & { rejection_reason?: string | null }).rejection_reason || profile?.support_note || "Support requested changes before this member profile can be approved."}</p>

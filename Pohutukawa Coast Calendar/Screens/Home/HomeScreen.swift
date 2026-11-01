@@ -67,8 +67,8 @@ struct HomeScreen: View {
                     } else if boardEvents.isEmpty {
                         FeedMessageCard(
                             icon: "newspaper",
-                            title: "A quiet moment on the coast",
-                            message: "New local listings will appear here as they’re published.",
+                            title: "It’s a quiet time right now",
+                            message: "List something to be the first thing this week.",
                             retry: nil
                         )
                         .listRowSeparator(.hidden)

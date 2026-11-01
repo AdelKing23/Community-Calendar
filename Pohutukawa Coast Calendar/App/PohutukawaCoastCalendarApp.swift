@@ -151,7 +151,7 @@ final class UserLocationPreferenceStore: NSObject, ObservableObject, CLLocationM
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         isLocating = false
-        applyDefaultScope(reason: "We couldn’t read your location, so we’ll start with \(CommunityArea.defaultAreaName).")
+        applyDefaultScope(reason: "We couldn’t read your location. Choose an area to set where you belong.")
     }
 
     @MainActor
