@@ -14,14 +14,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Coast Calendar",
-  description: "Local listings, hosts, and happenings around Franklin and the Pohutukawa Coast.",
+  description: "Local listings, hosts, and happenings in your area.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
     title: "Coast Calendar",
-    description: "Local listings, hosts, and happenings around Franklin and the Pohutukawa Coast.",
+    description: "Local listings, hosts, and happenings in your area.",
     type: "website",
   },
 };

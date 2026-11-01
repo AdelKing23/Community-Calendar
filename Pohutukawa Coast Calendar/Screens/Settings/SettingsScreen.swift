@@ -2149,6 +2149,7 @@ struct PCCWallpaperPreviewBackground: View {
 
 struct WallpaperPreviewCard: View {
     let style: PCCWallpaperStyle
+    @AppStorage("communityCalendar.home.locationScope") private var selectedLocationScopeID = LocationScope.defaultID
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2167,7 +2168,7 @@ struct WallpaperPreviewCard: View {
                     .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
             }
 
-            Text("Showing: \(CommunityArea.defaultAreaName)")
+            Text("Showing: \(LocationScope.defaultScope(for: selectedLocationScopeID).name)")
                 .font(.headline.weight(.black))
                 .foregroundStyle(PCCTheme.leafGreen)
 
@@ -2176,7 +2177,7 @@ struct WallpaperPreviewCard: View {
                     .font(.title2.weight(.black))
                     .foregroundStyle(PCCTheme.ink)
 
-                Text("Saturday, 10:00 AM · Beachlands")
+                Text("Saturday, 10:00 AM · Town hall")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(PCCTheme.ink.opacity(0.62))
             }
@@ -2342,7 +2343,7 @@ struct CardTintPreviewCard: View {
                 .font(.system(size: 28, weight: .black, design: .serif))
                 .foregroundStyle(PCCTheme.ink)
 
-            Text("Saturday, 9:00 AM · Maraetai")
+            Text("Saturday, 9:00 AM · Community park")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(PCCTheme.ink.opacity(0.62))
 
@@ -3469,7 +3470,7 @@ struct BusinessPlansScreen: View {
             } else if let attention = accountState.subscriptionNeedingBackendAttention, attention.plan != nil {
                 SettingsInfoMessage(icon: "exclamationmark.triangle.fill", title: "Publishing is not unlocked yet", message: "Apple has taken the payment, but publishing is not unlocked yet. Open Membership and try again, or contact Support.")
             } else if let profile = accountState.profile, profile.memberStatus == .pendingReview {
-                SettingsInfoMessage(icon: "clock.badge.checkmark", title: "Application submitted", message: "Your membership application is pending review by Pōhutukawa Coast Calendar Support. We'll let you know when it has been reviewed.")
+                SettingsInfoMessage(icon: "clock.badge.checkmark", title: "Application submitted", message: "Your membership application is pending review by Coast Calendar Support. We'll let you know when it has been reviewed.")
             } else if let profile = accountState.profile, profile.memberStatus == .approved {
                 SettingsInfoMessage(icon: "checkmark.seal.fill", title: "Approved - finish your page", message: profile.supportNote ?? "Add or check your profile image, hero image, bio and contact details, then complete the selected monthly subscription to activate publishing access.")
             } else if let profile = accountState.profile, profile.memberStatus == .rejected {
@@ -4433,7 +4434,7 @@ struct BusinessPlansScreen: View {
 
         switch profile.memberStatus {
         case .pendingReview:
-            return "Application submitted. Pending review by Pōhutukawa Coast Calendar Support."
+            return "Application submitted. Pending review by Coast Calendar Support."
         case .approved:
             if accountState.subscriptionNeedingBackendAttention != nil {
                 return "Apple has taken the payment, but publishing is not unlocked yet. Open Membership and try again, or contact Support."
