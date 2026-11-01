@@ -1826,8 +1826,8 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .terms: return "Terms and conditions"
-        case .privacy: return "Privacy policy"
+        case .terms: return "Terms of Use"
+        case .privacy: return "Privacy Policy"
         case .postingRules: return "Community posting rules"
         case .paymentRefunds: return "Payment / refund notes"
         case .communityStandards: return "Community standards"
@@ -1837,9 +1837,9 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .terms:
-            return "How listings are reviewed and published."
+            return "Rules for using the Coast Calendar app and website."
         case .privacy:
-            return "How account and listing information is used."
+            return "How Coast Calendar handles personal information."
         case .postingRules:
             return "What belongs on Coast Calendar."
         case .paymentRefunds:
@@ -1863,18 +1863,85 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
         switch self {
         case .terms:
             return [
-                "Coast Calendar provides a local listing platform for events, activities and community notices.",
-                "Listings are reviewed before publishing. Coast Calendar may approve, reject, edit, archive, remove or decline to publish a listing at its discretion.",
-                "You are responsible for making sure your listing is accurate, lawful, safe, and that you have permission to publish any words, images or contact details you provide.",
-                "Publishing a listing does not mean Coast Calendar endorses the event, organiser, product or service."
+                "Last updated 1 November 2026.",
+                "Coast Calendar is a community calendar and organisation directory for the Pōhutukawa Coast and surrounding areas of New Zealand, made by Atlas Digital. By using the Coast Calendar iOS app or the website at coastcalendar.nz (“the Service”), you agree to these Terms of Use.",
+                "These Terms are a first-pass draft prepared for the current stage of the Service. They are not legal advice. A qualified New Zealand lawyer should review them before they are treated as final.",
+                "1. The Service",
+                "The Service lets people browse local what’s-on listings, follow organisations, and (for approved organisations with an active subscription) publish listings, polls and notices. Content is submitted by the community. We do not create or verify the accuracy of listings.",
+                "2. Accounts",
+                "You may need an account to publish content or manage an organisation. You are responsible for keeping your login details secure and for activity under your account. You must provide accurate information when you register.",
+                "3. Listings, polls, notices and organisation content",
+                "Organisations and users are responsible for the accuracy, legality and appropriateness of the content they post. Keep listings and organisation details accurate and up to date.",
+                "You must not post:",
+                "• spam, scams, or misleading content",
+                "• content that is harmful, unsafe, illegal, or inappropriate",
+                "• content that infringes someone else’s rights",
+                "4. Acceptable Use",
+                "You agree not to misuse the Service, including by attempting to disrupt it, access it without permission, or use it in a way that harms other users or the community.",
+                "5. User-generated content and licence",
+                "You keep ownership of the content you post. By posting content on the Service you grant Atlas Digital a non-exclusive, royalty-free licence to host, display, and distribute that content as part of the Service (including on the app and website) for as long as it remains on the Service. You can remove your own content; we may also remove content as described below.",
+                "6. Moderation and removal",
+                "Support may review, change the status of, or remove listings, polls, notices, photos or accounts that break these Terms or that we reasonably consider harmful to the community or the Service. We do not promise to review all content.",
+                "7. Subscriptions and payments",
+                "Paid organisation plans are monthly subscriptions that renew automatically until cancelled. You can cancel anytime:",
+                "• on iOS, through your Apple ID subscription settings",
+                "• on the web, through Stripe (Manage subscription in Settings)",
+                "Cancelling stops future renewals. Your plan stays active until the end of the current paid period.",
+                "On iOS, payment is charged to your Apple ID and Apple’s standard terms apply. On the web, payments are processed by Stripe. We do not see or store your full card details.",
+                "8. Intellectual property",
+                "The Coast Calendar name, branding, app, and website are owned by Atlas Digital. You may not copy or reuse them without permission, except for normal personal use of the Service.",
+                "9. Disclaimer and limitation of liability",
+                "The Service is provided “as is.” Event details come from the community, so always check with the organiser before you go. We work to keep the Service running, but we do not guarantee that it will be uninterrupted, error-free, or that any particular listing is accurate.",
+                "To the extent permitted by New Zealand law, Atlas Digital is not liable for any loss or damage arising from your use of the Service or from reliance on community-submitted content. Nothing in these Terms limits rights that cannot be limited under the Consumer Guarantees Act 1993 or other New Zealand law.",
+                "10. Account deletion and termination",
+                "You can request deletion of your account from Settings in the app or by emailing support@coastcalendar.nz. We will delete your account and personal information except where we need to keep it by law.",
+                "We may suspend or close accounts that break these Terms.",
+                "11. Changes to these Terms",
+                "We may update these Terms from time to time. The “Last updated” date at the top will change. Continued use of the Service after an update means you accept the new Terms.",
+                "12. Governing law",
+                "These Terms are governed by the laws of New Zealand. Any disputes will be subject to the courts of New Zealand.",
+                "13. Contact",
+                "Questions about these Terms? Email support@coastcalendar.nz.",
+                "Coast Calendar by Atlas Digital"
             ]
         case .privacy:
             return [
-                "Coast Calendar uses account and listing information to operate accounts, receive submissions, review listings, provide support, keep the platform safe, and support member subscriptions where available.",
-                "Contact details submitted with a listing may be used for review and support. Optional public event contact details, when supplied, may appear on the published listing.",
-                "Coast Calendar does not sell personal information.",
-                "You can request account deletion from Account details. Coast Calendar will delete account and personal data it is not legally required to keep.",
-                "Subscription payments are handled by Apple or the payment provider shown in the app. Coast Calendar does not store card details."
+                "Last updated 1 November 2026.",
+                "Coast Calendar is made by Atlas Digital in New Zealand. This policy covers the Coast Calendar iOS app and the website at coastcalendar.nz (“the Service”).",
+                "This is a first-pass draft prepared for the current stage of the Service. It is not legal advice. A qualified New Zealand lawyer should review it before it is treated as final, especially against the Privacy Act 2020.",
+                "1. Who we are",
+                "Atlas Digital operates Coast Calendar. Contact: support@coastcalendar.nz.",
+                "2. What information we collect and store",
+                "To make the Service work we store:",
+                "• your account email address and display name",
+                "• organisation details you provide",
+                "• photos you upload",
+                "• listings, polls and notices you create",
+                "• items you save to My Calendar",
+                "• your subscription or purchase status",
+                "• basic in-app usage such as listing views and saves (used for app features and simple analytics)",
+                "Location is used only while you are using the app or site to pick an area. It is not stored and you are not tracked.",
+                "3. Public content",
+                "Listings and polls are public when published. Organisation pages, and the photos and details added to them, are also public once published.",
+                "4. What we do not do",
+                "We do not show ads. We do not sell your data. We do not track you across other apps or websites.",
+                "5. Payments",
+                "Payments are handled by Apple on iOS and by Stripe on the web. We do not see or store your full card details.",
+                "6. Service providers",
+                "Your data is stored with our hosting and database providers (Supabase and Cloudflare), who process it only to run the Service. We require them to handle data securely.",
+                "7. How long we keep information",
+                "We keep account and content information while your account is active or as needed to provide the Service. When you request account deletion we delete your personal information except where we are required to keep it by law (for example, certain financial or legal records).",
+                "8. Your rights",
+                "Under the New Zealand Privacy Act 2020 you can ask to access or correct personal information we hold about you, and you can make a complaint to the Privacy Commissioner. Email support@coastcalendar.nz to make a request.",
+                "9. Deleting your account",
+                "You can request account deletion from Settings in the app, or by emailing support@coastcalendar.nz. We will delete your account and personal information except where we need to keep it by law.",
+                "10. Children’s privacy",
+                "The Service is not directed at children under 13. We do not knowingly collect personal information from children under 13.",
+                "11. Changes to this policy",
+                "We may update this policy from time to time. The “Last updated” date at the top will change. Continued use of the Service after an update means you accept the new policy.",
+                "12. Contact",
+                "Questions about privacy? Email support@coastcalendar.nz.",
+                "Coast Calendar by Atlas Digital"
             ]
         case .postingRules:
             return [
@@ -1919,8 +1986,8 @@ struct SettingsDocumentScreen: View {
                         VStack(alignment: .leading, spacing: 14) {
                             ForEach(Array(document.paragraphs.enumerated()), id: \.offset) { _, paragraph in
                                 Text(paragraph)
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                                    .font(Self.isSectionHeading(paragraph) ? .headline.weight(.bold) : .body.weight(.medium))
+                                    .foregroundStyle(PCCTheme.ink.opacity(Self.isSectionHeading(paragraph) ? 0.9 : 0.72))
                                     .lineSpacing(4)
                             }
                         }
@@ -1944,6 +2011,10 @@ struct SettingsDocumentScreen: View {
                 }
             }
         }
+    }
+
+    private static func isSectionHeading(_ paragraph: String) -> Bool {
+        paragraph.range(of: #"^\d+\. "#, options: .regularExpression) != nil
     }
 }
 

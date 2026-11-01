@@ -1030,7 +1030,7 @@ textarea {
   gap: 10px;
   margin-top: 8px;
 }
-.footer__links button {
+.footer__links :is(button, a) {
   border: 0;
   padding: 0;
   background: transparent;
@@ -1586,18 +1586,18 @@ form.panel,
 .org-card__error { color: var(--pcc-red) !important; font-weight: 600; }
 
 /* Alive buttons layer */
-:is(.button, .app-nav__item, .settings-row, .text-link, .chip, .event-card, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links button, .action-card) {
+:is(.button, .app-nav__item, .settings-row, .text-link, .chip, .event-card, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links :is(button, a), .action-card) {
   transition: transform .14s ease, background-color .14s ease, box-shadow .18s ease, filter .14s ease, opacity .14s ease;
 }
-:is(.button, .app-nav__item, .chip, .settings-swatch, .footer__links button, .action-card):hover:not([disabled]) { filter: brightness(1.06); box-shadow: 0 4px 14px rgba(0,0,0,.10); }
+:is(.button, .app-nav__item, .chip, .settings-swatch, .footer__links :is(button, a), .action-card):hover:not([disabled]) { filter: brightness(1.06); box-shadow: 0 4px 14px rgba(0,0,0,.10); }
 .button--primary:hover:not([disabled]) { filter: brightness(1.08); }
 .settings-row:hover { background: rgba(31,95,139,.06); }
 .text-link:hover { text-decoration: underline; }
 .event-card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,.12); }
 .poll-option:hover:not([disabled]) .poll-option__label { text-decoration: underline; }
-:is(.button, .app-nav__item, .settings-row, .chip, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links button, .action-card, .text-link):active:not([disabled]) { transform: scale(.97); filter: brightness(.92); }
+:is(.button, .app-nav__item, .settings-row, .chip, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links :is(button, a), .action-card, .text-link):active:not([disabled]) { transform: scale(.97); filter: brightness(.92); }
 .event-card:active { transform: translateY(0) scale(.99); }
-:is(.button, .app-nav__item, .settings-row, .text-link, .chip, .event-card, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links button, .action-card):focus-visible { outline: 3px solid rgba(31,95,139,.55); outline-offset: 2px; }
+:is(.button, .app-nav__item, .settings-row, .text-link, .chip, .event-card, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links :is(button, a), .action-card):focus-visible { outline: 3px solid rgba(31,95,139,.55); outline-offset: 2px; }
 :is(.button, .chip, .poll-option, .support-chat__send-pill, .settings-swatch, .action-card)[disabled] { opacity: .55; cursor: not-allowed; box-shadow: none; }
 :is(.button, .chip, .poll-option, .support-chat__send-pill)[aria-busy="true"], .is-busy { position: relative; cursor: progress; opacity: .8; }
 :is(.button, .chip, .support-chat__send-pill)[aria-busy="true"]::after, .poll-option.is-busy::after {
@@ -1606,8 +1606,8 @@ form.panel,
 }
 @keyframes cc-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  :is(.button, .app-nav__item, .settings-row, .text-link, .chip, .event-card, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links button, .action-card) { transition: none; }
-  :is(.button, .app-nav__item, .settings-row, .chip, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links button, .action-card, .text-link, .event-card):active, .event-card:hover { transform: none; }
+  :is(.button, .app-nav__item, .settings-row, .text-link, .chip, .event-card, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links :is(button, a), .action-card) { transition: none; }
+  :is(.button, .app-nav__item, .settings-row, .chip, .poll-option, .support-chat__send-pill, .settings-swatch, .footer__links :is(button, a), .action-card, .text-link, .event-card):active, .event-card:hover { transform: none; }
   :is(.button, .chip, .support-chat__send-pill)[aria-busy="true"]::after, .poll-option.is-busy::after { animation: none; }
 }
 
