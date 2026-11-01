@@ -182,7 +182,7 @@ struct BelongingOnboardingSheet: View {
                                 .font(.system(size: 42, weight: .black))
                                 .foregroundStyle(PCCTheme.pohutukawaOrange)
 
-                            Text("Find Where You Belong")
+                            Text("Find your area")
                                 .font(.system(size: 34, weight: .black, design: .serif))
                                 .foregroundStyle(PCCTheme.ink)
 
@@ -205,7 +205,7 @@ struct BelongingOnboardingSheet: View {
                             .disabled(isLocating)
 
                             BelongingPromptButton(
-                                title: "Choose where I belong",
+                                title: "Choose an area",
                                 message: "Pick a community, district or wider area.",
                                 icon: "map.fill",
                                 tint: PCCTheme.pohutukawaOrange,
@@ -214,7 +214,7 @@ struct BelongingOnboardingSheet: View {
 
                             if !isSignedIn {
                                 BelongingPromptButton(
-                                    title: "Create a Belonging account",
+                                    title: "Create a free account",
                                     message: "Save events, follow hosts and tune your feed.",
                                     icon: "person.crop.circle.badge.plus",
                                     tint: PCCTheme.leafGreen,

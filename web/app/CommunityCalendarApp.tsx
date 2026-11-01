@@ -385,7 +385,7 @@ function userFacingServiceMessage(raw: string, status?: number) {
 
   if (code === "42501" || message.includes("row-level security") || message.includes("permission denied") || message.includes("not authorized")) {
     if (message.includes("events")) {
-      return "This account can’t publish listings yet. Check email verification, membership approval, active subscription, and required listing fields. If those are already correct, Support should review it.";
+      return "We couldn’t confirm your publishing access. Refresh your member status and try again. Your listing is still here.";
     }
     if (message.includes("member_notices") || message.includes("notices")) {
       return "This Notice can’t be published yet. Publishing Notices needs approved membership and an active subscription. Save it as a draft or ask Support to check your member status.";
@@ -418,7 +418,7 @@ function userFacingServiceMessage(raw: string, status?: number) {
     return "Your sign-in session has expired. Please sign in again.";
   }
   if (["PGRST106", "PGRST108", "PGRST118", "PGRST200", "PGRST201", "PGRST202", "42P01", "42703", "42883"].includes(code)) {
-    return "The app and database are out of step. Support should check this.";
+    return "That didn’t work, and it isn’t something you can fix in the form. Please try again shortly, or contact Support.";
   }
   if (message.includes("invalid login credentials")) {
     return "Sign in failed. Check your email and password, then try again.";
@@ -623,9 +623,9 @@ async function startCheckout(planId: string, profileId: string, token: string) {
 
 // iOS BusinessSubscriptionPlan (Models/BusinessCommerce.swift)
 const iosPlans = [
-  { id: "local_business", title: "Local Member", price: "$19.99/month", blurb: "New local publishers" },
-  { id: "growth", title: "Growth Member", price: "$49.99/month", blurb: "Regular local publishers" },
-  { id: "sponsor", title: "Community Partner", price: "$149.99/month", blurb: "High-activity community publishers" },
+  { id: "local_business", title: "Local Member", price: "$19.99/month", allowance: "1 active listing or poll at a time", blurb: "New local publishers" },
+  { id: "growth", title: "Growth Member", price: "$49.99/month", allowance: "Up to 4 active listings or polls", blurb: "Regular local publishers" },
+  { id: "sponsor", title: "Community Partner", price: "$149.99/month", allowance: "Up to 8 active listings or polls", blurb: "High-activity community publishers" },
 ] as const;
 
 // iOS BusinessOrganisationType
@@ -797,7 +797,7 @@ function CancelPlanControl({ subscriptions, session, profileId }: { subscription
     return (
       <div className="cancel-plan">
         <p className="panel-note"><strong>Your plan is billed by Apple.</strong> Cancel it in your Apple ID subscriptions.</p>
-        <a className="button button--danger" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer">Cancel my plan</a>
+        <a className="button button--danger" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer">Manage subscription</a>
       </div>
     );
   }
@@ -813,7 +813,7 @@ function CancelPlanControl({ subscriptions, session, profileId }: { subscription
   }
   return (
     <div className="cancel-plan">
-      <button type="button" className="button button--danger" disabled={busy} aria-busy={busy} onClick={() => void openPortal()}>{busy ? "Opening…" : "Cancel my plan"}</button>
+      <button type="button" className="button button--danger" disabled={busy} aria-busy={busy} onClick={() => void openPortal()}>{busy ? "Opening…" : "Manage subscription"}</button>
       <p className="panel-note">Opens secure Stripe billing, where you can cancel or update your card. Your plan stays active until the end of the paid period.</p>
       {error ? <p className="panel-note" role="alert">{error}</p> : null}
     </div>
@@ -1035,8 +1035,8 @@ function InlineField({ value, placeholder, multiline, onChange, className, type 
 }
 
 const memberPlans = [
-  ["local_business", "Local member", "Best for a school, club, venue, class, group or local business starting out."],
-  ["growth", "Growth member", "Best for regular listings, campaigns and a wider local push."],
+  ["local_business", "Local Member", "Best for a school, club, venue, class, group or local business starting out."],
+  ["growth", "Growth Member", "Best for regular listings, campaigns and a wider local push."],
   ["sponsor", "Community Partner", "Best for members who want strongest placement and more active listings."],
 ] as const;
 
@@ -1167,7 +1167,7 @@ function PhotoAdjustModal({ kind, src, x, y, zoom, onCancel, onOk }: {
           <input type="range" min={1} max={3} step={0.01} value={scale} onChange={(e) => setScale(Number(e.target.value))} />
           <span>{scale.toFixed(1)}×</span>
         </label>
-        <p className="panel-note photo-modal__note">Zoom shows here and on your card while you edit, but isn't saved yet — the database has no zoom field.</p>
+        <p className="panel-note photo-modal__note">Zoom is only a preview. Position is saved; zoom is not saved yet.</p>
         <div className="photo-modal__actions">
           <button type="button" className="button button--secondary" onClick={onCancel}>Cancel</button>
           <button type="button" className="button button--primary" onClick={() => onOk(Math.round(pos.x), Math.round(pos.y), scale)}>OK</button>
@@ -1342,7 +1342,7 @@ function OrgCardPane({ profile, busy, onBack, onUpload, accessToken, subscriptio
   }
 
   const activeSub = subscriptions.find((item) => item.business_profile_id === profile.id && ["active", "trialing"].includes(item.status));
-  const statusTitle: Record<string, string> = { approved: "Approved", pending_review: "In review", rejected: "Changes requested", suspended: "Suspended" };
+  const statusTitle: Record<string, string> = { approved: "Approved", pending_review: "Pending review", rejected: "Needs changes", suspended: "Suspended" };
 
   return (
     <section className="account-panel org-manage">
@@ -1406,7 +1406,7 @@ function OrgCardPane({ profile, busy, onBack, onUpload, accessToken, subscriptio
 
       <div className="org-manage__section">
         <p className="eyebrow">Membership</p>
-        <p className="status-pill">Status: {statusTitle[profile.status] ?? profile.status.replaceAll("_", " ")}{activeSub ? ` · ${activeSub.plan_id} ${activeSub.status}` : " · no active subscription"}</p>
+        <p className="status-pill">Status: {statusTitle[profile.status] ?? profile.status.replaceAll("_", " ")}{activeSub ? ` · ${iosPlans.find((plan) => plan.id === activeSub.plan_id)?.title ?? "Member"} ${activeSub.status}` : " · no active subscription"}</p>
         <MembershipPlanSection selectedPlan={profile.selected_plan_id} disabled approvedAndPaid={canPublish(profile, subscriptions)} />
         <p className="panel-note">Subscriptions are purchased in the Coast Calendar iOS app. Reload after subscribing.</p>
         {onReload ? (
@@ -1421,7 +1421,7 @@ function OrgCardPane({ profile, busy, onBack, onUpload, accessToken, subscriptio
         <div className="org-manage__danger-row">
           <div>
             <strong>Cancel subscription</strong>
-            <p className="panel-note">Subscriptions are billed by Apple and can't be cancelled from the website. Manage or cancel it in your Apple ID: <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer">Apple subscriptions</a>.</p>
+            <p className="panel-note">Apple plans are cancelled in your <a href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noreferrer">Apple ID</a>. Card plans are managed in Settings. Your plan stays active until the end of the paid period.</p>
           </div>
         </div>
         <div className="org-manage__danger-row">
@@ -1814,7 +1814,7 @@ function SettingsHub({
             <SubscriptionEndLine subscriptions={subscriptions} />
             <div className="settings-group settings-group--pad">
               <InfoRow title="Active listings and polls" detail={`${usedListings ?? "–"} used of ${current.active_listing_limit} · ${usedListings == null ? "" : Math.max(0, current.active_listing_limit - usedListings) + " remaining"}`} />
-              <InfoRow title="Placement" detail={`Rank ${current.placement_rank}`} />
+              <InfoRow title="Placement" detail="Placement follows your plan." />
               <InfoRow title="Billed by" detail={current.provider === "stripe" ? "Card (Stripe)" : "Apple"} />
             </div>
             {current.provider === "stripe" ? (
@@ -1942,7 +1942,7 @@ function SettingsHub({
   }
 
   const activeSub = memberProfile ? subscriptions.find((item) => item.business_profile_id === memberProfile.id && ["active", "trialing"].includes(item.status)) : undefined;
-  const memberStatusTitle: Record<string, string> = { approved: "Approved", pending_review: "In review", pending: "In review", rejected: "Changes requested", suspended: "Suspended" };
+  const memberStatusTitle: Record<string, string> = { approved: "Approved", pending_review: "Pending review", pending: "Pending review", rejected: "Needs changes", suspended: "Suspended" };
   const memberPageDetail = !session ? "Apply" : !memberProfile ? "Set up" : activeSub ? "Preview" : (memberStatusTitle[memberProfile.status] ?? memberProfile.status);
   const publicName = memberProfile?.contact_name || memberProfile?.business_name || "";
   return (
@@ -1964,7 +1964,7 @@ function SettingsHub({
             <SettingsRow title="My Calendar" detail="Your Going dates and organisations you Belong to." action="Open" onClick={() => setPane("calendar")} />
           </>
         ) : (
-          <SettingsRow title="Create account or sign in" detail="Create a free account to get better results from Coast Calendar, sign in to your account." action="Open" onClick={onAccount} />
+          <SettingsRow title="Create account or sign in" detail="Create a free account to save listings, set reminders, and Belong to organisations." action="Open" onClick={onAccount} />
         )}
       </div>
 
@@ -2468,7 +2468,7 @@ function OrgCalendarPane({ session, profile, onBack, onOpen }: {
         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={draft.isPublic} onChange={(e) => setDraft({ ...draft, isPublic: e.target.checked })} /> Public listing
         </label>
-        <p className="panel-note">Private is not secret. Anyone can tap Belong on this page.</p>
+        <p className="panel-note">People who Belong to this organisation can see this date. It is not on the public board.</p>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" className="button button--primary" disabled={!canSave} onClick={() => void save()}>{saving ? "Saving" : draft.editingID ? "Save" : "Create on this day"}</button>
           {draft.editingID ? <button type="button" className="button" onClick={() => setDraft(emptyOrgDraft)}>Cancel edit</button> : null}
@@ -3919,7 +3919,7 @@ export default function CommunityCalendarApp() {
             <HostNotices host={selectedHost} key={`notices-${selectedHost.id}`} />
             <div className="event-grid">
               {events.filter((event) => event.business_profile_id === selectedHost.id).length === 0 ? (
-                <EmptyState title="Nothing coming up yet" text="When this host publishes, those listings will show here." />
+                <EmptyState title="Nothing coming up yet" text={`${selectedHost.business_name} has no published upcoming listings right now.`} />
               ) : events.filter((event) => event.business_profile_id === selectedHost.id).map((event) => (
                 <EventCard
                   key={event.id}
@@ -4336,7 +4336,7 @@ async function shareEvent(event: EventRecord) {
   const date = Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString("en-NZ", { weekday: "short", day: "numeric", month: "short" });
   const time = Number.isNaN(when.getTime()) ? "" : when.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" });
   const place = [event.venue, event.location_display_name ?? event.town].filter(Boolean).join(", ");
-  const text = `${event.title}\n${date}\n${time}\n${place}\n\nShared from Pohutukawa Coast Calendar.`;
+  const text = `${event.title}\n${date}\n${time}\n${place}\n\nShared from Coast Calendar.`;
   try {
     if (typeof navigator !== "undefined" && "share" in navigator) {
       await navigator.share({ title: event.title, text });
@@ -4439,7 +4439,7 @@ function PollCard({ event, host, active, busy, onToggle, onOpen }: {
 // iOS PollActionRow.shareText
 async function sharePoll(event: EventRecord) {
   recordEventAnalytics(event.id, "share", "poll_card");
-  const text = `Poll: ${event.title}\n${event.location_display_name ?? event.town ?? ""}\n\nShared from Pohutukawa Coast Calendar.`;
+  const text = `Poll: ${event.title}\n${event.location_display_name ?? event.town ?? ""}\n\nShared from Coast Calendar.`;
   try {
     if (typeof navigator !== "undefined" && "share" in navigator) { await navigator.share({ title: event.title, text }); return; }
     await navigator.clipboard.writeText(text);
@@ -4756,7 +4756,7 @@ function GetSetUpGuide({ session, profile, subscriptions, busy, onBack, onSignIn
           </select><small>Choose the area shown on this page.</small></label>
           <label className="full">Application note<textarea value={draft.about} onChange={set("about")} placeholder="Tell Support enough to assess the application, including your connection to the organisation or member." /></label>
           <label className="full">Subscription plan<select value={draft.planId} onChange={set("planId")}>
-            {iosPlans.map((p) => <option key={p.id} value={p.id}>{p.title} · {p.price}</option>)}
+            {iosPlans.map((p) => <option key={p.id} value={p.id}>{p.title} · {p.price} · {p.allowance}</option>)}
           </select></label>
           {formError ? <p className="panel-note full" role="alert">{formError}</p> : null}
           <div className="full action-row">
@@ -4783,7 +4783,7 @@ function GetSetUpGuide({ session, profile, subscriptions, busy, onBack, onSignIn
           <div className="plan-grid">
             {iosPlans.map((p) => (
               <button type="button" key={p.id} className={plan === p.id ? "plan-card is-on" : "plan-card"} aria-pressed={plan === p.id} onClick={() => setPlan(p.id)}>
-                <strong>{p.title}</strong><span className="plan-card__price">{p.price}</span><small>{p.blurb}</small>
+                <strong>{p.title}</strong><span className="plan-card__price">{p.price}</span><small>{p.allowance}</small><small>{p.blurb}</small>
               </button>
             ))}
           </div>
@@ -4808,11 +4808,11 @@ function AuthPanel({ busy, onAuth, verifyEmail, onClearVerify }: { busy: boolean
       <div className="panel auth-verify">
         <p className="eyebrow">Email confirmation</p>
         <h2>Check your email</h2>
-        <p className="panel-note">We sent a confirmation link to <strong>{verifyEmail}</strong>. Check your email to confirm your account, then sign in.</p>
+        <p className="panel-note">We sent a confirmation link to <strong>{verifyEmail}</strong>. Open the link in your email, then tap Check again.</p>
         {authNote ? <p className="panel-note" role="status">{authNote}</p> : null}
         <div className="action-row">
           <button type="button" className="button" disabled={working} aria-busy={working} onClick={() => { setWorking(true); setAuthNote(""); resendVerificationEmail(verifyEmail).then(() => setAuthNote("Confirmation email sent again. Check your inbox.")).catch((e) => setAuthNote(e instanceof Error ? e.message : "Could not resend. Try again soon.")).finally(() => setWorking(false)); }}>Resend email</button>
-          <button type="button" className="button button--primary" onClick={() => { setMode("sign-in"); onClearVerify?.(); }}>I've confirmed — sign in</button>
+          <button type="button" className="button button--primary" onClick={() => { setMode("sign-in"); onClearVerify?.(); }}>Check again</button>
         </div>
       </div>
     );
@@ -5011,7 +5011,7 @@ function CreateListingPanel({
     return (
       <div className="panel">
         <h3>Waiting for Support approval</h3>
-        <p className="panel-note">Your organisation is with Support. You can choose your subscription now so you're ready to publish when it's approved.</p>
+        <p className="panel-note">Support approves your organisation first. You choose a monthly plan after that.</p>
         <button type="button" className="button button--primary" onClick={onOpenAccount}>{paid ? "Manage membership" : "Activate subscription"}</button>
       </div>
     );
@@ -5209,7 +5209,7 @@ function AccountHub({
         <div>
           <p className="eyebrow">Signed in</p>
           <h3>{session.user.email}</h3>
-          <p className="panel-note">Your account lets you save listings, follow hosts and choose where you Belong. Extra profile and membership details are optional.</p>
+          <p className="panel-note">Your account lets you save listings, follow hosts and choose your area. Extra profile and membership details are optional.</p>
         </div>
         <div className="account-summary__actions">
           {onEditOrgCard ? <button type="button" className="button button--primary" onClick={onEditOrgCard}>Manage my organisation</button> : null}
@@ -5400,7 +5400,7 @@ function MemberPanel({ session, profile, subscriptions, notices, busy, onSubmit,
     <div className="panel panel--wide">
       <h3>{heading}</h3>
       <p className="panel-note">Only approved members can list in our community. Start with a free account, choose the plan that fits, then submit your membership details for Support approval.</p>
-      {profile ? <p className="status-pill">Status: {profile.status.replaceAll("_", " ")}</p> : null}
+      {profile ? <p className="status-pill">Status: {({ approved: "Approved", pending_review: "Pending review", pending: "Pending review", rejected: "Needs changes", suspended: "Suspended" } as Record<string, string>)[profile.status] ?? profile.status.replaceAll("_", " ")}</p> : null}
       {profile ? <SubscriptionEndLine subscriptions={subscriptions} /> : null}
       {profile ? <CancelPlanControl subscriptions={subscriptions} session={session} profileId={profile.id} /> : null}
       {isPending ? (
@@ -5495,8 +5495,8 @@ function MemberPanel({ session, profile, subscriptions, notices, busy, onSubmit,
             <option value="east-auckland">East Auckland</option>
           </select></label>
           <label>Selected plan<select disabled={!editing} value={draft.selected_plan_id} onChange={(event) => updateDraft("selected_plan_id", event.target.value)}>
-            <option value="local_business">Local member</option>
-            <option value="growth">Growth member</option>
+            <option value="local_business">Local Member</option>
+            <option value="growth">Growth Member</option>
             <option value="sponsor">Community Partner</option>
           </select></label>
           <div className="action-row full">
@@ -5909,7 +5909,7 @@ function ReportListing({ eventId, session, onSignIn }: { eventId: string; sessio
   if (!session) {
     return <p className="panel-note"><strong>Something not right?</strong> <button type="button" className="text-link" onClick={onSignIn}>Sign in to send a private report</button></p>;
   }
-  if (state === "sent") return <p className="panel-note">Report sent to Support.</p>;
+  if (state === "sent") return <p className="panel-note">Thanks. Support will review this listing.</p>;
   if (!open) return <p className="panel-note"><strong>Something not right?</strong> <button type="button" className="text-link" onClick={() => setOpen(true)}>Report this listing</button></p>;
   return (
     <form
@@ -5970,7 +5970,7 @@ function CardReport({ eventId }: { eventId: string }) {
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return (
     <div className="card-report" onClick={stop}>
-      {state === "sent" ? <span className="card-report__done" role="status">Report sent to Support</span> : null}
+      {state === "sent" ? <span className="card-report__done" role="status">Thanks. Support will review this listing.</span> : null}
       <button
         type="button"
         className="card-report__flag"

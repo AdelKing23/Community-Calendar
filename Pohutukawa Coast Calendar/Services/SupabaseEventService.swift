@@ -116,7 +116,7 @@ enum SupabaseServiceError: LocalizedError {
         case "PGRST103":
             return "Too much information was requested at once. Narrow the view or refresh and try again."
         case "PGRST106", "PGRST108", "PGRST118", "PGRST200", "PGRST201", "PGRST202", "42P01", "42703", "42883":
-            return "The app and database are out of step. Support should check this."
+            return "That didn’t work, and it isn’t something you can fix in the form. Please try again shortly, or contact Support."
         case "PGRST116":
             return "That item could not be found. It may have been changed, archived or removed. Refresh and try again."
         case "PGRST301", "PGRST302":

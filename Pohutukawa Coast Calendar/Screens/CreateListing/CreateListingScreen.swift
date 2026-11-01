@@ -561,7 +561,7 @@ struct CreateListingScreen: View {
     private func resendVerificationEmail() async {
         do {
             try await userSessionStore.resendVerificationEmail()
-            verificationMessage = "Verification email sent. Open the link, then tap “Check again”."
+            verificationMessage = "Open the link in your email, then tap Check again."
         } catch {
             verificationMessage = error.pccUserFacingMessage
         }

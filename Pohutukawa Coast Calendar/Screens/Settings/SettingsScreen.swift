@@ -412,7 +412,7 @@ struct SettingsScreen: View {
                             id: "join-community",
                             icon: "person.crop.circle.badge.plus",
                             title: "Create account or sign in",
-                            subtitle: "Create a free account to get better results from Coast Calendar, sign in to your account.",
+                            subtitle: "Create a free account to save listings, set reminders, and Belong to organisations.",
                             detail: "Open",
                             style: .disclosure,
                             isEnabled: true
@@ -996,7 +996,7 @@ struct AccountAccessSheet: View {
     private func resendVerificationEmail() async {
         do {
             try await userSessionStore.resendVerificationEmail()
-            errorMessage = "Verification email sent. Open the link, then tap “I’ve verified, check again”."
+            errorMessage = "Open the link in your email, then tap Check again."
         } catch {
             errorMessage = error.pccUserFacingMessage
         }
@@ -2959,7 +2959,7 @@ struct BusinessPlansScreen: View {
             return "Register your Organisation. Support approves it, then you subscribe to list."
         }
         if !accountState.hasActiveOrganisationSubscription {
-            return "Your Organisation is approved. Pay for a plan to unlock Create. One tap starts Apple Pay."
+            return "Support approves your organisation first. You choose a monthly plan after that."
         }
         return "Manage your public page, subscription, listings and polls."
     }
@@ -3403,7 +3403,7 @@ struct BusinessPlansScreen: View {
                 .foregroundStyle(PCCTheme.ink)
 
             Text(accountState.activeSubscription == nil
-                 ? "Tap Pay on a plan. Apple Pay starts immediately. Create stays locked until that payment is active. Your public organisation page stays on Hosts."
+                 ? "Support approves your organisation first. You choose a monthly plan after that."
                  : "Changing plan replaces your current subscription and may start a new Apple charge. Confirm on the Apple sheet before you continue.")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(PCCTheme.ink.opacity(0.62))
@@ -3465,9 +3465,9 @@ struct BusinessPlansScreen: View {
                 .foregroundStyle(PCCTheme.ink)
 
             if let active = accountState.activeSubscription, let plan = active.plan {
-                SettingsInfoMessage(icon: "checkmark.seal.fill", title: "\(plan.title) active", message: "Subscription status is \(active.status). Limit: \(active.activeListingLimit) active listings or polls.")
-            } else if let attention = accountState.subscriptionNeedingBackendAttention, let plan = attention.plan {
-                SettingsInfoMessage(icon: "exclamationmark.triangle.fill", title: "\(plan.title) needs backend confirmation", message: "Apple payment appears to have reached the backend, but the paid-through date is missing. Publishing stays locked until the backend returns the verified entitlement end date.")
+                SettingsInfoMessage(icon: "checkmark.seal.fill", title: "\(plan.title) active", message: "Subscription status is \(active.status). Limit: \(active.activeListingLimit) active listing\(active.activeListingLimit == 1 ? "" : "s") or poll\(active.activeListingLimit == 1 ? "" : "s").")
+            } else if let attention = accountState.subscriptionNeedingBackendAttention, attention.plan != nil {
+                SettingsInfoMessage(icon: "exclamationmark.triangle.fill", title: "Publishing is not unlocked yet", message: "Apple has taken the payment, but publishing is not unlocked yet. Open Membership and try again, or contact Support.")
             } else if let profile = accountState.profile, profile.memberStatus == .pendingReview {
                 SettingsInfoMessage(icon: "clock.badge.checkmark", title: "Application submitted", message: "Your membership application is pending review by Pōhutukawa Coast Calendar Support. We'll let you know when it has been reviewed.")
             } else if let profile = accountState.profile, profile.memberStatus == .approved {
@@ -4299,7 +4299,7 @@ struct BusinessPlansScreen: View {
         if accountState.profile?.selectedPlan == plan {
             message = "\(plan.title) saved. Tap Pay to confirm with Apple."
         } else {
-            message = "\(plan.title) could not be saved yet. This may need the backend plan-change rule to be updated for approved members."
+            message = "Apple has taken the payment, but publishing is not unlocked yet. Open Membership and try again, or contact Support."
         }
     }
 
@@ -4398,8 +4398,8 @@ struct BusinessPlansScreen: View {
             return "\(plan.title) \(active.status)."
         }
 
-        if let attention = accountState.subscriptionNeedingBackendAttention, let plan = attention.plan {
-            return "\(plan.title) needs backend paid-through confirmation."
+        if let attention = accountState.subscriptionNeedingBackendAttention, attention.plan != nil {
+            return "Apple has taken the payment, but publishing is not unlocked yet. Open Membership and try again, or contact Support."
         }
 
         if accountState.profile?.memberStatus == .approved {
@@ -4436,7 +4436,7 @@ struct BusinessPlansScreen: View {
             return "Application submitted. Pending review by Pōhutukawa Coast Calendar Support."
         case .approved:
             if accountState.subscriptionNeedingBackendAttention != nil {
-                return "Apple payment is recorded, but the backend has not returned the paid-through date needed to unlock publishing."
+                return "Apple has taken the payment, but publishing is not unlocked yet. Open Membership and try again, or contact Support."
             }
             if accountState.activeSubscription == nil {
                 return homepageIsReady
@@ -4772,7 +4772,7 @@ struct BusinessPlansScreen: View {
     private func resendVerificationEmail() async {
         do {
             try await userSessionStore.resendVerificationEmail()
-            message = "Verification email sent. Open the link, then tap Check again."
+            message = "Open the link in your email, then tap Check again."
         } catch {
             message = error.pccUserFacingMessage
         }
