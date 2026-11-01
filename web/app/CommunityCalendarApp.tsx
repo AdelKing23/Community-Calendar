@@ -4048,13 +4048,12 @@ export default function CommunityCalendarApp() {
           <section className="section" id="terms">
             <div className="section__header">
               <p className="eyebrow">Terms</p>
-              <h2>Terms and conditions</h2>
+              <h2>Terms of Use</h2>
             </div>
             <div className="panel">
-              <p>Listings are public once they are published.</p>
-              <p>Support may review, change the status of, or remove listings that break community guidelines.</p>
-              <p>Organisations are responsible for the accuracy and content of their own listings.</p>
-              <p>Questions? Contact us through the in-app <button type="button" className="text-link" onClick={() => setView("contact")}>Support page</button>.</p>
+              <p>Last updated 1 November 2026.</p>
+              <p>Read the Terms of Use at <a href="/terms">coastcalendar.nz/terms</a>.</p>
+              <p>Questions? Email <a href="mailto:support@coastcalendar.nz">support@coastcalendar.nz</a>.</p>
             </div>
           </section>
           )}
@@ -4063,12 +4062,12 @@ export default function CommunityCalendarApp() {
           <section className="section" id="privacy">
             <div className="section__header">
               <p className="eyebrow">Privacy</p>
-              <h2>Privacy</h2>
+              <h2>Privacy Policy</h2>
             </div>
             <div className="panel">
-              <p>Listings are public when they are published.</p>
-              <p>Location is used only while you use the app or site to pick an area.</p>
-              <p>Contact: <a href="mailto:isaacwellis@hotmail.com">isaacwellis@hotmail.com</a></p>
+              <p>Last updated 1 November 2026.</p>
+              <p>Read the Privacy Policy at <a href="/privacy">coastcalendar.nz/privacy</a>.</p>
+              <p>Questions? Email <a href="mailto:support@coastcalendar.nz">support@coastcalendar.nz</a>.</p>
             </div>
           </section>
           )}
@@ -4137,8 +4136,8 @@ export default function CommunityCalendarApp() {
         <strong>Coast Calendar</strong>
         <span>iOS plus web access for Android and everyone else.</span>
         <nav className="footer__links" aria-label="Legal">
-          <button type="button" onClick={() => setView("privacy")}>Privacy</button>
-          <button type="button" onClick={() => setView("terms")}>Terms</button>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
           <button type="button" onClick={() => setView("contact")}>Support</button>
         </nav>
       </footer>
