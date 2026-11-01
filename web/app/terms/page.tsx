@@ -10,7 +10,7 @@ export default function TermsPage() {
   return (
     <LegalShell eyebrow="Terms" title="Terms of Use" updated="1 November 2026">
       <p>
-        Coast Calendar is a community calendar and organisation directory for the Pōhutukawa Coast and surrounding areas of New Zealand, made by Atlas Digital. By using the Coast Calendar iOS app or the website at coastcalendar.nz (“the Service”), you agree to these Terms of Use.
+        Coast Calendar is a community calendar and organisation directory for the Coast and surrounding areas of New Zealand, made by Atlas Digital. By using the Coast Calendar iOS app or the website at coastcalendar.nz (“the Service”), you agree to these Terms of Use.
       </p>
       <p>
         These Terms are a first-pass draft prepared for the current stage of the Service. They are not legal advice. A qualified New Zealand lawyer should review them before they are treated as final.

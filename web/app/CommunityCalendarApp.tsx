@@ -3717,7 +3717,7 @@ export default function CommunityCalendarApp() {
               <span className="area-pill">{(homeEventIDs ?? []).length} listings</span>
             </div>
             {visibleEvents.length === 0 ? (
-              <EmptyState title="A quiet moment in this area" text="New local listings will appear here as they’re published." />
+              <EmptyState title="It’s a quiet time right now" text="List something to be the first thing this week." />
             ) : (
               <div className="event-list" style={{ marginTop: 18 }}>
                 {visibleEvents.slice(0, 30).map((event) => (
@@ -3792,7 +3792,7 @@ export default function CommunityCalendarApp() {
                 </button>
               ))}
             </div>
-            {visibleEvents.length === 0 ? <EmptyState title={dateScope === "today" ? "Nothing scheduled here today" : dateScope === "week" ? "A quiet week in this area" : dateScope === "month" ? "No listings match this month" : "Nothing coming up in this area"} text={`Try a wider area or another topic to discover more around ${homeAreaName}.`}>
+            {visibleEvents.length === 0 ? <EmptyState title={dateScope === "today" ? "Nothing scheduled here today" : dateScope === "week" ? "It’s a quiet time right now" : dateScope === "month" ? "No listings match this month" : "Nothing coming up in this area"} text={dateScope === "week" ? "List something to be the first thing this week." : `Try a wider area or another topic to discover more around ${homeAreaName}.`}>
               {ancestorScopesOf(homeScope, locationScopes, locationEdges).length ? (
                 <div className="widen-row">
                   <span className="widen-row__label">Widen to</span>

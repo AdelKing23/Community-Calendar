@@ -138,12 +138,14 @@ struct WhatsOnScreen: View {
                                 title: {
                                     switch selectedScope {
                                     case .today: return "Nothing scheduled here today"
-                                    case .thisWeek: return "A quiet week in this area"
+                                    case .thisWeek: return "It’s a quiet time right now"
                                     case .thisMonth: return "No listings match this month"
                                     case .upcoming: return "Nothing coming up in this area"
                                     }
                                 }(),
-                                message: "Try a wider area or another topic to discover more around \(selectedLocationScope.name).",
+                                message: selectedScope == .thisWeek
+                                    ? "List something to be the first thing this week."
+                                    : "Try a wider area or another topic to discover more around \(selectedLocationScope.name).",
                                 wideningOptions: Array(selectedLocationWideningOptions.prefix(3)),
                                 onSelectLocationScope: selectLocationScope
                             )
@@ -343,14 +345,17 @@ struct ScopedEventsContent: View {
     private var emptyTitle: String {
         switch scope {
         case .today: return "Nothing scheduled here today"
-        case .thisWeek: return "A quiet week in this area"
+        case .thisWeek: return "It’s a quiet time right now"
         case .thisMonth: return "No listings match this month"
         case .upcoming: return "Nothing coming up in this area"
         }
     }
 
     private var emptyMessage: String {
-        "Try a wider area or another topic to discover more around \(locationScope.name)."
+        if scope == .thisWeek {
+            return "List something to be the first thing this week."
+        }
+        return "Try a wider area or another topic to discover more around \(locationScope.name)."
     }
 }
 
