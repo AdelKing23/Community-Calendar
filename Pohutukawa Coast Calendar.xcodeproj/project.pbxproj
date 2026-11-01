@@ -346,7 +346,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Coast Calendar can add events you mark as Going to your device calendar.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Coast Calendar can add events you mark as Going to your device calendar.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Community Calendar uses your location to choose a useful starting area. You can change or save a favourite area anytime.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Coast Calendar uses your location to choose a useful starting area. You can change or save a favourite area anytime.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -399,7 +399,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Coast Calendar can add events you mark as Going to your device calendar.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Coast Calendar can add events you mark as Going to your device calendar.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Community Calendar uses your location to choose a useful starting area. You can change or save a favourite area anytime.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Coast Calendar uses your location to choose a useful starting area. You can change or save a favourite area anytime.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

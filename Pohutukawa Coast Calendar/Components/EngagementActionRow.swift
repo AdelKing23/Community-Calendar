@@ -85,7 +85,7 @@ struct EngagementActionRow: View {
         \(event.timeText)
         \(event.venue), \(event.displayLocationName)
 
-        Shared from Pohutukawa Coast Calendar.
+        Shared from Coast Calendar.
         """
     }
 }

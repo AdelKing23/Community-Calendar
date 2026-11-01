@@ -292,7 +292,7 @@ private struct PollActionRow: View {
         Poll: \(event.title)
         \(event.displayLocationName)
 
-        Shared from Pohutukawa Coast Calendar.
+        Shared from Coast Calendar.
         """
     }
 }

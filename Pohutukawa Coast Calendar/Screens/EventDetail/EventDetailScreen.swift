@@ -876,7 +876,7 @@ struct OrganiserEventsScreen: View {
                         OrganiserMessageCard(
                             icon: "calendar.badge.clock",
                             title: "Nothing coming up yet",
-                            message: "\(organiserName) has no published upcoming listings showing right now."
+                            message: "\(organiserName) has no published upcoming listings right now."
                         )
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
@@ -2499,7 +2499,7 @@ private struct OrgCreateOnThisDaySheet: View {
                             Toggle("Public listing", isOn: $isPublic)
                                 .tint(PCCTheme.leafGreen)
                                 .foregroundStyle(PCCTheme.ink)
-                            Text("Private is not secret. Anyone can tap Belong on this page.")
+                            Text("People who Belong to this organisation can see this date. It is not on the public board.")
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(PCCTheme.ink.opacity(0.58))
                         }
