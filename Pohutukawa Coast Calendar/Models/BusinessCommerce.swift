@@ -18,9 +18,9 @@ enum BusinessSubscriptionPlan: String, CaseIterable, Identifiable, Codable, Hash
 
     var priceText: String {
         switch self {
-        case .localBusiness: return "$19/month"
-        case .growth: return "$49/month"
-        case .sponsor: return "$149/month"
+        case .localBusiness: return "$19.99/month"
+        case .growth: return "$49.99/month"
+        case .sponsor: return "$149.99/month"
         }
     }
 
