@@ -581,11 +581,12 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
         guard var components = publicEventsURLComponents else {
             throw SupabaseServiceError.notConfigured
         }
-        let archiveCutoff = Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date()
+        // Home rule (same as web Board and Home calendar): show until end, Finished until midnight. Server view still cuts at end_at.
+        let archiveCutoff = Calendar.current.startOfDay(for: Date())
 
         components.queryItems = [
             URLQueryItem(name: "select", value: Self.publicEventSelect),
-            URLQueryItem(name: "start_at", value: "gte.\(Self.isoDateFormatter.string(from: archiveCutoff))"),
+            URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: archiveCutoff))"),
             URLQueryItem(name: "order", value: "is_paid_push.desc,is_featured.desc,start_at.asc")
         ]
 
@@ -623,12 +624,13 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
         guard var components = publicEventsURLComponents else {
             throw SupabaseServiceError.notConfigured
         }
-        let archiveCutoff = Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date()
+        // Home rule (same as web Board and Home calendar): show until end, Finished until midnight. Server view still cuts at end_at.
+        let archiveCutoff = Calendar.current.startOfDay(for: Date())
 
         components.queryItems = [
             URLQueryItem(name: "select", value: Self.publicEventSelect),
             URLQueryItem(name: "id", value: "in.(\(eventIDs.map(\.uuidString).joined(separator: ",")))"),
-            URLQueryItem(name: "start_at", value: "gte.\(Self.isoDateFormatter.string(from: archiveCutoff))"),
+            URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: archiveCutoff))"),
             URLQueryItem(name: "order", value: "is_paid_push.desc,is_featured.desc,start_at.asc")
         ]
 
