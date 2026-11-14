@@ -347,3 +347,33 @@ private struct PCCCardSurfaceModifier: ViewModifier {
             .shadow(color: PCCTheme.deepGreen.opacity(0.08), radius: 18, x: 0, y: 10)
     }
 }
+
+// Home calendar topic palette. One colour per EventCategory, shared with web
+// (web/app/HomeCalendar.tsx TOPIC_COLOURS). Keep the hex values identical on both.
+enum PCCTopicPalette {
+    static func hex(for category: EventCategory) -> UInt32 {
+        switch category {
+        case .liveMusic: return 0x7E57C2
+        case .foodDrink: return 0xE8A317
+        case .markets: return 0xD1495B
+        case .kidsFamily: return 0xF28C28
+        case .sport: return 0x2E86DE
+        case .community: return 0x2F855A
+        case .fundraisers: return 0xE05297
+        case .classesWorkshops: return 0x1A9E9E
+        case .seniors: return 0x8D6E63
+        case .churchMaraeCultural: return 0x5C6BC0
+        case .nightlife: return 0x2C3E70
+        case .publicNotices: return 0x6B7280
+        }
+    }
+
+    static func color(for category: EventCategory) -> Color {
+        let value = hex(for: category)
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+}
