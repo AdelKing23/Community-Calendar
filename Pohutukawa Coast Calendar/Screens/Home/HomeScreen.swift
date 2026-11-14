@@ -12,6 +12,9 @@ struct HomeScreen: View {
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var openedEventID: UUID?
+    @AppStorage(HomeViewMode.storageKey) private var viewModeRawValue = HomeViewMode.board.rawValue
+    @StateObject private var calendarStore = HomeCalendarStore()
+    @State private var selectedCalendarDay: Date?
 
     private let eventService: PublishedEventFetching & LocationScopeFetching = SupabaseEventService()
 
@@ -21,6 +24,13 @@ struct HomeScreen: View {
 
     private var selectedLocationLadder: [LocationScope] {
         locationCatalog.displayLadder(selectedID: selectedLocationScopeID, focusID: focusedLocationScopeID)
+    }
+
+    private var viewMode: Binding<HomeViewMode> {
+        Binding(
+            get: { HomeViewMode(rawValue: viewModeRawValue) ?? .board },
+            set: { viewModeRawValue = $0.rawValue }
+        )
     }
 
     private var boardEvents: [LocalEvent] {
@@ -42,13 +52,16 @@ struct HomeScreen: View {
                         eventCount: boardEvents.count,
                         weeklyViewCount: appOpenAnalyticsStore.weeklyOpenCount,
                         onChangeArea: { isShowingLocationFinder = true },
-                        onSelectSibling: selectLocationScope
+                        onSelectSibling: selectLocationScope,
+                        viewMode: viewMode
                     )
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 76, leading: 16, bottom: 12, trailing: 16))
 
-                    if isLoading {
+                    if viewMode.wrappedValue == .calendar {
+                        calendarRows
+                    } else if isLoading {
                         LoadingEventsCard()
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -99,6 +112,14 @@ struct HomeScreen: View {
                     EventDetailScreen(event: event)
                 }
             }
+            .navigationDestination(isPresented: Binding(
+                get: { selectedCalendarDay != nil },
+                set: { if !$0 { selectedCalendarDay = nil } }
+            )) {
+                if let selectedCalendarDay {
+                    HomeCalendarDayScreen(day: selectedCalendarDay, areaName: selectedLocationScope.name, store: calendarStore)
+                }
+            }
         }
         // Keyboard dismiss tap stolen Home card buttons; dismiss via scroll instead.
         .task {
@@ -108,8 +129,15 @@ struct HomeScreen: View {
         .task(id: selectedLocationScopeID) {
             await loadEvents()
         }
+        .task(id: "\(selectedLocationScopeID)|\(viewModeRawValue)|\(hasLoadedLocationCatalog)") {
+            guard viewMode.wrappedValue == .calendar, hasLoadedLocationCatalog else { return }
+            await calendarStore.prepare(scope: selectedLocationScope)
+        }
         .refreshable {
             await loadEvents()
+            if viewMode.wrappedValue == .calendar {
+                await calendarStore.reload(scope: selectedLocationScope)
+            }
         }
         .sheet(isPresented: $isShowingLocationFinder) {
             LocationFinderSheet(
@@ -124,6 +152,38 @@ struct HomeScreen: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    @ViewBuilder
+    private var calendarRows: some View {
+        HomeCalendarLegend()
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+
+        ForEach(calendarStore.monthStarts, id: \.self) { month in
+            HomeCalendarMonthCard(
+                monthStart: month,
+                topicsByDay: calendarStore.topicsByDay(forMonth: month),
+                calendar: calendarStore.calendar,
+                isLoading: calendarStore.loadingMonths.contains(month),
+                didFail: calendarStore.failedMonths.contains(month),
+                onRetry: { Task { await calendarStore.retry(month: month, scope: selectedLocationScope) } },
+                onSelectDay: { selectedCalendarDay = $0 }
+            )
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+            .onAppear {
+                guard month == calendarStore.monthStarts.last, calendarStore.canLoadMore else { return }
+                Task { await calendarStore.loadMore(scope: selectedLocationScope) }
+            }
+        }
+
+        Color.clear
+            .frame(height: 96)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 
     private func selectLocationScope(_ scope: LocationScope) {
@@ -189,6 +249,7 @@ struct HomeHero: View {
     let weeklyViewCount: Int?
     let onChangeArea: () -> Void
     let onSelectSibling: (LocationScope) -> Void
+    var viewMode: Binding<HomeViewMode>? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -211,21 +272,29 @@ struct HomeHero: View {
                     .foregroundStyle(PCCTheme.pohutukawaOrange)
             }
 
-            Button(action: onChangeArea) {
-                HStack(spacing: 8) {
-                    Image(systemName: "mappin.and.ellipse")
-                    Text(selectedScope.name)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.black))
+            HStack(alignment: .center, spacing: 12) {
+                Button(action: onChangeArea) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.and.ellipse")
+                        Text(selectedScope.name)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.black))
+                    }
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(PCCTheme.leafGreen)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
                 }
-                .font(.subheadline.weight(.black))
-                .foregroundStyle(PCCTheme.leafGreen)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                if let viewMode {
+                    HomeViewModeToggle(mode: viewMode)
+                }
             }
-            .buttonStyle(.plain)
 
             if !siblingScopes.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -347,7 +416,7 @@ private struct HeroCounter: View {
 }
 
 
-private struct HomeBoardCard: View {
+struct HomeBoardCard: View {
     let event: LocalEvent
     let onOpen: () -> Void
 
