@@ -642,6 +642,42 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
         return []
     }
 
+    // MARK: Home calendar
+
+    /// Event IDs targeted at a Home location scope (same source as the scoped Home board).
+    func fetchHomeCalendarEventIDs(locationScopeID: String) async throws -> [UUID] {
+        try await fetchPublishedEventIDs(locationScopeID: locationScopeID)
+    }
+
+    /// Public listings overlapping [rangeStart, rangeEnd): end_at >= rangeStart and start_at < rangeEnd.
+    /// When `eventIDs` is given, only those listings are returned (fetched in batches).
+    func fetchHomeCalendarEvents(eventIDs: [UUID]?, from rangeStart: Date, to rangeEnd: Date) async throws -> [LocalEvent] {
+        guard let eventIDs else {
+            return try await fetchPublishedEvents(from: rangeStart, to: rangeEnd)
+        }
+        guard !eventIDs.isEmpty else { return [] }
+
+        var collected: [LocalEvent] = []
+        let batchSize = 150
+        for batchStart in stride(from: 0, to: eventIDs.count, by: batchSize) {
+            let batch = eventIDs[batchStart..<min(batchStart + batchSize, eventIDs.count)]
+            guard var components = publicEventsURLComponents else {
+                throw SupabaseServiceError.notConfigured
+            }
+            components.queryItems = [
+                URLQueryItem(name: "select", value: Self.publicEventSelect),
+                URLQueryItem(name: "id", value: "in.(\(batch.map(\.uuidString).joined(separator: ",")))"),
+                URLQueryItem(name: "end_at", value: "gte.\(Self.isoDateFormatter.string(from: rangeStart))"),
+                URLQueryItem(name: "start_at", value: "lt.\(Self.isoDateFormatter.string(from: rangeEnd))"),
+                URLQueryItem(name: "order", value: "start_at.asc")
+            ]
+            collected += try await fetchPublicEvents(with: components, logContext: "home calendar")
+        }
+
+        let withTopics = await attachingTopics(to: collected)
+        return await applyingActivePromotions(to: withTopics, accessToken: nil)
+    }
+
     func fetchEventsByIDs(_ ids: [UUID], accessToken: String?) async throws -> [LocalEvent] {
         let unique = Array(Set(ids))
         guard !unique.isEmpty, var components = eventsURLComponents else { return [] }
