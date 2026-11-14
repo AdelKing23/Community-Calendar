@@ -21,6 +21,9 @@ final class HomeCalendarStore: ObservableObject {
     private var scopeID: String?
     private var scopedEventIDs: [UUID]?
     private var usesLocalScopeFilter = false
+    /// Organisation plan rank per listing. Empty until plan rank is publicly readable
+    /// (see CoastCalendar-backups/proposed-plan-rank-on-public-events.sql).
+    private var planRanks: [UUID: Int] = [:]
 
     init(service: HomeCalendarEventFetching? = nil) {
         self.service = service ?? SupabaseEventService()
@@ -65,7 +68,7 @@ final class HomeCalendarStore: ObservableObject {
 
     func events(on day: Date) -> [LocalEvent] {
         let month = HomeCalendarLogic.monthStart(for: day, calendar: calendar)
-        return HomeCalendarLogic.dayEvents(eventsByMonth[month] ?? [], on: day, calendar: calendar)
+        return HomeCalendarLogic.dayEvents(eventsByMonth[month] ?? [], on: day, calendar: calendar, planRanks: planRanks)
     }
 
     private func resolveScope(_ scope: LocationScope) async {
@@ -93,11 +96,12 @@ final class HomeCalendarStore: ObservableObject {
         defer { loadingMonths.remove(month) }
 
         do {
-            let rangeStart = max(month, now)
+            // Start of today, so listings that ended earlier today still load (shown as Finished until midnight).
+            let rangeStart = max(month, calendar.startOfDay(for: now))
             let events = try await service.fetchHomeCalendarEvents(eventIDs: scopedEventIDs, from: rangeStart, to: nextMonth)
             guard scopeID == requestedScope else { return }
             eventsByMonth[month] = events.filter { event in
-                HomeCalendarLogic.isShownOnHome(event, now: now)
+                HomeCalendarLogic.isShownOnHome(event, now: now, calendar: calendar)
                     && (!usesLocalScopeFilter || scope.matches(event))
             }
         } catch {
@@ -288,8 +292,24 @@ struct HomeCalendarDayScreen: View {
                             retry: nil
                         )
                     } else {
+                        let now = Date()
                         ForEach(events) { event in
-                            HomeBoardCard(event: event, onOpen: { openedEventID = event.id })
+                            if HomeCalendarLogic.isFinished(event, now: now) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Label("Finished", systemImage: "checkmark.circle")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(.white.opacity(0.86), in: Capsule())
+                                        .accessibilityLabel("Finished listing")
+                                    HomeBoardCard(event: event, onOpen: { openedEventID = event.id })
+                                        .saturation(0.2)
+                                        .opacity(0.6)
+                                }
+                            } else {
+                                HomeBoardCard(event: event, onOpen: { openedEventID = event.id })
+                            }
                         }
                     }
                 }
