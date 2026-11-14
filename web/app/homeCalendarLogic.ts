@@ -39,6 +39,8 @@ export type CalendarEventFields = {
   is_paid_push?: boolean | null;
   promotion_rank?: number | null;
   promotion_paid_at?: string | null;
+  /** Organisation plan rank (subscription placement_rank). Not publicly readable yet, so undefined today. */
+  plan_rank?: number | null;
 };
 
 export function dayKey(date: Date) {
@@ -124,15 +126,32 @@ export function effectiveRank(event: CalendarEventFields) {
   return Math.max(event.promotion_rank ?? 0, event.is_paid_push ? 1 : 0);
 }
 
-/** Highest placement first; within a placement, earliest created (first listed) first. */
+/** Boosted = any paid placement (Top Boost or Boosted, or is_paid_push). */
+export function isBoosted(event: CalendarEventFields) {
+  return effectiveRank(event) > 0;
+}
+
+/** Real plan rank when known; until it is public, Top Boost (2) above Boosted (1) is the tier proxy. */
+export function tierRank(event: CalendarEventFields) {
+  return event.plan_rank ?? effectiveRank(event);
+}
+
+/**
+ * Day ordering (same as iOS HomeCalendarLogic.dayOrdering):
+ * 1. Boosted always above non-boosted, whatever the tier.
+ * 2. Among boosted, higher tier first.
+ * 3. Same tier: first listed (earliest created) first.
+ * Featured is not used: it is an editorial flag in source, not a paid placement.
+ */
 export function dayOrdering(a: CalendarEventFields, b: CalendarEventFields) {
-  const rankA = effectiveRank(a);
-  const rankB = effectiveRank(b);
-  if (rankA !== rankB) return rankB - rankA;
-  if (rankA >= 2 && a.promotion_paid_at !== b.promotion_paid_at) {
-    return (a.promotion_paid_at ? Date.parse(a.promotion_paid_at) : Infinity) - (b.promotion_paid_at ? Date.parse(b.promotion_paid_at) : Infinity);
+  const boostedA = isBoosted(a);
+  const boostedB = isBoosted(b);
+  if (boostedA !== boostedB) return boostedA ? -1 : 1;
+  if (boostedA) {
+    const tierA = tierRank(a);
+    const tierB = tierRank(b);
+    if (tierA !== tierB) return tierB - tierA;
   }
-  if (Boolean(a.is_featured) !== Boolean(b.is_featured)) return a.is_featured ? -1 : 1;
   const createdA = a.created_at ? Date.parse(a.created_at) : 0;
   const createdB = b.created_at ? Date.parse(b.created_at) : 0;
   if (createdA !== createdB) return createdA - createdB;
@@ -143,7 +162,18 @@ export function eventsOnDay<E extends CalendarEventFields>(events: E[], day: Dat
   return events.filter((event) => overlapsDay(event, day)).sort(dayOrdering);
 }
 
-/** Home visibility rule: listings that have not finished yet (same as the Board's end_at >= now). */
+/** Midnight (local time) at the end of the listing's end date. */
+export function archiveAt(event: CalendarEventFields) {
+  const end = new Date(eventRange(event).end);
+  return new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+}
+
+/** Home visibility rule: shows until end, then (marked Finished) until midnight on its end date. No cap on future listings. */
 export function isShownOnHome(event: CalendarEventFields, now: Date) {
-  return eventRange(event).end >= now.getTime();
+  return now.getTime() < archiveAt(event).getTime();
+}
+
+/** Ended but still shown until midnight. */
+export function isFinished(event: CalendarEventFields, now: Date) {
+  return eventRange(event).end < now.getTime();
 }
