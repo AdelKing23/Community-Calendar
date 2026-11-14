@@ -84,28 +84,49 @@ enum HomeCalendarLogic {
         return sets.mapValues { set in order.filter(set.contains) }
     }
 
-    /// Listings for one day, highest placement first; within a placement, the first listed comes first.
-    nonisolated static func dayEvents(_ events: [LocalEvent], on day: Date, calendar: Calendar) -> [LocalEvent] {
+    /// Listings for one day in Home calendar order (see `dayOrdering`).
+    /// `planRanks` is the organisation subscription tier per listing when it becomes publicly readable;
+    /// it is empty today, so paid placement is used as the tier proxy.
+    nonisolated static func dayEvents(
+        _ events: [LocalEvent],
+        on day: Date,
+        calendar: Calendar,
+        planRanks: [UUID: Int] = [:]
+    ) -> [LocalEvent] {
         events
             .filter { HomeCalendarLogic.event($0, overlapsDay: day, calendar: calendar) }
-            .sorted(by: dayOrdering)
+            .sorted { dayOrdering($0, $1, planRanks: planRanks) }
     }
 
-    /// Day ordering. Organisation subscription tier is not exposed on public listings, so the best
-    /// available signal is the listing's paid placement (active_event_promotions placement_rank and
-    /// is_paid_push via effectivePromotionRank), then Featured. Ties: earliest created first.
-    nonisolated static func dayOrdering(_ lhs: LocalEvent, _ rhs: LocalEvent) -> Bool {
-        if lhs.effectivePromotionRank != rhs.effectivePromotionRank {
-            return lhs.effectivePromotionRank > rhs.effectivePromotionRank
+    /// Boosted = any paid placement (Top Boost or Boosted via active_event_promotions, or is_paid_push).
+    nonisolated static func isBoosted(_ event: LocalEvent) -> Bool {
+        event.effectivePromotionRank > 0
+    }
+
+    /// Tier used to rank boosted listings. Real plan rank (placement_rank of the organisation's active
+    /// subscription) wins when known; until it is public, Top Boost (2) above Boosted (1) is the proxy.
+    nonisolated static func tierRank(_ event: LocalEvent, planRanks: [UUID: Int]) -> Int {
+        planRanks[event.id] ?? event.effectivePromotionRank
+    }
+
+    /// Day ordering agreed with Isaac:
+    /// 1. Boosted listings always above non-boosted, whatever the tier.
+    /// 2. Among boosted, higher tier first.
+    /// 3. Same tier (boosted or not): first listed (earliest created) first.
+    /// Featured is not used: in source it is an editorial flag, not a paid placement.
+    nonisolated static func dayOrdering(_ lhs: LocalEvent, _ rhs: LocalEvent, planRanks: [UUID: Int] = [:]) -> Bool {
+        let lhsBoosted = isBoosted(lhs)
+        let rhsBoosted = isBoosted(rhs)
+        if lhsBoosted != rhsBoosted {
+            return lhsBoosted
         }
 
-        if lhs.effectivePromotionRank >= ListingPromotionPlacement.priorityFirst.rawValue,
-           lhs.activePromotionPaidAt != rhs.activePromotionPaidAt {
-            return (lhs.activePromotionPaidAt ?? .distantFuture) < (rhs.activePromotionPaidAt ?? .distantFuture)
-        }
-
-        if lhs.isFeatured != rhs.isFeatured {
-            return lhs.isFeatured && !rhs.isFeatured
+        if lhsBoosted {
+            let lhsTier = tierRank(lhs, planRanks: planRanks)
+            let rhsTier = tierRank(rhs, planRanks: planRanks)
+            if lhsTier != rhsTier {
+                return lhsTier > rhsTier
+            }
         }
 
         if lhs.createdAt != rhs.createdAt {
@@ -115,8 +136,19 @@ enum HomeCalendarLogic {
         return lhs.startDate < rhs.startDate
     }
 
-    /// Home visibility rule shared with web: published listings that have not finished yet.
-    nonisolated static func isShownOnHome(_ event: LocalEvent, now: Date) -> Bool {
-        event.listingStatus == .published && max(event.endDate, event.startDate) >= now
+    /// Home visibility rule shared with web: a published listing shows until its end, then stays
+    /// (marked Finished) until midnight at the end of its end date, then drops off. No cap on future listings.
+    nonisolated static func isShownOnHome(_ event: LocalEvent, now: Date, calendar: Calendar) -> Bool {
+        guard event.listingStatus == .published else { return false }
+        let end = max(event.endDate, event.startDate)
+        guard let archiveAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: end)) else {
+            return end >= now
+        }
+        return now < archiveAt
+    }
+
+    /// True once the listing has ended but is still shown until midnight.
+    nonisolated static func isFinished(_ event: LocalEvent, now: Date) -> Bool {
+        max(event.endDate, event.startDate) < now
     }
 }

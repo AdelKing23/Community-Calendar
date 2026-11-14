@@ -83,24 +83,54 @@ final class HomeCalendarLogicTests: XCTestCase {
         XCTAssertTrue(HomeCalendarLogic.event(earlier, overlapsDay: date(2026, 11, 19), calendar: calendar))
     }
 
-    func testDayOrderingPutsHigherPlacementFirstThenFirstListed() {
+    func testBoostedAlwaysOutrankNonBoostedThenTierThenFirstListed() {
         let day = date(2026, 11, 20)
         let freeEarly = event("Free early", category: .community, start: day, end: day, createdAt: date(2026, 11, 1))
         let freeLate = event("Free late", category: .community, start: day, end: day, createdAt: date(2026, 11, 5))
-        let boosted = event("Boosted", category: .community, start: day, end: day, createdAt: date(2026, 11, 9), promotionRank: 1)
+        let featured = event("Featured", category: .community, start: day, end: day, createdAt: date(2026, 11, 3), isFeatured: true)
+        let boostedLate = event("Boosted late", category: .community, start: day, end: day, createdAt: date(2026, 11, 9), promotionRank: 1)
+        let boostedEarly = event("Boosted early", category: .community, start: day, end: day, createdAt: date(2026, 11, 8), promotionRank: 1)
         let top = event("Top", category: .community, start: day, end: day, createdAt: date(2026, 11, 10), promotionRank: 2)
-        let featured = event("Featured", category: .community, start: day, end: day, createdAt: date(2026, 11, 8), isFeatured: true)
 
-        let ordered = HomeCalendarLogic.dayEvents([freeLate, featured, freeEarly, boosted, top], on: day, calendar: calendar)
-        XCTAssertEqual(ordered.map(\.title), ["Top", "Boosted", "Featured", "Free early", "Free late"])
+        let ordered = HomeCalendarLogic.dayEvents([freeLate, featured, freeEarly, boostedLate, top, boostedEarly], on: day, calendar: calendar)
+        // Featured is editorial, not paid, so it sorts by first listed with the other non-boosted listings.
+        XCTAssertEqual(ordered.map(\.title), ["Top", "Boosted early", "Boosted late", "Free early", "Featured", "Free late"])
     }
 
-    func testFinishedListingsAreHiddenLikeHome() {
+    func testRealPlanRankRanksBoostedTiersWhenAvailable() {
+        let day = date(2026, 11, 20)
+        let growthFirst = event("Growth first", category: .sport, start: day, end: day, createdAt: date(2026, 11, 1), promotionRank: 1)
+        let growthSecond = event("Growth second", category: .sport, start: day, end: day, createdAt: date(2026, 11, 2), promotionRank: 1)
+        let sponsor = event("Sponsor", category: .sport, start: day, end: day, createdAt: date(2026, 11, 3), promotionRank: 1)
+        let unboostedSponsor = event("Sponsor unboosted", category: .sport, start: day, end: day, createdAt: date(2026, 10, 1))
+        let ranks = [growthFirst.id: 20, growthSecond.id: 20, sponsor.id: 30, unboostedSponsor.id: 30]
+
+        let ordered = HomeCalendarLogic.dayEvents([growthSecond, unboostedSponsor, growthFirst, sponsor], on: day, calendar: calendar, planRanks: ranks)
+        XCTAssertEqual(ordered.map(\.title), ["Sponsor", "Growth first", "Growth second", "Sponsor unboosted"])
+    }
+
+    func testVisibilityRunsUntilMidnightAfterEnd() {
         let now = date(2026, 11, 14, 12)
-        let finished = event("Finished", category: .sport, start: date(2026, 11, 14, 8), end: date(2026, 11, 14, 9))
         let running = event("Running", category: .sport, start: date(2026, 11, 14, 8), end: date(2026, 11, 14, 15))
-        XCTAssertFalse(HomeCalendarLogic.isShownOnHome(finished, now: now))
-        XCTAssertTrue(HomeCalendarLogic.isShownOnHome(running, now: now))
+        let endedToday = event("Ended today", category: .sport, start: date(2026, 11, 14, 8), end: date(2026, 11, 14, 9))
+        let endedYesterday = event("Ended yesterday", category: .sport, start: date(2026, 11, 13, 20), end: date(2026, 11, 13, 23, 30))
+        let multiDayEndingToday = event("Festival", category: .community, start: date(2026, 11, 12, 9), end: date(2026, 11, 14, 11))
+        let future = event("Next year", category: .community, start: date(2027, 9, 1, 9), end: date(2027, 9, 1, 11))
+
+        XCTAssertTrue(HomeCalendarLogic.isShownOnHome(running, now: now, calendar: calendar))
+        XCTAssertFalse(HomeCalendarLogic.isFinished(running, now: now))
+
+        XCTAssertTrue(HomeCalendarLogic.isShownOnHome(endedToday, now: now, calendar: calendar))
+        XCTAssertTrue(HomeCalendarLogic.isFinished(endedToday, now: now))
+        XCTAssertFalse(HomeCalendarLogic.isShownOnHome(endedToday, now: date(2026, 11, 15, 0, 0), calendar: calendar))
+
+        XCTAssertFalse(HomeCalendarLogic.isShownOnHome(endedYesterday, now: now, calendar: calendar))
+
+        XCTAssertTrue(HomeCalendarLogic.isShownOnHome(multiDayEndingToday, now: now, calendar: calendar))
+        XCTAssertTrue(HomeCalendarLogic.isFinished(multiDayEndingToday, now: now))
+        XCTAssertTrue(HomeCalendarLogic.event(multiDayEndingToday, overlapsDay: now, calendar: calendar))
+
+        XCTAssertTrue(HomeCalendarLogic.isShownOnHome(future, now: now, calendar: calendar))
     }
 
     func testPaletteHasTwelveDistinctColours() {
