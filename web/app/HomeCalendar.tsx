@@ -18,6 +18,7 @@ import {
   dayOrdering,
   eventsOnDay,
   gridCells,
+  isFinished,
   isShownOnHome,
   monthStarts,
   topicsByDay,
@@ -134,7 +135,9 @@ export default function HomeCalendar<E extends CalendarRecord>({
   }, [scopeKey]);
 
   const loadMonth = useCallback(async (month: Date, key: string, requestKey: string) => {
-    const from = new Date(Math.max(month.getTime(), Date.now())).toISOString();
+    // Start of today, so listings that ended earlier today still load (shown as Finished until midnight).
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const from = new Date(Math.max(month.getTime(), todayStart.getTime())).toISOString();
     const to = addMonths(month, 1).toISOString();
     const range = `end_at=gte.${encodeURIComponent(from)}&start_at=lt.${encodeURIComponent(to)}&order=start_at.asc`;
     let rows: E[] = [];
@@ -288,7 +291,12 @@ export default function HomeCalendar<E extends CalendarRecord>({
           </div>
         ) : (
           <div className="event-list">
-            {dayEvents.map((event) => <div key={`day-${event.id}`}>{renderCard(event)}</div>)}
+            {dayEvents.map((event) => isFinished(event, new Date()) ? (
+              <div key={`day-${event.id}`} className="home-calendar__finished">
+                <span className="home-calendar__finished-tag">✓ Finished</span>
+                <div className="home-calendar__finished-card">{renderCard(event)}</div>
+              </div>
+            ) : <div key={`day-${event.id}`}>{renderCard(event)}</div>)}
           </div>
         )}
       </div>

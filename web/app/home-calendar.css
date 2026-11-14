@@ -56,3 +56,10 @@
   .home-calendar__day { min-height: 56px; }
   .home-calendar__num { font-size: 16px; }
 }
+
+.home-calendar__finished { display: grid; gap: 6px; }
+.home-calendar__finished-tag {
+  justify-self: start; padding: 4px 10px; border-radius: 999px; background: var(--pcc-card);
+  font-size: 12px; font-weight: 700; color: var(--pcc-card-meta, rgba(26, 33, 31, 0.7));
+}
+.home-calendar__finished-card { opacity: 0.6; filter: saturate(0.2); }
