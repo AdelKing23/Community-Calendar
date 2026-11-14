@@ -1,0 +1,58 @@
+/* Home calendar (Board ↔ Calendar toggle). Topic colours live in homeCalendarLogic.ts and match iOS PCCTopicPalette. */
+.home-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.home-view-toggle {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 999px; border: 1px solid rgba(31, 77, 51, 0.18);
+  background: #fff; color: var(--pcc-green); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  position: relative; z-index: 2; box-shadow: 0 4px 14px rgba(10, 31, 26, 0.12);
+}
+.home-view-toggle:hover { background: #eef3ee; }
+.home-view-toggle:focus-visible { outline: 3px solid var(--pcc-orange); outline-offset: 2px; }
+
+.home-calendar { display: grid; gap: 16px; margin-top: 18px; scroll-margin-top: 80px; }
+.home-calendar__legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.home-calendar__legend-item {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  background: var(--pcc-card); font-size: 12px; font-weight: 700; color: var(--pcc-card-body, rgba(26, 33, 31, 0.68));
+}
+.home-calendar__legend-item i { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+
+.home-calendar__month {
+  background: var(--pcc-card); border: 1px solid var(--pcc-card-stroke, rgba(255, 255, 255, 0.92));
+  border-radius: var(--pcc-radius-card, 24px); box-shadow: var(--pcc-card-shadow, 0 10px 36px rgba(10, 31, 26, 0.08)); padding: 16px;
+}
+.home-calendar__month-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.home-calendar__month-head h3 { margin: 0; font-size: 17px; font-weight: 900; color: var(--pcc-ink); }
+.home-calendar__status { font-size: 12px; font-weight: 700; color: var(--pcc-card-meta, rgba(26, 33, 31, 0.7)); }
+.home-calendar__retry { background: none; border: 0; color: var(--pcc-orange-text); font-weight: 800; cursor: pointer; }
+.home-calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px 2px; text-align: center; }
+.home-calendar__weekday { font-size: 11px; font-weight: 900; color: rgba(26, 33, 31, 0.45); padding-bottom: 4px; }
+.home-calendar__day {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 48px; padding: 4px 0;
+  background: none; border: 0; border-radius: var(--pcc-radius-small, 14px); cursor: pointer; color: var(--pcc-ink);
+}
+.home-calendar__day:hover:not(:disabled) { background: rgba(31, 77, 51, 0.08); }
+.home-calendar__day:focus-visible { outline: 3px solid var(--pcc-orange); outline-offset: 1px; }
+.home-calendar__day.is-past { opacity: 0.32; cursor: default; }
+.home-calendar__num { width: 30px; height: 30px; line-height: 30px; border-radius: 999px; font-size: 15px; font-weight: 700; }
+.home-calendar__day.is-today .home-calendar__num { background: var(--pcc-orange-text); color: #fff; font-weight: 900; }
+.home-calendar__dots { display: flex; gap: 2px; align-items: center; height: 8px; }
+.home-calendar__dots i { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+.home-calendar__dots b { font-size: 10px; line-height: 8px; color: rgba(26, 33, 31, 0.6); }
+.home-calendar__more { text-align: center; padding: 4px 0 12px; }
+
+.home-calendar--day { gap: 14px; }
+.home-calendar__back {
+  justify-self: start; background: var(--pcc-card); border: 1px solid rgba(31, 77, 51, 0.18); border-radius: 999px;
+  padding: 8px 14px; color: var(--pcc-green); font-weight: 800; cursor: pointer;
+}
+.home-calendar__day-head {
+  background: var(--pcc-card); border-radius: var(--pcc-radius-card, 24px); padding: 16px 18px;
+  box-shadow: var(--pcc-card-shadow, 0 10px 36px rgba(10, 31, 26, 0.08));
+}
+.home-calendar__day-head h2 { margin: 0 0 4px; font-size: 22px; font-weight: 900; color: var(--pcc-ink); }
+.home-calendar__day-head p { margin: 0; font-weight: 700; color: var(--pcc-card-meta, rgba(26, 33, 31, 0.7)); }
+
+@media (min-width: 900px) {
+  .home-calendar__day { min-height: 56px; }
+  .home-calendar__num { font-size: 16px; }
+}
