@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { applyTheme, applyThemeForUser, cardTints, readTheme, saveTheme, wallpapers } from "./theme";
+import HomeCalendar, { HomeViewToggle, useHomeViewMode } from "./HomeCalendar";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://fujngeynyosnplviyvbg.supabase.co";
@@ -2699,6 +2700,7 @@ export default function CommunityCalendarApp() {
   const [locationScopes, setLocationScopes] = useState<LocationScopeRecord[]>([]);
   const [locationEdges, setLocationEdges] = useState<LocationEdgeRecord[]>([]);
   const [homeScope, setHomeScope] = useState(defaultHomeScope);
+  const [homeViewMode, setHomeViewMode] = useHomeViewMode();
   const [homeEventIDs, setHomeEventIDs] = useState<string[] | null>(null);
   const [widerPollIDs, setWiderPollIDs] = useState<Set<string>>(new Set());
   const [showFinder, setShowFinder] = useState(false);
@@ -3670,10 +3672,13 @@ export default function CommunityCalendarApp() {
           <section className="section section--tight" id="home-feed">
 
             <p className="eyebrow" style={{ color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.45)", marginBottom: 8 }}>Search</p>
+          <div className="home-header-row">
           <button type="button" className="area-pill" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
               {locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "Choose area"}
               {"  "}⌕
             </button>
+            <HomeViewToggle mode={homeViewMode} onChange={setHomeViewMode} />
+          </div>
             {!showFinder ? (
               <p className="panel-note" style={{ marginTop: 8 }}>Tap here to search again</p>
             ) : null}
@@ -3716,7 +3721,29 @@ export default function CommunityCalendarApp() {
               <span className="area-pill">{weeklyViews == null ? "—" : weeklyViews} views this week</span>
               <span className="area-pill">{(homeEventIDs ?? []).length} listings</span>
             </div>
-            {visibleEvents.length === 0 ? (
+            {homeViewMode === "calendar" ? (
+              <HomeCalendar<EventRecord>
+                homeScope={homeScope}
+                areaName={homeAreaName}
+                homeEventIDs={homeEventIDs}
+                widerPollIDs={widerPollIDs}
+                covering={coverageSlugsFor(homeScope, locationEdges)}
+                slugById={new Map(locationScopes.map((scope) => [scope.id, scope.slug]))}
+                excludeIDs={[WELCOME_EVENT_ID]}
+                rest={rest}
+                signImage={signedListingImageUrl}
+                renderCard={(event) => (
+                  <EventCard
+                    event={event}
+                    host={(event as EventRecord & { submitted_by?: string | null }).submitted_by ? eventHost.get((event as EventRecord & { submitted_by?: string | null }).submitted_by ?? undefined) : undefined}
+                    active={engagedByEvent.get(event.id)}
+                    busy={busy}
+                    onToggle={toggleEngagement}
+                    onOpen={setSelectedEvent}
+                  />
+                )}
+              />
+            ) : visibleEvents.length === 0 ? (
               <EmptyState title="It’s a quiet time right now" text="List something to be the first thing this week." />
             ) : (
               <div className="event-list" style={{ marginTop: 18 }}>
