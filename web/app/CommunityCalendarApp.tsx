@@ -913,6 +913,18 @@ const WELCOME_COPY = {
   signOff: "Ngā mihi nui.",
   button: "Get started",
 };
+// t225: welcome layout, scoped to the component. Matches iOS WelcomeOnceSheet (28px sides, 24/28/32px section gaps).
+const WELCOME_STYLE: Record<string, React.CSSProperties> = {
+  card: { display: "block", width: "min(520px, calc(100vw - 32px))", maxWidth: 520, maxHeight: "calc(100dvh - 48px)", overflowY: "auto", padding: "clamp(24px, 6vw, 32px) clamp(20px, 6vw, 28px) clamp(20px, 6vw, 28px)", borderRadius: 28, boxSizing: "border-box" },
+  badge: { width: 56, height: 56, borderRadius: 16, display: "grid", placeItems: "center", background: "var(--pcc-red, #c71a12)", color: "#fff" },
+  title: { margin: "24px 0 0", fontSize: "clamp(26px, 6vw, 32px)", lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.015em" },
+  body: { margin: "12px 0 0", fontSize: 16, lineHeight: 1.6, color: "var(--pcc-card-body, rgba(26,33,31,0.68))" },
+  tips: { listStyle: "none", margin: "clamp(20px, 6vw, 28px) 0 0", padding: 20, display: "grid", gap: 16, borderRadius: 20, background: "rgba(26,33,31,0.05)" },
+  tip: { display: "flex", alignItems: "flex-start", gap: 14, fontSize: 15, lineHeight: 1.5 },
+  check: { flex: "0 0 auto", width: 20, height: 20, marginTop: 1, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--pcc-green, #1f4d33)", color: "#fff", fontSize: 12, fontWeight: 800 },
+  signOff: { margin: "24px 0 0", fontSize: 17, fontWeight: 700 },
+  button: { display: "block", width: "100%", marginTop: "clamp(24px, 6vw, 32px)", padding: "16px 20px", fontSize: 17, fontWeight: 700, borderRadius: 16 },
+};
 // Shows the welcome first (when due), then lets the quick tour open.
 function WelcomeAndTour({ session }: { session: AuthSession | null }) {
   const [open, setOpen] = useState(false);
@@ -962,14 +974,23 @@ function WelcomeAndTour({ session }: { session: AuthSession | null }) {
     <>
       {open ? (
         <div className="tour-overlay" role="dialog" aria-modal="true" aria-label={WELCOME_COPY.title} onClick={dismiss}>
-          <div className="tour-card pcc-card welcome-sheet" onClick={(e) => e.stopPropagation()}>
-            <h3>{WELCOME_COPY.title}</h3>
-            <p>{WELCOME_COPY.body}</p>
-            <ul className="welcome-tips" style={{ listStyle: "disc outside", paddingLeft: "1.25rem", margin: "0 0 12px", display: "grid", gap: 6 }}>{WELCOME_COPY.tips.map((tip) => <li key={tip} style={{ display: "list-item" }}>{tip}</li>)}</ul>
-            <p><strong>{WELCOME_COPY.signOff}</strong></p>
-            <div className="action-row">
-              <button type="button" className="button button--primary" onClick={dismiss}>{WELCOME_COPY.button}</button>
+          {/* t225: same hierarchy and 8px-grid spacing as the iOS sheet; styles scoped here (globals.css untouched). */}
+          <div className="tour-card pcc-card welcome-sheet" onClick={(e) => e.stopPropagation()} style={WELCOME_STYLE.card}>
+            <div aria-hidden="true" style={WELCOME_STYLE.badge}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="3" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
             </div>
+            <h3 style={WELCOME_STYLE.title}>{WELCOME_COPY.title}</h3>
+            <p style={WELCOME_STYLE.body}>{WELCOME_COPY.body}</p>
+            <ul className="welcome-tips" style={WELCOME_STYLE.tips}>
+              {WELCOME_COPY.tips.map((tip) => (
+                <li key={tip} style={WELCOME_STYLE.tip}>
+                  <span aria-hidden="true" style={WELCOME_STYLE.check}>✓</span>
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+            <p style={WELCOME_STYLE.signOff}>{WELCOME_COPY.signOff}</p>
+            <button type="button" className="button button--primary" onClick={dismiss} style={WELCOME_STYLE.button}>{WELCOME_COPY.button}</button>
           </div>
         </div>
       ) : null}
