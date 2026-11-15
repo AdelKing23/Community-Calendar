@@ -2783,7 +2783,7 @@ export default function CommunityCalendarApp() {
     : { background: "var(--pcc-card)", color: "var(--pcc-green)", border: "1px solid var(--pcc-green)" };
 
 
-  const eventHost = useMemo(() => new Map(hosts.map((host) => [host.owner_user_id, host])), [hosts]);
+  const eventHost = useMemo(() => new Map(hosts.map((host) => [host.id, host])), [hosts]);
   const visibleEvents = useMemo(() => {
     const topicFiltered = selectedTopics.length === 0
       ? events
@@ -3815,7 +3815,7 @@ export default function CommunityCalendarApp() {
                 renderCard={(event) => (
                   <EventCard
                     event={event}
-                    host={(event as EventRecord & { submitted_by?: string | null }).submitted_by ? eventHost.get((event as EventRecord & { submitted_by?: string | null }).submitted_by ?? undefined) : undefined}
+                    host={event.business_profile_id ? eventHost.get(event.business_profile_id) : undefined}
                     active={engagedByEvent.get(event.id)}
                     busy={busy}
                     onToggle={toggleEngagement}
@@ -3830,7 +3830,7 @@ export default function CommunityCalendarApp() {
                 {visibleEvents.slice(0, 30).map((event) => (
                   <EventCard
                     event={event}
-                    host={event.submitted_by ? eventHost.get(event.submitted_by) : undefined}
+                    host={event.business_profile_id ? eventHost.get(event.business_profile_id) : undefined}
                     key={`home-${event.id}`}
                     active={engagedByEvent.get(event.id)}
                     busy={busy}
@@ -3914,7 +3914,7 @@ export default function CommunityCalendarApp() {
                 {visibleEvents.slice(0, 30).map((event) => (
                   <EventCard
                     event={event}
-                    host={event.submitted_by ? eventHost.get(event.submitted_by) : undefined}
+                    host={event.business_profile_id ? eventHost.get(event.business_profile_id) : undefined}
                     key={event.id}
                     active={engagedByEvent.get(event.id)}
                     busy={busy}
