@@ -197,7 +197,26 @@ type EventRecord = {
   business_profile_id?: string | null;
   is_free?: boolean | null;
   image_url?: string | null;
+  submitted_by?: string | null;
 };
+
+// One shape for the Create listing handler (Home create panel and Account/Member panels).
+type CreateListingInput = {
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  location: string;
+  placeName: string;
+  locationScopeId: string | null;
+  topics: string[];
+  images: File[];
+  poll?: { question: string; options: string[]; allowCustom: boolean } | null;
+  pollClosesAt?: string | null;
+  recurrence?: RecurrenceChoice | null;
+  recurrenceUntil?: string | null;
+};
+type CreateListingHandler = (input: CreateListingInput) => Promise<boolean | void>;
 
 type HostRecord = {
   id: string;
@@ -4427,7 +4446,7 @@ async function shareEvent(event: EventRecord) {
   const place = [event.venue, event.location_display_name ?? event.town].filter(Boolean).join(", ");
   const text = `${event.title}\n${date}\n${time}\n${place}\n\nShared from Coast Calendar.`;
   try {
-    if (typeof navigator !== "undefined" && "share" in navigator) {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       await navigator.share({ title: event.title, text });
       return;
     }
@@ -4530,7 +4549,7 @@ async function sharePoll(event: EventRecord) {
   recordEventAnalytics(event.id, "share", "poll_card");
   const text = `Poll: ${event.title}\n${event.location_display_name ?? event.town ?? ""}\n\nShared from Coast Calendar.`;
   try {
-    if (typeof navigator !== "undefined" && "share" in navigator) { await navigator.share({ title: event.title, text }); return; }
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") { await navigator.share({ title: event.title, text }); return; }
     await navigator.clipboard.writeText(text);
     window.alert("Poll details copied to clipboard.");
   } catch {
@@ -5297,7 +5316,7 @@ function AccountHub({
   onMarkNotificationRead: (notificationID: string) => void;
   onSubmitMemberApplication: (draft: MemberDraft) => Promise<boolean>;
   onUploadMemberImage: (file: File, kind: "avatar" | "hero" | "notice") => Promise<string>;
-  onCreateListing: (form: HTMLFormElement) => void;
+  onCreateListing: CreateListingHandler;
   onCreateNotice: (draft: NoticeDraft) => Promise<boolean>;
   initialSection?: AccountHubSection;
 }) {
@@ -5463,7 +5482,7 @@ function MemberPanel({ session, profile, subscriptions, notices, busy, onSubmit,
   busy: boolean;
   onSubmit: (draft: MemberDraft) => Promise<boolean>;
   onUploadImage: (file: File, kind: "avatar" | "hero" | "notice") => Promise<string>;
-  onCreateListing: (form: HTMLFormElement) => void;
+  onCreateListing: CreateListingHandler;
   onCreateNotice: (draft: NoticeDraft) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState<MemberDraft>(() => memberDraftFromProfile(profile, session.user.email));
