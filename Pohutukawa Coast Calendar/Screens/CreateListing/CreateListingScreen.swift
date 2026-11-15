@@ -982,7 +982,7 @@ struct MyListingCard: View {
                         .font(.headline.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text(listing.isPoll ? "\(listing.displayLocationName) · Poll closes \(listing.dateText)" : "\(listing.displayLocationName) · \(listing.venue)")
+                    Text(listing.isPoll ? "\(listing.displayLocationName) · Poll closes \(listing.endDate.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute()))" : "\(listing.displayLocationName) · \(listing.venue)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(PCCTheme.ink.opacity(0.62))
                 }
@@ -1881,8 +1881,17 @@ struct ListingEditRequestSheet: View {
                             }
                         }
 
-                        DatePicker("Date", selection: $draft.date, displayedComponents: .date)
-                        DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+                        if draft.isPoll {
+                            DatePicker(
+                                "Poll closes",
+                                selection: $draft.pollClosesAt,
+                                in: draft.pollCloseEditRange,
+                                displayedComponents: [.date, .hourAndMinute]
+                            )
+                        } else {
+                            DatePicker("Date", selection: $draft.date, displayedComponents: .date)
+                            DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+                        }
 
                         PCCFormField(title: "Cost", text: $draft.priceLabel, prompt: "Free, koha, $20")
                         PCCFormField(title: "Audience", text: $draft.audience, prompt: "Everyone")
@@ -2238,8 +2247,37 @@ struct PendingListingForm: View {
                 PollBuilderSection(draft: $draft, focusedField: $focusedField, highlightedFields: highlightedFields)
             }
 
-            DatePicker("Date", selection: $draft.date, displayedComponents: .date)
-            DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+            if draft.listingKind == .poll {
+                DatePicker(
+                    "Poll closes",
+                    selection: $draft.pollClosesAt,
+                    in: PollCloseWindow.range(),
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                Text("The poll opens when it’s published and closes at this time. It then shows as Finished until midnight.")
+                    .font(.caption)
+                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                DatePicker("Date", selection: $draft.date, displayedComponents: .date)
+                DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+
+                Picker("Repeats", selection: $draft.recurrence) {
+                    ForEach(ListingRecurrence.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+
+                if draft.recurrence != .none {
+                    Toggle("Set a last date", isOn: $draft.hasRecurrenceEnd)
+                    if draft.hasRecurrenceEnd {
+                        DatePicker("Last date", selection: $draft.recurrenceUntil, in: draft.date..., displayedComponents: .date)
+                    }
+                    Text("A repeating listing counts as one listing.")
+                        .font(.caption)
+                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                }
+            }
 
             PCCFormField(title: "Cost", text: $draft.priceLabel, prompt: "Free, koha, $20")
                 .focused($focusedField, equals: .cost)

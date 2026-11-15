@@ -469,6 +469,11 @@ struct ListingEditDraft: Hashable {
     var contactName: String
     var contactEmail: String
     var contactPhone: String
+    /// Kept from the listing so an edit never resets end_at to start + 2h.
+    var isPoll: Bool
+    var originalStart: Date
+    var originalEnd: Date
+    var pollClosesAt: Date
 
     init(event: LocalEvent) {
         title = event.title
@@ -484,6 +489,18 @@ struct ListingEditDraft: Hashable {
         contactName = event.contactName ?? ""
         contactEmail = event.contactEmail ?? ""
         contactPhone = event.contactPhone ?? ""
+        isPoll = event.isPoll
+        originalStart = event.startDate
+        originalEnd = event.endDate
+        pollClosesAt = event.endDate
+    }
+
+    /// Poll close limits for an edit: 1 hour to 90 days after the poll opened, and not in the past.
+    var pollCloseEditRange: ClosedRange<Date> {
+        let upper = Calendar.current.date(byAdding: .day, value: PollCloseWindow.maximumDays, to: originalStart)
+            ?? originalStart.addingTimeInterval(PollCloseWindow.minimumLength)
+        let lower = min(max(originalStart.addingTimeInterval(PollCloseWindow.minimumLength), Date()), upper)
+        return lower...upper
     }
 
     var canSubmit: Bool {
@@ -495,7 +512,9 @@ struct ListingEditDraft: Hashable {
     }
 
     var startDate: Date {
-        Calendar.current.date(
+        // Polls open when published; an edit keeps the original opening time.
+        if isPoll { return originalStart }
+        return Calendar.current.date(
             bySettingHour: Calendar.current.component(.hour, from: time),
             minute: Calendar.current.component(.minute, from: time),
             second: 0,
@@ -504,7 +523,13 @@ struct ListingEditDraft: Hashable {
     }
 
     var endDate: Date {
-        Calendar.current.date(byAdding: .hour, value: 2, to: startDate) ?? startDate
+        if isPoll {
+            let range = pollCloseEditRange
+            return min(max(pollClosesAt, range.lowerBound), range.upperBound)
+        }
+        // Keep the listing's existing length; move the end with the start if the start changes.
+        let length = originalEnd.timeIntervalSince(originalStart)
+        return startDate.addingTimeInterval(length > 0 ? length : 2 * 60 * 60)
     }
 
     var proposedChanges: [String: EventChangeValue] {
@@ -864,6 +889,38 @@ enum EventFeedOrdering {
     }
 }
 
+/// Repeat choice on Create. One listing creates the whole series and uses one listing from the allowance.
+enum ListingRecurrence: String, CaseIterable, Identifiable, Hashable {
+    case none, weekly, fortnightly, monthly, yearly
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .none: return "Doesn’t repeat"
+        case .weekly: return "Weekly"
+        case .fortnightly: return "Fortnightly"
+        case .monthly: return "Monthly"
+        case .yearly: return "Yearly"
+        }
+    }
+
+    /// Value stored in events.recurrence_interval (nil = one-off).
+    var databaseValue: String? { self == .none ? nil : rawValue }
+}
+
+/// Poll close limits shared with web (POLL_CLOSE_MIN_MS / POLL_CLOSE_MAX_DAYS).
+enum PollCloseWindow {
+    static let minimumLength: TimeInterval = 60 * 60
+    static let maximumDays = 90
+
+    static func range(from now: Date = Date()) -> ClosedRange<Date> {
+        let earliest = now.addingTimeInterval(minimumLength)
+        let latest = Calendar.current.date(byAdding: .day, value: maximumDays, to: now) ?? earliest
+        return earliest...latest
+    }
+}
+
 struct PendingListingDraft: Hashable {
     var listingKind: ListingKind = .event
     var listingTier: ListingTier = .communityFree
@@ -883,6 +940,10 @@ struct PendingListingDraft: Hashable {
     var pollQuestion = ""
     var pollOptions: [String] = ["", ""]
     var allowsCustomPollAnswer = false
+    var pollClosesAt = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+    var recurrence: ListingRecurrence = .none
+    var hasRecurrenceEnd = false
+    var recurrenceUntil = Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date()
 
     var commercialSignals: [ListingCommercialSignal] {
         ListingCommercialSignalDetector.signals(for: self)

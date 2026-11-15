@@ -4081,6 +4081,8 @@ struct PendingEventInsert: Encodable {
     let pollQuestion: String?
     let pollOptions: [String]?
     let pollAllowsCustomAnswer: Bool
+    let recurrenceInterval: String?
+    let recurrenceUntil: String?
     private var includeStructuredPollColumns: Bool
 
     init(draft: PendingListingDraft, businessProfileID: UUID, includeStructuredPollColumns: Bool = true) {
@@ -4097,8 +4099,19 @@ struct PendingEventInsert: Encodable {
         self.primaryLocationScopeID = UUID(uuidString: draft.locationScopeID) == nil ? nil : draft.locationScopeID
         self.locationDisplayName = draft.locationDisplayName.nilIfEmpty
         self.venue = draft.venue.trimmed.nilIfEmpty ?? "Community poll in \(draft.locationDisplayName)"
-        self.startAt = start
-        self.endAt = Calendar.current.date(byAdding: .hour, value: 2, to: start) ?? start
+        if draft.listingKind == .poll {
+            // Polls open on submit and close at the time chosen on Create. The server uses end_at
+            // for Finished and archive, so it must be the real close time (same as web).
+            let opens = Date()
+            let window = PollCloseWindow.range(from: opens)
+            self.startAt = opens
+            self.endAt = min(max(draft.pollClosesAt, window.lowerBound), window.upperBound)
+        } else {
+            self.startAt = start
+            // Normal listings: the server shows them until midnight at the end of the start date.
+            // end_at keeps a nominal 2 hours for the time range shown on cards and calendar exports.
+            self.endAt = Calendar.current.date(byAdding: .hour, value: 2, to: start) ?? start
+        }
         let price = draft.priceLabel.trimmed
         self.priceLabel = price.isEmpty ? "Free" : price
         self.isFree = price.isEmpty || price.localizedCaseInsensitiveContains("free")
@@ -4124,7 +4137,20 @@ struct PendingEventInsert: Encodable {
         self.pollQuestion = draft.pollDetails?.question
         self.pollOptions = draft.pollDetails?.options
         self.pollAllowsCustomAnswer = draft.pollDetails?.allowsCustomAnswer ?? false
+        let repeats = draft.listingKind == .event ? draft.recurrence : .none
+        self.recurrenceInterval = repeats.databaseValue
+        self.recurrenceUntil = (repeats == .none || !draft.hasRecurrenceEnd) ? nil : Self.localDayString(draft.recurrenceUntil)
         self.includeStructuredPollColumns = includeStructuredPollColumns
+    }
+
+    /// yyyy-MM-dd in Pacific/Auckland, for the events.recurrence_until date column.
+    private static func localDayString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_NZ_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Pacific/Auckland")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     func withoutStructuredPollColumns() -> PendingEventInsert {
@@ -4162,6 +4188,9 @@ struct PendingEventInsert: Encodable {
             try container.encodeIfPresent(pollOptions, forKey: .pollOptions)
             try container.encode(pollAllowsCustomAnswer, forKey: .pollAllowsCustomAnswer)
         }
+        // Only sent for repeating listings, so one-off creates keep working before the recurring SQL is applied.
+        try container.encodeIfPresent(recurrenceInterval, forKey: .recurrenceInterval)
+        try container.encodeIfPresent(recurrenceUntil, forKey: .recurrenceUntil)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -4189,6 +4218,8 @@ struct PendingEventInsert: Encodable {
         case pollQuestion = "poll_question"
         case pollOptions = "poll_options"
         case pollAllowsCustomAnswer = "poll_allows_custom_answer"
+        case recurrenceInterval = "recurrence_interval"
+        case recurrenceUntil = "recurrence_until"
     }
 }
 
