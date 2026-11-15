@@ -88,8 +88,16 @@ final class DeviceCalendarStore: ObservableObject {
         let calendarEvent = EKEvent(eventStore: eventStore)
         calendarEvent.calendar = calendar
         calendarEvent.title = event.title
-        calendarEvent.startDate = event.startDate
-        calendarEvent.endDate = max(event.endDate, event.startDate.addingTimeInterval(60 * 60))
+        if event.isAllDay {
+            // t222: a true all-day event on the listing's NZ date.
+            let day = NZDay.localDate(for: event.startDate)
+            calendarEvent.isAllDay = true
+            calendarEvent.startDate = day
+            calendarEvent.endDate = day
+        } else {
+            calendarEvent.startDate = event.startDate
+            calendarEvent.endDate = max(event.endDate, event.startDate.addingTimeInterval(60 * 60))
+        }
         calendarEvent.location = "\(event.venue), \(event.displayLocationName)"
         calendarEvent.notes = [
             event.shortDescription,
