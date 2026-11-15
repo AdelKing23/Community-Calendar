@@ -885,6 +885,21 @@ const TOUR_KEY = "cc-tour-seen-v1";
 // Signed in: a user_welcome_dismissals row (server). Signed out: this browser only. Same copy as iOS WelcomeCopy.
 const WELCOME_VERSION = 1;
 const WELCOME_LOCAL_KEY = "cc-welcome-v1-dismissed";
+// t224: accounts that dismissed the welcome in this browser (used only if the server check fails or its write was lost).
+const WELCOME_ACCOUNTS_KEY = "cc-welcome-v1-dismissed-accounts";
+function welcomeDismissedAccounts(): string[] {
+  try { const parsed = JSON.parse(window.localStorage.getItem(WELCOME_ACCOUNTS_KEY) || "[]"); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; }
+}
+function recordWelcomeDismissal(current: AuthSession) {
+  void refreshSessionIfNeeded(current).then((fresh) => {
+    if (!fresh || fresh.user.id !== current.user.id) return;
+    return rest<void>("user_welcome_dismissals", {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify({ user_id: fresh.user.id, welcome_version: WELCOME_VERSION }),
+    }, fresh.access_token);
+  }).catch(() => undefined);
+}
 const WELCOME_COPY = {
   title: "Welcome to Coast Calendar",
   body: "Kia ora, and welcome. Coast Calendar is where locals share what’s on nearby: events, polls and notices from community groups and local organisations.",
@@ -903,18 +918,23 @@ function WelcomeAndTour({ session }: { session: AuthSession | null }) {
   const [open, setOpen] = useState(false);
   const [settled, setSettled] = useState(false);
   const userId = session?.user.id ?? null;
-  const token = session?.access_token;
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       let show = false;
-      if (userId && token) {
+      if (session && userId) {
+        // t224: check with a fresh token (a stored session can be expired) and fail open on errors,
+        // unless this browser already recorded this account's dismissal.
+        const dismissedHere = welcomeDismissedAccounts().includes(userId);
         try {
+          const fresh = await refreshSessionIfNeeded(session);
+          if (!fresh) throw new Error("session refresh failed");
           const rows = await rest<{ welcome_version: number }[]>(
-            `user_welcome_dismissals?select=welcome_version&user_id=eq.${userId}&welcome_version=eq.${WELCOME_VERSION}`, {}, token,
+            `user_welcome_dismissals?select=welcome_version&user_id=eq.${userId}&welcome_version=eq.${WELCOME_VERSION}`, {}, fresh.access_token,
           );
-          show = rows.length === 0;
-        } catch { show = false; /* network problem: don't nag */ }
+          if (rows.length === 0 && dismissedHere) recordWelcomeDismissal(fresh);
+          show = rows.length === 0 && !dismissedHere;
+        } catch { show = !dismissedHere; }
       } else {
         try { show = !window.localStorage.getItem(WELCOME_LOCAL_KEY); } catch { show = false; }
       }
@@ -925,16 +945,17 @@ function WelcomeAndTour({ session }: { session: AuthSession | null }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+  // Runs only on Get started or a click outside the card, never when the welcome appears.
   const dismiss = () => {
     setOpen(false);
     setSettled(true);
     try { window.localStorage.setItem(WELCOME_LOCAL_KEY, "1"); } catch { /* ignore */ }
-    if (userId && token) {
-      void rest<void>("user_welcome_dismissals", {
-        method: "POST",
-        headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-        body: JSON.stringify({ user_id: userId, welcome_version: WELCOME_VERSION }),
-      }, token).catch(() => undefined);
+    if (session && userId) {
+      try {
+        const ids = welcomeDismissedAccounts();
+        if (!ids.includes(userId)) window.localStorage.setItem(WELCOME_ACCOUNTS_KEY, JSON.stringify([...ids, userId]));
+      } catch { /* ignore */ }
+      recordWelcomeDismissal(session);
     }
   };
   return (
