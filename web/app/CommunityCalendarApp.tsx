@@ -944,7 +944,7 @@ function WelcomeAndTour({ session }: { session: AuthSession | null }) {
           <div className="tour-card pcc-card welcome-sheet" onClick={(e) => e.stopPropagation()}>
             <h3>{WELCOME_COPY.title}</h3>
             <p>{WELCOME_COPY.body}</p>
-            <ul className="welcome-tips">{WELCOME_COPY.tips.map((tip) => <li key={tip}>{tip}</li>)}</ul>
+            <ul className="welcome-tips" style={{ listStyle: "disc outside", paddingLeft: "1.25rem", margin: "0 0 12px", display: "grid", gap: 6 }}>{WELCOME_COPY.tips.map((tip) => <li key={tip} style={{ display: "list-item" }}>{tip}</li>)}</ul>
             <p><strong>{WELCOME_COPY.signOff}</strong></p>
             <div className="action-row">
               <button type="button" className="button button--primary" onClick={dismiss}>{WELCOME_COPY.button}</button>
