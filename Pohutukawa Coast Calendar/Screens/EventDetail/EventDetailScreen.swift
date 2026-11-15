@@ -76,7 +76,9 @@ struct EventDetailScreen: View {
         .navigationTitle(event.isPoll ? "Poll" : "Event")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: event.id) {
+            #if DEBUG
             print("[OrgCalendar] detail gate status=\(event.listingStatus) submitted=\(String(describing: event.submittedBy)) me=\(String(describing: userSessionStore.session?.userID)) manage=\(canManageCalendarItem)")
+            #endif
             await recordDetailView()
         }
         .sheet(isPresented: $isShowingReportSheet) {

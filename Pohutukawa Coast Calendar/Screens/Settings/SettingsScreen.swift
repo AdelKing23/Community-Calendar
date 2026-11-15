@@ -1883,11 +1883,9 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
                 "6. Moderation and removal",
                 "Support may review, change the status of, or remove listings, polls, notices, photos or accounts that break these Terms or that we reasonably consider harmful to the community or the Service. We do not promise to review all content.",
                 "7. Subscriptions and payments",
-                "Paid organisation plans are monthly subscriptions that renew automatically until cancelled. You can cancel anytime:",
-                "• on iOS, through your Apple ID subscription settings",
-                "• on the web, through Stripe (Manage subscription in Settings)",
+                "Paid organisation plans are monthly subscriptions that renew automatically until cancelled. You can cancel anytime in your Apple ID subscription settings.",
                 "Cancelling stops future renewals. Your plan stays active until the end of the current paid period.",
-                "On iOS, payment is charged to your Apple ID and Apple’s standard terms apply. On the web, payments are processed by Stripe. We do not see or store your full card details.",
+                "In the iOS app, payment is charged to your Apple ID and Apple’s standard terms apply. We do not see or store your full card details.",
                 "8. Intellectual property",
                 "The Coast Calendar name, branding, app, and website are owned by Atlas Digital. You may not copy or reuse them without permission, except for normal personal use of the Service.",
                 "9. Disclaimer and limitation of liability",
@@ -1926,7 +1924,7 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
                 "4. What we do not do",
                 "We do not show ads. We do not sell your data. We do not track you across other apps or websites.",
                 "5. Payments",
-                "Payments are handled by Apple on iOS and by Stripe on the web. We do not see or store your full card details.",
+                "Payments in the iOS app are handled by Apple. We do not see or store your full card details.",
                 "6. Service providers",
                 "Your data is stored with our hosting and database providers (Supabase and Cloudflare), who process it only to run the Service. We require them to handle data securely.",
                 "7. How long we keep information",
@@ -1953,7 +1951,7 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
         case .paymentRefunds:
             return [
                 "Approved member accounts must keep an active subscription to publish or run polls.",
-                "Payments are handled securely by Apple or the payment provider shown in the app. Coast Calendar does not store card details.",
+                "Payments in the app are handled securely by Apple. Coast Calendar does not store card details.",
                 "Subscription access does not guarantee attendance, sales, bookings or enquiries.",
                 "Refund requests for completed Apple purchases are handled through Apple unless required otherwise by law."
             ]
