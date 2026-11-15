@@ -860,45 +860,79 @@ function CancelPlanControl({ subscriptions, session, profileId }: { subscription
 // launch1: first-visit tips overlay. Seen state in localStorage; reopen via the "cc-show-tour" window event.
 const TOUR_KEY = "cc-tour-seen-v1";
 
-// welcome1: Support's welcome listing is pinned first on Home / What's On (client-side; no owner or table needed).
-const WELCOME_EVENT_ID = "e1188df3-816b-449e-973c-36133bc13bb2";
-const WELCOME_EXTRA = "This is where everyone shares their events and you hand pick what you want to fill your own personal calendar up (see inside the Settings menu for My Calendar and start adding things to do).";
-const WELCOME_RESURFACE_KEY = "cc-welcome-last-shown";
-const WELCOME_RESURFACE_DAYS = 10;
-function withWelcomeExtra(event: EventRecord): EventRecord {
-  const add = (text: string | null | undefined) => {
-    const base = (text ?? "").trim();
-    if (!base || base.includes(WELCOME_EXTRA)) return base || WELCOME_EXTRA;
-    const sign = "Ngā mihi nui.";
-    return base.endsWith(sign) ? `${base.slice(0, -sign.length).trimEnd()} ${WELCOME_EXTRA} ${sign}` : `${base} ${WELCOME_EXTRA}`;
-  };
-  return { ...event, short_description: add(event.short_description), long_description: add(event.long_description) };
-}
-function WelcomeResurface({ welcome, onOpen }: { welcome: EventRecord | null; onOpen: (event: EventRecord) => void }) {
+// t221: per-account welcome, seen once on first entry and dismissed once.
+// Signed in: a user_welcome_dismissals row (server). Signed out: this browser only. Same copy as iOS WelcomeCopy.
+const WELCOME_VERSION = 1;
+const WELCOME_LOCAL_KEY = "cc-welcome-v1-dismissed";
+const WELCOME_COPY = {
+  title: "Welcome to Coast Calendar",
+  body: "Kia ora, and welcome. Coast Calendar is where locals share what’s on nearby: events, polls and notices from community groups and local organisations.",
+  tips: [
+    "Browse Home, or switch to the calendar view to see what’s on each day.",
+    "Choose your area to see what’s close to you.",
+    "Save listings to My Calendar so you don’t miss them.",
+    "Organisations can create an account and apply in Settings to start listing.",
+    "Questions or feedback? Send us a Support message any time.",
+  ],
+  signOff: "Ngā mihi nui.",
+  button: "Get started",
+};
+// Shows the welcome first (when due), then lets the quick tour open.
+function WelcomeAndTour({ session }: { session: AuthSession | null }) {
   const [open, setOpen] = useState(false);
+  const [settled, setSettled] = useState(false);
+  const userId = session?.user.id ?? null;
+  const token = session?.access_token;
   useEffect(() => {
-    if (!welcome) return;
-    try {
-      const now = Date.now();
-      const last = Number(window.localStorage.getItem(WELCOME_RESURFACE_KEY) || 0);
-      const tourShowing = !window.localStorage.getItem(TOUR_KEY);
-      if (!last || tourShowing) { window.localStorage.setItem(WELCOME_RESURFACE_KEY, String(now)); return; }
-      if (now - last >= WELCOME_RESURFACE_DAYS * 86400000) { window.localStorage.setItem(WELCOME_RESURFACE_KEY, String(now)); setOpen(true); }
-    } catch { /* ignore */ }
-  }, [welcome]);
-  if (!open || !welcome) return null;
+    let cancelled = false;
+    void (async () => {
+      let show = false;
+      if (userId && token) {
+        try {
+          const rows = await rest<{ welcome_version: number }[]>(
+            `user_welcome_dismissals?select=welcome_version&user_id=eq.${userId}&welcome_version=eq.${WELCOME_VERSION}`, {}, token,
+          );
+          show = rows.length === 0;
+        } catch { show = false; /* network problem: don't nag */ }
+      } else {
+        try { show = !window.localStorage.getItem(WELCOME_LOCAL_KEY); } catch { show = false; }
+      }
+      if (cancelled) return;
+      setOpen(show);
+      if (!show) setSettled(true);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+  const dismiss = () => {
+    setOpen(false);
+    setSettled(true);
+    try { window.localStorage.setItem(WELCOME_LOCAL_KEY, "1"); } catch { /* ignore */ }
+    if (userId && token) {
+      void rest<void>("user_welcome_dismissals", {
+        method: "POST",
+        headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+        body: JSON.stringify({ user_id: userId, welcome_version: WELCOME_VERSION }),
+      }, token).catch(() => undefined);
+    }
+  };
   return (
-    <div className="tour-overlay" role="dialog" aria-modal="true" aria-label="Welcome to Coast Calendar" onClick={() => setOpen(false)}>
-      <div className="tour-card pcc-card welcome-sheet" onClick={(e) => e.stopPropagation()}>
-        <p className="tour-step">From Coast Calendar</p>
-        <h3>{welcome.title}</h3>
-        <p>{welcome.long_description || welcome.short_description}</p>
-        <div className="action-row">
-          <button type="button" className="button" onClick={() => setOpen(false)}>Close</button>
-          <button type="button" className="button button--primary" onClick={() => { setOpen(false); onOpen(welcome); }}>Open</button>
+    <>
+      {open ? (
+        <div className="tour-overlay" role="dialog" aria-modal="true" aria-label={WELCOME_COPY.title} onClick={dismiss}>
+          <div className="tour-card pcc-card welcome-sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>{WELCOME_COPY.title}</h3>
+            <p>{WELCOME_COPY.body}</p>
+            <ul className="welcome-tips">{WELCOME_COPY.tips.map((tip) => <li key={tip}>{tip}</li>)}</ul>
+            <p><strong>{WELCOME_COPY.signOff}</strong></p>
+            <div className="action-row">
+              <button type="button" className="button button--primary" onClick={dismiss}>{WELCOME_COPY.button}</button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      ) : null}
+      <QuickTour held={!settled} />
+    </>
   );
 }
 const tourCards = [
@@ -909,15 +943,15 @@ const tourCards = [
   { title: "Make it yours", text: "Use Settings to change card colours and add a wallpaper." },
   { title: "Support", text: "Questions, feedback or problems? Send us a Support message any time." },
 ];
-function QuickTour() {
+function QuickTour({ held = false }: { held?: boolean }) {
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   useEffect(() => {
-    try { if (!window.localStorage.getItem(TOUR_KEY)) setOpen(true); } catch { /* ignore */ }
+    if (!held) { try { if (!window.localStorage.getItem(TOUR_KEY)) setOpen(true); } catch { /* ignore */ } }
     const show = () => { setIndex(0); setOpen(true); };
     window.addEventListener("cc-show-tour", show);
     return () => window.removeEventListener("cc-show-tour", show);
-  }, []);
+  }, [held]);
   if (!open) return null;
   const close = () => { try { window.localStorage.setItem(TOUR_KEY, "1"); } catch { /* ignore */ } setOpen(false); };
   const card = tourCards[index];
@@ -2796,7 +2830,6 @@ export default function CommunityCalendarApp() {
       ? topicFiltered.filter((event) => eventOverlapsWindow(event, dateScope))
       : topicFiltered;
     if (view !== "home" && view !== "whatsOn") return dated;
-    const welcomeRow = events.find((event) => event.id === WELCOME_EVENT_ID);
     const allowed = new Set(homeEventIDs ?? []);
     const covering = coverageSlugsFor(homeScope, locationEdges);
     const slugById = new Map(locationScopes.map((scope) => [scope.id, scope.slug]));
@@ -2808,9 +2841,8 @@ export default function CommunityCalendarApp() {
         return cov ? covering.has(cov) : widerPollIDs.has(event.id);
       }
       return homeEventIDs === null ? true : allowed.has(event.id);
-    }).filter((event) => event.id !== WELCOME_EVENT_ID);
-    // welcome1: pinned first, regardless of date, topic or area.
-    return welcomeRow ? [withWelcomeExtra(welcomeRow), ...filteredOut] : filteredOut;
+    });
+    return filteredOut;
   }, [events, selectedTopics, view, homeEventIDs, widerPollIDs, dateScope, homeScope, locationEdges, locationScopes]);
 
   useEffect(() => {
@@ -3639,11 +3671,7 @@ export default function CommunityCalendarApp() {
   return (
     <PollCardContext.Provider value={{ session, ownerProfileId: memberProfile?.id ?? null, onSignIn: () => { setSelectedEvent(null); setView("account"); }, noticeTools: { busy, canPublish: canPublish(memberProfile, subscriptions), onUploadImage: uploadMemberImage, onCreateNotice: submitMemberNotice } }}>
     <main>
-      <QuickTour />
-      <WelcomeResurface
-        welcome={(() => { const row = events.find((event) => event.id === WELCOME_EVENT_ID); return row ? withWelcomeExtra(row) : null; })()}
-        onOpen={(event) => { setSelectedEvent(event); setView("home"); }}
-      />
+      <WelcomeAndTour session={session} />
       {notice ? <div className={`notice notice--${notice.kind}`}>{notice.text}</div> : null}
 
       {showOperatorWorkspace ? (
@@ -3809,7 +3837,7 @@ export default function CommunityCalendarApp() {
                 widerPollIDs={widerPollIDs}
                 covering={coverageSlugsFor(homeScope, locationEdges)}
                 slugById={new Map(locationScopes.map((scope) => [scope.id, scope.slug]))}
-                excludeIDs={[WELCOME_EVENT_ID]}
+                excludeIDs={[]}
                 rest={rest}
                 signImage={signedListingImageUrl}
                 renderCard={(event) => (
