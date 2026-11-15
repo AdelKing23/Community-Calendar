@@ -1264,10 +1264,13 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
         try validate(sponsorHTTPResponse, data: sponsorData)
 
         let profiles = try decoder.decode([BusinessProfileRecord].self, from: profileData)
+        // t231: Support creates without a subscription. A failed check means "not Support" (fails closed).
+        let isSupport = (try? await currentUserHasSupportAccess(accessToken: accessToken)) ?? false
         return BusinessAccountState(
             profile: profiles.first,
             subscriptions: try decoder.decode([BusinessSubscriptionRecord].self, from: subscriptionData),
-            sponsorRequests: try decoder.decode([FoundingSponsorRequestRecord].self, from: sponsorData)
+            sponsorRequests: try decoder.decode([FoundingSponsorRequestRecord].self, from: sponsorData),
+            isSupport: isSupport
         )
     }
 

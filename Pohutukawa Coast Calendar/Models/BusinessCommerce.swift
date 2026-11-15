@@ -631,6 +631,9 @@ struct BusinessAccountState: Equatable {
     var profile: BusinessProfileRecord?
     var subscriptions: [BusinessSubscriptionRecord]
     var sponsorRequests: [FoundingSponsorRequestRecord]
+    /// t231: the signed-in account is an active Support user (server `current_user_is_support()`).
+    /// Support creates for free: no subscription needed, and the server never counts Support listings in an allowance.
+    var isSupport: Bool = false
 
     var activeSubscription: BusinessSubscriptionRecord? {
         subscriptions
@@ -666,14 +669,14 @@ struct BusinessAccountState: Equatable {
     }
 
     /// May open Create and submit listings/polls (approved Organisation + active subscription).
-    /// Product law 2026-08-27: no pending create without paid plan.
+    /// Product law 2026-08-27: no pending create without paid plan. t231: Support is the only exception.
     var canSubmitAsOrganisation: Bool {
-        isOrganisationApproved && hasActiveOrganisationSubscription
+        isOrganisationApproved && (hasActiveOrganisationSubscription || isSupport)
     }
 
     /// May release listings/polls to the public board (same gate as submit under current product law).
     var canReleaseToBoard: Bool {
-        isOrganisationApproved && hasActiveOrganisationSubscription
+        isOrganisationApproved && (hasActiveOrganisationSubscription || isSupport)
     }
 
     /// Legacy name: means release-to-board, not "can open Create".
