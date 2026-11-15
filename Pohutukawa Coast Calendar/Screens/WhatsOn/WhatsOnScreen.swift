@@ -820,7 +820,7 @@ struct LocationNoMatchesCard: View {
                         .font(.headline.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
-                    Text("Try a wider area while this place is added to the location catalog.")
+                    Text("Try a wider area while this place is added to the location catalogue.")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
