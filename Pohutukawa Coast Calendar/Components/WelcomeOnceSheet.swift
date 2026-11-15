@@ -93,39 +93,86 @@ enum WelcomeDismissalService {
 struct WelcomeOnceSheet: View {
     let dismiss: () -> Void
 
+    /// t225: spacing on an 8pt grid; readable width on iPad; Dynamic Type friendly. t226: text uses PCCTheme.text / ink.
+    private let horizontalPadding: CGFloat = 28
+    private let maxContentWidth: CGFloat = 560
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: "calendar")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(PCCTheme.pohutukawaRed, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityHidden(true)
+
+                Text(WelcomeCopy.title)
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(PCCTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.top, 24)
+
+                Text(WelcomeCopy.body)
+                    .font(.body)
+                    .foregroundStyle(PCCTheme.text)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 12)
+
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(WelcomeCopy.body)
-                        .font(.body)
-                        .foregroundStyle(PCCTheme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(WelcomeCopy.tips, id: \.self) { tip in
-                            Label(tip, systemImage: "checkmark.circle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(PCCTheme.ink.opacity(0.82))
+                    ForEach(WelcomeCopy.tips, id: \.self) { tip in
+                        HStack(alignment: .firstTextBaseline, spacing: 14) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(PCCTheme.leafGreen)
+                                .accessibilityHidden(true)
+                            Text(tip)
+                                .font(.callout)
+                                .foregroundStyle(PCCTheme.text)
+                                .lineSpacing(3)
                                 .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
                         }
                     }
-                    Text(WelcomeCopy.signOff)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink)
-                    Button(action: dismiss) {
-                        Text(WelcomeCopy.button)
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(PCCTheme.pohutukawaRed)
-                    .accessibilityIdentifier("welcome.getStarted")
                 }
                 .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.top, 28)
+
+                Text(WelcomeCopy.signOff)
+                    .font(.headline)
+                    .foregroundStyle(PCCTheme.ink)
+                    .padding(.top, 24)
             }
-            .navigationTitle(WelcomeCopy.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, 32)
+            .padding(.bottom, 24)
+            .frame(maxWidth: maxContentWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button(action: dismiss) {
+                Text(WelcomeCopy.button)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.roundedRectangle(radius: 16))
+            .tint(PCCTheme.leafGreen) // same primary-button green as the rest of the app and the web welcome
+            .accessibilityIdentifier("welcome.getStarted")
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
+            .frame(maxWidth: maxContentWidth)
+            .frame(maxWidth: .infinity)
+            .background(Color(.systemBackground))
+        }
+        .background(Color(.systemBackground))
+        .presentationDragIndicator(.visible)
     }
 }
