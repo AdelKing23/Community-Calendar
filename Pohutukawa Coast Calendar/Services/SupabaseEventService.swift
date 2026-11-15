@@ -4157,7 +4157,7 @@ struct PendingEventInsert: Encodable {
     }
 
     /// NZ midnight of the calendar day the user picked, and one second before the next NZ midnight.
-    private static func nzDayBounds(_ picked: Date) -> (start: Date, end: Date) {
+    static func nzDayBounds(_ picked: Date) -> (start: Date, end: Date) {
         let day = Calendar.current.dateComponents([.year, .month, .day], from: picked)
         var nz = Calendar(identifier: .gregorian)
         nz.timeZone = TimeZone(identifier: "Pacific/Auckland") ?? .current

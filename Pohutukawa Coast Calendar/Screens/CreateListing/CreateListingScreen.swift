@@ -1890,7 +1890,10 @@ struct ListingEditRequestSheet: View {
                             )
                         } else {
                             DatePicker("Date", selection: $draft.date, displayedComponents: .date)
-                            DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+                            Toggle("Add a time", isOn: $draft.hasTime)
+                            if draft.hasTime {
+                                DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+                            }
                         }
 
                         PCCFormField(title: "Cost", text: $draft.priceLabel, prompt: "Free, koha, $20")

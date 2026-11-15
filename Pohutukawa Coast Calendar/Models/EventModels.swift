@@ -474,14 +474,20 @@ struct ListingEditDraft: Hashable {
     var originalStart: Date
     var originalEnd: Date
     var pollClosesAt: Date
+    /// t222: all-day listings stay all-day when edited (time optional, same as Create).
+    var hasTime: Bool
+    var wasAllDay: Bool
 
     init(event: LocalEvent) {
         title = event.title
         category = event.category
         town = event.town
         venue = event.venue
-        date = event.startDate
-        time = event.startDate
+        // All-day listings start at NZ midnight; show that NZ day in the device's date picker.
+        date = event.isAllDay ? NZDay.localDate(for: event.startDate) : event.startDate
+        time = event.isAllDay
+            ? (Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: NZDay.localDate(for: event.startDate)) ?? event.startDate)
+            : event.startDate
         priceLabel = event.priceLabel
         audience = event.audience
         shortDescription = event.shortDescription
@@ -493,7 +499,11 @@ struct ListingEditDraft: Hashable {
         originalStart = event.startDate
         originalEnd = event.endDate
         pollClosesAt = event.endDate
+        hasTime = !event.isAllDay
+        wasAllDay = event.isAllDay
     }
+
+    var isAllDay: Bool { !isPoll && !hasTime }
 
     /// Poll close limits for an edit: 1 hour to 90 days after the poll opened, and not in the past.
     var pollCloseEditRange: ClosedRange<Date> {
@@ -514,6 +524,7 @@ struct ListingEditDraft: Hashable {
     var startDate: Date {
         // Polls open when published; an edit keeps the original opening time.
         if isPoll { return originalStart }
+        if isAllDay { return PendingEventInsert.nzDayBounds(date).start }
         return Calendar.current.date(
             bySettingHour: Calendar.current.component(.hour, from: time),
             minute: Calendar.current.component(.minute, from: time),
@@ -527,8 +538,11 @@ struct ListingEditDraft: Hashable {
             let range = pollCloseEditRange
             return min(max(pollClosesAt, range.lowerBound), range.upperBound)
         }
+        // All-day: one second before the next NZ midnight.
+        if isAllDay { return PendingEventInsert.nzDayBounds(date).end }
         // Keep the listing's existing length; move the end with the start if the start changes.
-        let length = originalEnd.timeIntervalSince(originalStart)
+        // A listing that was all-day and now gets a time takes the usual 2 hours.
+        let length = wasAllDay ? 0 : originalEnd.timeIntervalSince(originalStart)
         return startDate.addingTimeInterval(length > 0 ? length : 2 * 60 * 60)
     }
 
@@ -545,6 +559,7 @@ struct ListingEditDraft: Hashable {
             "venue": .string(venue.trimmingCharacters(in: .whitespacesAndNewlines)),
             "start_at": .string(SupabaseDateEncoding.string(from: startDate)),
             "end_at": .string(SupabaseDateEncoding.string(from: endDate)),
+            "is_all_day": .bool(isAllDay),
             "price_label": .string(resolvedPrice),
             "is_free": .bool(resolvedPrice.localizedCaseInsensitiveContains("free")),
             "audience": .string(audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Everyone" : audience.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -554,6 +569,17 @@ struct ListingEditDraft: Hashable {
             "contact_email": .string(contactEmail.trimmingCharacters(in: .whitespacesAndNewlines)),
             "contact_phone": .string(contactPhone.trimmingCharacters(in: .whitespacesAndNewlines))
         ]
+    }
+}
+
+/// t222: New Zealand calendar-day helpers (all-day edit and device-calendar export).
+enum NZDay {
+    /// A date in the device's calendar that falls on the same calendar day as `instant` does in New Zealand.
+    static func localDate(for instant: Date) -> Date {
+        var nz = Calendar(identifier: .gregorian)
+        nz.timeZone = TimeZone(identifier: "Pacific/Auckland") ?? .current
+        let parts = nz.dateComponents([.year, .month, .day], from: instant)
+        return Calendar.current.date(from: parts) ?? instant
     }
 }
 
