@@ -21,10 +21,27 @@ const TEMP_SUPPORT_OVERRIDE = false; // TEMP: remove before launch — bypasses 
 //     3. Later, delete the TEMP_BRIDGE branch in ReportListing and this const (search TEMP_BRIDGE).
 const TEMP_BRIDGES = { report_via_support: true } as const;
 
-// Polls run from creation time (start_at) for at most this many days (end_at). After end_at the poll
-// is shown as closed and voting/withdraw lock. Change this number to change the limit for new polls.
-const POLL_MAX_DAYS = 14;
-const POLL_MAX_MS = POLL_MAX_DAYS * 24 * 60 * 60 * 1000;
+// Polls open at creation (start_at) and close at the time chosen on Create (end_at). After end_at the poll
+// shows as Finished and voting/withdraw lock. Same limits as iOS PollCloseWindow (EventModels.swift).
+const POLL_CLOSE_MIN_MS = 60 * 60 * 1000;
+const POLL_CLOSE_MAX_DAYS = 90;
+// Repeat choices on Create; value is stored in events.recurrence_interval ("" = one-off). Same as iOS ListingRecurrence.
+const RECURRENCE_OPTIONS = [
+  { value: "", label: "Doesn’t repeat" },
+  { value: "weekly", label: "Weekly" },
+  { value: "fortnightly", label: "Fortnightly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+] as const;
+type RecurrenceChoice = (typeof RECURRENCE_OPTIONS)[number]["value"];
+// <input type="datetime-local"> value for a Date, in the browser's local time.
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function pollCloseBounds(now = new Date()) {
+  return { min: new Date(now.getTime() + POLL_CLOSE_MIN_MS), max: new Date(now.getTime() + POLL_CLOSE_MAX_DAYS * 24 * 60 * 60 * 1000) };
+}
 // iOS PollDetails.maxOptions / minimum (EventModels.swift, CreateListingScreen.swift).
 const POLL_MAX_OPTIONS = 10;
 const POLL_MIN_OPTIONS = 2;
@@ -2027,7 +2044,7 @@ function listingChip(status: string) {
 const CompactCardsContext = createContext(false);
 const PollCardContext = createContext<{ session: AuthSession | null; ownerProfileId: string | null; onSignIn: () => void; noticeTools?: { busy: boolean; canPublish: boolean; onUploadImage: (file: File, kind: "notice") => Promise<string>; onCreateNotice: (draft: NoticeDraft) => Promise<boolean> } } | null>(null);
 
-// A poll is ended once its end_at has passed (polls get end_at = creation + POLL_MAX_DAYS).
+// A poll is ended once its end_at has passed (end_at = the close time chosen on Create).
 function pollEnded(event: { listing_kind?: string | null; end_at?: string | null }, nowMs = Date.now()) {
   if (event.listing_kind !== "poll" || !event.end_at) return false;
   const end = new Date(event.end_at).getTime();
@@ -2048,6 +2065,8 @@ type ListingEditDraft = {
   title: string; category: string; town: string; venue: string; date: string; time: string;
   priceLabel: string; audience: string; shortDescription: string; longDescription: string;
   contactName: string; contactEmail: string; contactPhone: string;
+  // Kept from the listing so an edit never resets end_at to start + 2h (same as iOS ListingEditDraft).
+  listingKind: string; originalStartAt: string; originalEndAt: string; pollClosesAt: string;
 };
 
 function pad2(value: number) { return String(value).padStart(2, "0"); }
@@ -2069,13 +2088,32 @@ function draftFromListing(row: OwnListing): ListingEditDraft {
     contactName: row.contact_name ?? "",
     contactEmail: row.contact_email ?? "",
     contactPhone: row.contact_phone ?? "",
+    listingKind: row.listing_kind ?? "event",
+    originalStartAt: row.start_at ?? "",
+    originalEndAt: row.end_at ?? "",
+    pollClosesAt: row.end_at && !Number.isNaN(new Date(row.end_at).getTime()) ? toLocalInputValue(new Date(row.end_at)) : "",
   };
+}
+
+// Poll close limits for an edit: 1 hour to POLL_CLOSE_MAX_DAYS after the poll opened, and not in the past.
+function pollCloseEditBounds(draft: ListingEditDraft, now = new Date()) {
+  const opened = new Date(draft.originalStartAt);
+  const max = new Date(opened.getTime() + POLL_CLOSE_MAX_DAYS * 24 * 60 * 60 * 1000);
+  const min = new Date(Math.min(Math.max(opened.getTime() + POLL_CLOSE_MIN_MS, now.getTime()), max.getTime()));
+  return { min, max };
 }
 
 // Mirrors iOS ListingEditDraft.proposedChanges.
 function proposedChangesFromDraft(draft: ListingEditDraft): Record<string, unknown> {
-  const start = new Date(`${draft.date}T${draft.time || "00:00"}`);
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const isPoll = draft.listingKind === "poll";
+  // Polls keep their opening time; other listings use the edited date and time.
+  const start = isPoll ? new Date(draft.originalStartAt) : new Date(`${draft.date}T${draft.time || "00:00"}`);
+  const originalLength = new Date(draft.originalEndAt).getTime() - new Date(draft.originalStartAt).getTime();
+  const bounds = pollCloseEditBounds(draft);
+  const end = isPoll
+    ? new Date(Math.min(Math.max(new Date(draft.pollClosesAt).getTime(), bounds.min.getTime()), bounds.max.getTime()))
+    // Keep the listing's existing length; move the end with the start if the start changes.
+    : new Date(start.getTime() + (originalLength > 0 ? originalLength : 2 * 60 * 60 * 1000));
   const price = draft.priceLabel.trim();
   const resolvedPrice = price === "" ? "Free" : price;
   const shortText = draft.shortDescription.trim();
@@ -2108,7 +2146,9 @@ function ListingEditForm({ listing, busy, onCancel, onSubmit }: {
   const [draft, setDraft] = useState<ListingEditDraft>(() => draftFromListing(listing));
   const [note, setNote] = useState("");
   const set = (key: keyof ListingEditDraft) => (event: { target: { value: string } }) => setDraft((current) => ({ ...current, [key]: event.target.value }));
-  const canSend = draft.title.trim() !== "" && draft.date !== "" && !busy;
+  const isPoll = draft.listingKind === "poll";
+  const closeBounds = pollCloseEditBounds(draft);
+  const canSend = draft.title.trim() !== "" && (isPoll ? draft.pollClosesAt !== "" : draft.date !== "") && !busy;
   return (
     <section className="panel account-panel">
       <button type="button" className="text-link" onClick={onCancel}>Back</button>
@@ -2126,8 +2166,14 @@ function ListingEditForm({ listing, busy, onCancel, onSubmit }: {
             onPick={(hit) => { const town = editTowns.find((item) => hit.label.toLowerCase().includes(item.toLowerCase()) || hit.place.toLowerCase() === item.toLowerCase()); if (town) setDraft((current) => ({ ...current, town })); }}
           />
         </label>
-        <label>Date<input type="date" value={draft.date} onChange={set("date")} required /></label>
-        <label>Time<input type="time" value={draft.time} onChange={set("time")} /></label>
+        {isPoll ? (
+          <label>Poll closes<input type="datetime-local" value={draft.pollClosesAt} min={toLocalInputValue(closeBounds.min)} max={toLocalInputValue(closeBounds.max)} onChange={set("pollClosesAt")} required /></label>
+        ) : (
+          <>
+            <label>Date<input type="date" value={draft.date} onChange={set("date")} required /></label>
+            <label>Time<input type="time" value={draft.time} onChange={set("time")} /></label>
+          </>
+        )}
         <label>Price<input value={draft.priceLabel} onChange={set("priceLabel")} placeholder="Free" /></label>
         <label>Audience<input value={draft.audience} onChange={set("audience")} placeholder="Everyone" /></label>
         <label>Short description<textarea value={draft.shortDescription} onChange={set("shortDescription")} rows={3} /></label>
@@ -3386,6 +3432,9 @@ export default function CommunityCalendarApp() {
     topics: string[];
     images: File[];
     poll?: { question: string; options: string[]; allowCustom: boolean } | null;
+    pollClosesAt?: string | null;
+    recurrence?: RecurrenceChoice | null;
+    recurrenceUntil?: string | null;
   }) {
     if (listingSubmitLocked) return false;
     if (!memberProfile?.id) {
@@ -3400,7 +3449,7 @@ export default function CommunityCalendarApp() {
       setNotice({ kind: "warn", text: "Add title, description, date, time, venue and a place." });
       return false;
     }
-    // Polls start at creation time (see POLL_MAX_DAYS); date/time fields are hidden for polls.
+    // Polls start at creation time and close at input.pollClosesAt; date/time fields are hidden for polls.
     const startAt = input.poll ? new Date() : new Date(`${input.date}T${input.time}`);
     if (Number.isNaN(startAt.getTime())) {
       setNotice({ kind: "warn", text: "Check the date and time." });
@@ -3416,6 +3465,16 @@ export default function CommunityCalendarApp() {
       ? { poll_question: input.poll.question.trim(), poll_options: pollOptions, poll_allows_custom_answer: input.poll.allowCustom }
       : {};
     const pollStart = new Date();
+    const pollEnd = input.poll ? new Date(input.pollClosesAt || "") : null;
+    const pollBounds = pollCloseBounds(pollStart);
+    if (pollEnd && (Number.isNaN(pollEnd.getTime()) || pollEnd < pollBounds.min || pollEnd > pollBounds.max)) {
+      setNotice({ kind: "warn", text: `Choose a poll closing time between 1 hour and ${POLL_CLOSE_MAX_DAYS} days from now.` });
+      return false;
+    }
+    // Only sent for repeating listings, so one-off creates keep working before the recurring SQL is applied.
+    const recurrenceFields = !input.poll && input.recurrence
+      ? { recurrence_interval: input.recurrence, recurrence_until: input.recurrenceUntil || null }
+      : {};
     const payload = {
       title,
       category: topics[0],
@@ -3423,9 +3482,10 @@ export default function CommunityCalendarApp() {
       primary_location_scope_id: input.locationScopeId,
       location_display_name: location,
       venue: location,
-      // Polls: start now and close POLL_MAX_DAYS later. Other listings keep the chosen start + 2h.
+      // Polls: start now and close at the chosen time (the server uses end_at for Finished/archive).
+      // Other listings: the server follows the start date; end_at keeps a nominal 2h for the time range shown.
       start_at: input.poll ? pollStart.toISOString() : startAt.toISOString(),
-      end_at: input.poll ? new Date(pollStart.getTime() + POLL_MAX_MS).toISOString() : new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+      end_at: pollEnd ? pollEnd.toISOString() : new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
       price_label: "Free",
       is_free: true,
       audience: "Everyone",
@@ -3439,6 +3499,7 @@ export default function CommunityCalendarApp() {
       status: "pending_review",
       listing_kind: input.poll ? "poll" : "event",
       ...pollFields,
+      ...recurrenceFields,
       business_profile_id: memberProfile.id,
     };
     listingSubmitLocked = true;
@@ -5003,6 +5064,9 @@ function CreateListingPanel({
     topics: string[];
     images: File[];
     poll?: { question: string; options: string[]; allowCustom: boolean } | null;
+    pollClosesAt?: string | null;
+    recurrence?: RecurrenceChoice | null;
+    recurrenceUntil?: string | null;
   }) => Promise<boolean | void>;
   onOpenAccount: () => void;
   locationScopes: LocationScopeRecord[];
@@ -5024,6 +5088,10 @@ function CreateListingPanel({
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const filledPollOptions = pollOptions.map((option) => option.trim()).filter(Boolean);
   const [pollAllowCustom, setPollAllowCustom] = useState(false);
+  const [pollClosesAt, setPollClosesAt] = useState(() => toLocalInputValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
+  const [recurrence, setRecurrence] = useState<RecurrenceChoice>("");
+  const [recurrenceUntil, setRecurrenceUntil] = useState("");
+  const pollBounds = pollCloseBounds();
 
 
   if (!memberProfile) {
@@ -5061,12 +5129,15 @@ function CreateListingPanel({
       void (async () => {
         setStatus("");
         if (isPoll && !locationScopeId) { setStatus("Choose the poll location coverage from the known places list."); return; }
-        const ok = await onCreateListing({ title, description, date, time, location: isPoll ? placeQuery.trim() : location, placeName: placeQuery.trim(), locationScopeId: locationScopeId || locationScopes.find((scope) => scope.scope_type === "place" && scope.name.toLowerCase() === placeQuery.trim().toLowerCase())?.id || null, topics, images, poll: isPoll ? { question: pollQuestion, options: filledPollOptions, allowCustom: pollAllowCustom } : null });
+        const ok = await onCreateListing({ title, description, date, time, location: isPoll ? placeQuery.trim() : location, placeName: placeQuery.trim(), locationScopeId: locationScopeId || locationScopes.find((scope) => scope.scope_type === "place" && scope.name.toLowerCase() === placeQuery.trim().toLowerCase())?.id || null, topics, images, poll: isPoll ? { question: pollQuestion, options: filledPollOptions, allowCustom: pollAllowCustom } : null, pollClosesAt: isPoll ? pollClosesAt : null, recurrence: isPoll ? null : recurrence || null, recurrenceUntil: !isPoll && recurrence ? recurrenceUntil || null : null });
         if (ok) {
           setIsPoll(false);
           setPollQuestion("");
           setPollOptions(["", ""]);
           setPollAllowCustom(false);
+          setPollClosesAt(toLocalInputValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)));
+          setRecurrence("");
+          setRecurrenceUntil("");
           setTitle("");
           setDescription("");
           setDate("");
@@ -5112,12 +5183,25 @@ function CreateListingPanel({
             {filledPollOptions.length < POLL_MIN_OPTIONS ? <p className="panel-note">Add at least two answer options.</p> : null}
           </div>
           <label className="full"><span><input type="checkbox" checked={pollAllowCustom} onChange={(e) => setPollAllowCustom(e.target.checked)} /> Allow custom answer</span><small> People can write their own response, capped at 250 characters.</small></label>
+          <label>Poll closes<input type="datetime-local" value={pollClosesAt} min={toLocalInputValue(pollBounds.min)} max={toLocalInputValue(pollBounds.max)} onChange={(e) => setPollClosesAt(e.target.value)} required /></label>
+          <p className="panel-note full">The poll opens when it’s published and closes at this time. It then shows as Finished until midnight.</p>
         </>
       ) : null}
       {isPoll ? null : (
         <>
           <label>Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
           <label>Time<input type="time" value={time} onChange={(e) => setTime(e.target.value)} required /></label>
+          <label>Repeats
+            <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as RecurrenceChoice)}>
+              {RECURRENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          {recurrence ? (
+            <>
+              <label>Last date (optional)<input type="date" value={recurrenceUntil} min={date || undefined} onChange={(e) => setRecurrenceUntil(e.target.value)} /></label>
+              <p className="panel-note full">A repeating listing counts as one listing.</p>
+            </>
+          ) : null}
         </>
       )}
       {isPoll ? null : (<label className="full">Venue
