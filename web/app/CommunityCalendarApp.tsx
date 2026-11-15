@@ -739,6 +739,11 @@ function formatDate(value: string) {
 }
 
 // t221: 00:00 New Zealand time on a YYYY-MM-DD date (plus addDays), as an instant. Matches the iOS all-day bounds.
+// t222: YYYY-MM-DD of an instant in New Zealand time.
+function nzDateString(value: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+}
+
 function nzMidnight(date: string, addDays = 0): Date {
   const [y, m, d] = date.split("-").map(Number);
   const target = Date.UTC(y, m - 1, d + addDays);
@@ -2136,6 +2141,8 @@ type ListingEditDraft = {
   contactName: string; contactEmail: string; contactPhone: string;
   // Kept from the listing so an edit never resets end_at to start + 2h (same as iOS ListingEditDraft).
   listingKind: string; originalStartAt: string; originalEndAt: string; pollClosesAt: string;
+  // t222: all-day listings stay all-day when edited (time optional, same as Create).
+  hasTime: boolean; wasAllDay: boolean;
 };
 
 function pad2(value: number) { return String(value).padStart(2, "0"); }
@@ -2148,8 +2155,9 @@ function draftFromListing(row: OwnListing): ListingEditDraft {
     category: row.category ?? categories[0],
     town: row.town ?? editTowns[0],
     venue: row.venue ?? "",
-    date: valid ? `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}` : "",
-    time: valid ? `${pad2(start.getHours())}:${pad2(start.getMinutes())}` : "",
+    // All-day listings start at NZ midnight, so read their date in NZ time.
+    date: !valid ? "" : row.is_all_day ? nzDateString(start) : `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}`,
+    time: !valid || row.is_all_day ? "12:00" : `${pad2(start.getHours())}:${pad2(start.getMinutes())}`,
     priceLabel: row.price_label ?? "",
     audience: row.audience ?? "",
     shortDescription: row.short_description ?? "",
@@ -2161,6 +2169,8 @@ function draftFromListing(row: OwnListing): ListingEditDraft {
     originalStartAt: row.start_at ?? "",
     originalEndAt: row.end_at ?? "",
     pollClosesAt: row.end_at && !Number.isNaN(new Date(row.end_at).getTime()) ? toLocalInputValue(new Date(row.end_at)) : "",
+    hasTime: !row.is_all_day,
+    wasAllDay: Boolean(row.is_all_day),
   };
 }
 
@@ -2176,12 +2186,15 @@ function pollCloseEditBounds(draft: ListingEditDraft, now = new Date()) {
 function proposedChangesFromDraft(draft: ListingEditDraft): Record<string, unknown> {
   const isPoll = draft.listingKind === "poll";
   // Polls keep their opening time; other listings use the edited date and time.
-  const start = isPoll ? new Date(draft.originalStartAt) : new Date(`${draft.date}T${draft.time || "00:00"}`);
-  const originalLength = new Date(draft.originalEndAt).getTime() - new Date(draft.originalStartAt).getTime();
+  const allDay = !isPoll && !draft.hasTime;
+  const start = isPoll ? new Date(draft.originalStartAt) : allDay ? nzMidnight(draft.date) : new Date(`${draft.date}T${draft.time || "00:00"}`);
+  // A listing that was all-day and now gets a time takes the usual 2 hours, not its old full-day length.
+  const originalLength = draft.wasAllDay ? 0 : new Date(draft.originalEndAt).getTime() - new Date(draft.originalStartAt).getTime();
   const bounds = pollCloseEditBounds(draft);
   const end = isPoll
     ? new Date(Math.min(Math.max(new Date(draft.pollClosesAt).getTime(), bounds.min.getTime()), bounds.max.getTime()))
-    // Keep the listing's existing length; move the end with the start if the start changes.
+    // All-day: one second before the next NZ midnight. Otherwise keep the listing's existing length.
+    : allDay ? new Date(nzMidnight(draft.date, 1).getTime() - 1000)
     : new Date(start.getTime() + (originalLength > 0 ? originalLength : 2 * 60 * 60 * 1000));
   const price = draft.priceLabel.trim();
   const resolvedPrice = price === "" ? "Free" : price;
@@ -2195,6 +2208,7 @@ function proposedChangesFromDraft(draft: ListingEditDraft): Record<string, unkno
     venue: draft.venue.trim(),
     start_at: start.toISOString(),
     end_at: end.toISOString(),
+    is_all_day: allDay,
     price_label: resolvedPrice,
     is_free: resolvedPrice.toLowerCase().includes("free"),
     audience: audience === "" ? "Everyone" : audience,
@@ -2240,7 +2254,8 @@ function ListingEditForm({ listing, busy, onCancel, onSubmit }: {
         ) : (
           <>
             <label>Date<input type="date" value={draft.date} onChange={set("date")} required /></label>
-            <label>Time<input type="time" value={draft.time} onChange={set("time")} /></label>
+            <label><span><input type="checkbox" checked={draft.hasTime} onChange={(event) => setDraft((current) => ({ ...current, hasTime: event.target.checked }))} /> Add a time</span><small> Leave off for an all-day listing.</small></label>
+            {draft.hasTime ? <label>Time<input type="time" value={draft.time} onChange={set("time")} /></label> : null}
           </>
         )}
         <label>Price<input value={draft.priceLabel} onChange={set("priceLabel")} placeholder="Free" /></label>
@@ -2623,7 +2638,7 @@ function MyListingsPane({ session, onBack, onSignIn, onOpen }: { session: { acce
   const [busy, setBusy] = useState(false);
   async function load() {
     if (!session) return;
-    const data = await rest<OwnListing[]>(`events?select=id,title,category,venue,start_at,end_at,price_label,short_description,long_description,location_display_name,town,status,listing_kind,poll_question,submitted_by,listing_source,audience,contact_name,contact_email,contact_phone&submitted_by=eq.${session.user.id}&listing_source=eq.create&order=created_at.desc`, {}, session.access_token);
+    const data = await rest<OwnListing[]>(`events?select=id,title,category,venue,start_at,end_at,price_label,short_description,long_description,location_display_name,town,status,listing_kind,poll_question,submitted_by,listing_source,audience,contact_name,contact_email,contact_phone,is_all_day&submitted_by=eq.${session.user.id}&listing_source=eq.create&order=created_at.desc`, {}, session.access_token);
     const owned = (data ?? []).filter((row) => row.submitted_by === session.user.id && row.listing_source !== "org_calendar");
     setRows(owned);
     if (owned.length) {
@@ -6025,6 +6040,13 @@ function icsStamp(value: Date) {
   return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
+function icsAllDay(start: Date): string[] {
+  const day = nzDateString(start);
+  const [y, m, d] = day.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  return [`DTSTART;VALUE=DATE:${day.replace(/-/g, "")}`, `DTEND;VALUE=DATE:${next.replace(/-/g, "")}`];
+}
+
 function icsEscape(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
@@ -6043,13 +6065,13 @@ function downloadEventIcs(event: EventRecord) {
     "BEGIN:VEVENT",
     `UID:${event.id}@coastcalendar`,
     `DTSTAMP:${icsStamp(new Date())}`,
-    `DTSTART:${icsStamp(start)}`,
-    `DTEND:${icsStamp(end)}`,
+    // t222: all-day listings export as a true all-day event (DTEND is the exclusive next day).
+    ...(event.is_all_day ? icsAllDay(start) : [`DTSTART:${icsStamp(start)}`, `DTEND:${icsStamp(end)}`]),
     `SUMMARY:${icsEscape(event.title || "Coast Calendar listing")}`,
     where ? `LOCATION:${icsEscape(where)}` : "",
     `DESCRIPTION:${icsEscape((event.short_description || event.long_description || "").slice(0, 900))}`,
     "BEGIN:VALARM",
-    "TRIGGER:-PT1H",
+    event.is_all_day ? "TRIGGER:-PT15H" : "TRIGGER:-PT1H",
     "ACTION:DISPLAY",
     "DESCRIPTION:Reminder",
     "END:VALARM",
