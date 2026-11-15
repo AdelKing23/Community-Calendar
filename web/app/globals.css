@@ -1969,3 +1969,25 @@ button.listing-detail__organiser em { display: block; font-style: normal; font-s
 
 /* welcome1 */
 .welcome-sheet p:not(.tour-step) { max-height: 50vh; overflow: auto; line-height: 1.5; }
+
+/* t226: ONE universal colour for secondary / body / label / meta text (matches iOS PCCTheme.text).
+   #3A403E = 9.5:1 on cream #FAF2E0, 10.6:1 on white (WCAG AA+AAA). Headings and buttons keep their brand colours.
+   Replaces faded-ink greys (opacity .55-.86 / rgba(26,33,31,.58-.68)), which fell to ~3.4:1 on cream. Disabled/busy states keep their dimming. */
+:root {
+  --pcc-text: #3a403e;
+  --pcc-card-body: var(--pcc-text);
+  --pcc-card-meta: var(--pcc-text);
+}
+:is(
+  .settings-row em, .settings-form small, .toggle-row small, .interaction-list__title small,
+  .listing-detail__eyebrow, .listing-detail__meta, .listing-detail__poll-note, .listing-detail__organiser small,
+  .support-chat__empty, .support-chat__bubble--support strong, .support-chat__meta, .support-chat__note,
+  .support-chat__head small, .support-chat__author, .support-chat__field em, .support-inbox__author,
+  .poll-option__count, .poll-card__title, .poll-card__desc, .poll-card__placeholder small, .poll-card__meta,
+  .poll-row__sub, .poll-other__bar small, .poll-panel__status,
+  .org-card__field span, .org-preview__body small, .org-card__slider
+) {
+  opacity: 1;
+  color: var(--pcc-text);
+}
+.panel .eyebrow, .account-panel .eyebrow, .listing-detail__eyebrow, .panel-note { color: var(--pcc-text) !important; opacity: 1; }
