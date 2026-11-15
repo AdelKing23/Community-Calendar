@@ -485,7 +485,8 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
         "poll_allows_custom_answer",
         "unverified_user_listing",
         "created_at",
-        "updated_at"
+        "updated_at",
+        "is_all_day"
     ].joined(separator: ",")
     static let publicEventImageSelect = [
         "id",
@@ -2990,6 +2991,7 @@ struct SupabaseEventRecord: Decodable {
     let pollOptions: [String]?
     let pollAllowsCustomAnswer: Bool?
     let unverifiedUserListing: Bool?
+    let isAllDay: Bool?
     let eventImages: [SupabaseEventImageRecord]?
     let createdAt: Date?
     let updatedAt: Date?
@@ -3022,6 +3024,7 @@ struct SupabaseEventRecord: Decodable {
         case pollOptions = "poll_options"
         case pollAllowsCustomAnswer = "poll_allows_custom_answer"
         case unverifiedUserListing = "unverified_user_listing"
+        case isAllDay = "is_all_day"
         case eventImages = "event_images"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -3073,6 +3076,7 @@ struct SupabaseEventRecord: Decodable {
             listingKind: resolvedListingKind,
             pollDetails: resolvedPollDetails,
             unverifiedUserListing: unverifiedUserListing ?? false,
+            isAllDay: isAllDay ?? false,
             images: images,
             createdAt: createdAt ?? startAt,
             updatedAt: updatedAt
@@ -4076,6 +4080,7 @@ struct PendingEventInsert: Encodable {
     let isFeatured: Bool
     let isPaidPush: Bool
     let unverifiedUserListing: Bool
+    let isAllDay: Bool
     let status: String
     let listingKind: String
     let pollQuestion: String?
@@ -4107,11 +4112,19 @@ struct PendingEventInsert: Encodable {
             self.startAt = opens
             self.endAt = min(max(draft.pollClosesAt, window.lowerBound), window.upperBound)
         } else {
-            self.startAt = start
-            // Normal listings: the server shows them until midnight at the end of the start date.
-            // end_at keeps a nominal 2 hours for the time range shown on cards and calendar exports.
-            self.endAt = Calendar.current.date(byAdding: .hour, value: 2, to: start) ?? start
+            if draft.hasTime {
+                self.startAt = start
+                // Normal listings: the server shows them until midnight at the end of the start date.
+                // end_at keeps a nominal 2 hours for the time range shown on cards and calendar exports.
+                self.endAt = Calendar.current.date(byAdding: .hour, value: 2, to: start) ?? start
+            } else {
+                // t221: date-only listing. Start at NZ midnight of the chosen date, end just before the next NZ midnight.
+                let bounds = Self.nzDayBounds(draft.date)
+                self.startAt = bounds.start
+                self.endAt = bounds.end
+            }
         }
+        self.isAllDay = draft.listingKind != .poll && !draft.hasTime
         let price = draft.priceLabel.trimmed
         self.priceLabel = price.isEmpty ? "Free" : price
         self.isFree = price.isEmpty || price.localizedCaseInsensitiveContains("free")
@@ -4141,6 +4154,16 @@ struct PendingEventInsert: Encodable {
         self.recurrenceInterval = repeats.databaseValue
         self.recurrenceUntil = (repeats == .none || !draft.hasRecurrenceEnd) ? nil : Self.localDayString(draft.recurrenceUntil)
         self.includeStructuredPollColumns = includeStructuredPollColumns
+    }
+
+    /// NZ midnight of the calendar day the user picked, and one second before the next NZ midnight.
+    private static func nzDayBounds(_ picked: Date) -> (start: Date, end: Date) {
+        let day = Calendar.current.dateComponents([.year, .month, .day], from: picked)
+        var nz = Calendar(identifier: .gregorian)
+        nz.timeZone = TimeZone(identifier: "Pacific/Auckland") ?? .current
+        let start = nz.date(from: day) ?? picked
+        let next = nz.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        return (start, next.addingTimeInterval(-1))
     }
 
     /// yyyy-MM-dd in Pacific/Auckland, for the events.recurrence_until date column.
@@ -4191,6 +4214,7 @@ struct PendingEventInsert: Encodable {
         // Only sent for repeating listings, so one-off creates keep working before the recurring SQL is applied.
         try container.encodeIfPresent(recurrenceInterval, forKey: .recurrenceInterval)
         try container.encodeIfPresent(recurrenceUntil, forKey: .recurrenceUntil)
+        if isAllDay { try container.encode(true, forKey: .isAllDay) }
     }
 
     enum CodingKeys: String, CodingKey {
@@ -4220,6 +4244,7 @@ struct PendingEventInsert: Encodable {
         case pollAllowsCustomAnswer = "poll_allows_custom_answer"
         case recurrenceInterval = "recurrence_interval"
         case recurrenceUntil = "recurrence_until"
+        case isAllDay = "is_all_day"
     }
 }
 

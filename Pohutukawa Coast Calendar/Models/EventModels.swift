@@ -620,6 +620,8 @@ struct LocalEvent: Identifiable, Hashable {
     let listingKind: ListingKind
     let pollDetails: PollDetails?
     let unverifiedUserListing: Bool
+    /// Date-only listing (no time given): show the date without a time.
+    let isAllDay: Bool
     let images: [EventImage]
     let createdAt: Date
     let updatedAt: Date?
@@ -693,6 +695,7 @@ struct LocalEvent: Identifiable, Hashable {
         listingKind: ListingKind = .event,
         pollDetails: PollDetails? = nil,
         unverifiedUserListing: Bool = false,
+        isAllDay: Bool = false,
         images: [EventImage] = [],
         createdAt: Date = .distantPast,
         updatedAt: Date? = nil,
@@ -724,6 +727,7 @@ struct LocalEvent: Identifiable, Hashable {
         self.listingKind = listingKind
         self.pollDetails = pollDetails
         self.unverifiedUserListing = unverifiedUserListing
+        self.isAllDay = isAllDay
         self.images = images
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -758,6 +762,7 @@ struct LocalEvent: Identifiable, Hashable {
             listingKind: listingKind,
             pollDetails: pollDetails,
             unverifiedUserListing: unverifiedUserListing,
+            isAllDay: isAllDay,
             images: images,
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -808,6 +813,7 @@ struct LocalEvent: Identifiable, Hashable {
     }
 
     var timeText: String {
+        if isAllDay { return "All day" }
         let start = startDate.formatted(.dateTime.hour().minute())
         let end = endDate.formatted(.dateTime.hour().minute())
         return "\(start) – \(end)"
@@ -933,6 +939,8 @@ struct PendingListingDraft: Hashable {
     var venue = ""
     var date = Date()
     var time = Date()
+    /// t221: time is optional. Off = date-only listing (NZ midnight start, is_all_day).
+    var hasTime = true
     var priceLabel = "Free"
     var contactName = ""
     var contactEmail = ""

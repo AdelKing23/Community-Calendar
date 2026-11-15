@@ -56,7 +56,7 @@ struct CompactEventCard: View {
 
             Spacer(minLength: 0)
 
-            Text(event.startDate.formatted(.dateTime.hour().minute()))
+            Text(event.isAllDay ? "All day" : event.startDate.formatted(.dateTime.hour().minute()))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(PCCTheme.ink.opacity(0.62))
 

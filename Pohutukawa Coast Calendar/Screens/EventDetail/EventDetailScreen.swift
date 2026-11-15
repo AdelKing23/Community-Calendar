@@ -2715,7 +2715,7 @@ struct OrgCalendarNoteCard: View {
             }
             Text(event.startDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
                  + " · "
-                 + event.startDate.formatted(date: .omitted, time: .shortened))
+                 + (event.isAllDay ? "All day" : event.startDate.formatted(date: .omitted, time: .shortened)))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(PCCTheme.leafGreen)
             if !event.shortDescription.isEmpty, event.shortDescription != event.title {

@@ -2260,7 +2260,10 @@ struct PendingListingForm: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 DatePicker("Date", selection: $draft.date, displayedComponents: .date)
-                DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+                Toggle("Add a time", isOn: $draft.hasTime)
+                if draft.hasTime {
+                    DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
+                }
 
                 Picker("Repeats", selection: $draft.recurrence) {
                     ForEach(ListingRecurrence.allCases) { option in
