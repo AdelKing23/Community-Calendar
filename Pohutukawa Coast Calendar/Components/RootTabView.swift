@@ -29,10 +29,12 @@ struct RootTabView: View {
     @AppStorage("communityCalendar.belonging.lastPromptTime") private var lastBelongingPromptTime = 0.0
     @AppStorage("communityCalendar.belonging.promptCount") private var belongingPromptCount = 0
     @AppStorage("communityCalendar.welcome.v1.dismissed") private var localWelcomeDismissed = false
+    @AppStorage("communityCalendar.welcome.v1.dismissedAccounts") private var welcomeDismissedAccounts = ""
     @State private var selectedTab: MainTab = .home
     @State private var isKeyboardVisible = false
     @State private var showBelongingOnboarding = false
     @State private var showWelcome = false
+    @State private var welcomePending = false
     @State private var showAccountAccess = false
     @State private var showMembershipApplication = false
 
@@ -87,6 +89,14 @@ struct RootTabView: View {
         }
         .task(id: userSessionStore.session?.userID) {
             await decideWelcome()
+        }
+        .onChange(of: otherRootSheetIsUp) { _, isUp in
+            // t224: a sheet can't open while another root sheet is up; show the queued welcome once they close.
+            guard !isUp else { return }
+            Task {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                presentPendingWelcome()
+            }
         }
         .onChange(of: purchaseService.state) { _, newState in
             guard case .activated = newState else { return }
@@ -160,28 +170,64 @@ struct RootTabView: View {
         }
     }
 
-    /// t221: welcome once per account (server row when signed in), or once per device when signed out.
-    private func decideWelcome() async {
-        guard !showWelcome else { return }
-        if let session = userSessionStore.session {
-            if let dismissed = try? await WelcomeDismissalService.hasDismissed(session: session) {
-                if !dismissed { presentWelcome(); return }
-            }
-        } else if !localWelcomeDismissed {
-            presentWelcome(); return
-        }
-        showBelongingOnboardingIfNeeded()
+    private var otherRootSheetIsUp: Bool {
+        showBelongingOnboarding || showAccountAccess || showMembershipApplication
     }
 
-    private func presentWelcome() {
-        guard !showBelongingOnboarding else { return }
+    /// t221/t224: welcome once per account (server row when signed in), or once per device when signed out.
+    /// The server check uses a fresh token (a restored session can be expired at launch) and fails open.
+    private func decideWelcome() async {
+        guard !showWelcome, !welcomePending else { return }
+        if userSessionStore.session != nil {
+            await userSessionStore.refreshIfNeeded()
+        }
+        guard !Task.isCancelled else { return }
+
+        let show: Bool
+        if let session = userSessionStore.session {
+            let dismissedHere = WelcomeGate.accounts(from: welcomeDismissedAccounts).contains(session.userID.uuidString.lowercased())
+            let server: WelcomeGate.ServerCheck
+            do {
+                server = try await WelcomeDismissalService.hasDismissed(session: session) ? .dismissed : .notDismissed
+            } catch {
+                server = .failed
+            }
+            guard !Task.isCancelled else { return }
+            if server == .notDismissed && dismissedHere {
+                // Dismissed on this device but the server write never landed: record it now.
+                Task { try? await WelcomeDismissalService.recordDismissed(session: session) }
+            }
+            show = WelcomeGate.shouldShow(signedIn: true, server: server, dismissedOnThisDevice: dismissedHere, signedOutDismissed: localWelcomeDismissed)
+        } else {
+            show = WelcomeGate.shouldShow(signedIn: false, server: .failed, dismissedOnThisDevice: false, signedOutDismissed: localWelcomeDismissed)
+        }
+
+        if show {
+            welcomePending = true
+            presentPendingWelcome()
+        } else {
+            showBelongingOnboardingIfNeeded()
+        }
+    }
+
+    private func presentPendingWelcome() {
+        guard welcomePending, !showWelcome, !otherRootSheetIsUp else { return }
+        welcomePending = false
         showWelcome = true
     }
 
+    /// Runs only when the welcome sheet closes (Get started or swipe down), never when it appears.
     private func welcomeDismissed() {
+        welcomePending = false
         localWelcomeDismissed = true
         if let session = userSessionStore.session {
-            Task { try? await WelcomeDismissalService.recordDismissed(session: session) }
+            welcomeDismissedAccounts = WelcomeGate.adding(session.userID, to: welcomeDismissedAccounts)
+            Task {
+                await userSessionStore.refreshIfNeeded()
+                if let fresh = userSessionStore.session, fresh.userID == session.userID {
+                    try? await WelcomeDismissalService.recordDismissed(session: fresh)
+                }
+            }
         }
         showBelongingOnboardingIfNeeded()
     }

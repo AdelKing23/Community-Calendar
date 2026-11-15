@@ -18,6 +18,31 @@ enum WelcomeCopy {
     static let button = "Get started"
 }
 
+/// t224: when to show the welcome. Signed in: the server row decides, but a server error shows it
+/// (fail open) unless this device already recorded this account's dismissal. Signed out: the device flag.
+enum WelcomeGate {
+    enum ServerCheck: Equatable { case dismissed, notDismissed, failed }
+
+    static func shouldShow(signedIn: Bool, server: ServerCheck, dismissedOnThisDevice: Bool, signedOutDismissed: Bool) -> Bool {
+        guard signedIn else { return !signedOutDismissed }
+        switch server {
+        case .dismissed: return false
+        case .notDismissed, .failed: return !dismissedOnThisDevice
+        }
+    }
+
+    /// Account IDs (lowercased) that dismissed the welcome on this device, stored comma-separated.
+    static func accounts(from raw: String) -> Set<String> {
+        Set(raw.split(separator: ",").map { String($0) }.filter { !$0.isEmpty })
+    }
+
+    static func adding(_ userID: UUID, to raw: String) -> String {
+        var ids = accounts(from: raw)
+        ids.insert(userID.uuidString.lowercased())
+        return ids.sorted().joined(separator: ",")
+    }
+}
+
 enum WelcomeDismissalService {
     private static let resource = "user_welcome_dismissals"
 
