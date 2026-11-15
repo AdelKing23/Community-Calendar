@@ -778,8 +778,11 @@ function areaLabel(value: string) {
   return value.replaceAll("-", " ");
 }
 
-function canPublish(profile: HostRecord | null, subscriptions: SubscriptionRecord[]) {
+// t231: Support (server current_user_is_support()) creates for free: approved org, no subscription needed,
+// and the server never counts Support listings in an allowance. No other account gets this path.
+function canPublish(profile: HostRecord | null, subscriptions: SubscriptionRecord[], isSupport = false) {
   if (TEMP_SUPPORT_OVERRIDE && profile) return true; // TEMP_SUPPORT_OVERRIDE
+  if (isSupport && profile?.status === "approved") return true;
   return profile?.status === "approved" && subscriptions.some((sub) => {
     const stillCurrent = !sub.current_period_end || new Date(sub.current_period_end).getTime() > Date.now();
     return ["active", "trialing"].includes(sub.status) && stillCurrent;
@@ -3567,7 +3570,7 @@ export default function CommunityCalendarApp() {
       setNotice({ kind: "warn", text: "Organisation needed before a listing can be sent." });
       return false;
     }
-    if (!session || !canPublish(memberProfile, subscriptions)) return false;
+    if (!session || !canPublish(memberProfile, subscriptions, isSupportUser)) return false;
     const title = input.title.trim();
     const description = input.description.trim();
     const location = input.location.trim();
@@ -3757,7 +3760,7 @@ export default function CommunityCalendarApp() {
   const showOperatorWorkspace = isSupportUser && supportView === "operator";
 
   return (
-    <PollCardContext.Provider value={{ session, ownerProfileId: memberProfile?.id ?? null, onSignIn: () => { setSelectedEvent(null); setView("account"); }, noticeTools: { busy, canPublish: canPublish(memberProfile, subscriptions), onUploadImage: uploadMemberImage, onCreateNotice: submitMemberNotice } }}>
+    <PollCardContext.Provider value={{ session, ownerProfileId: memberProfile?.id ?? null, onSignIn: () => { setSelectedEvent(null); setView("account"); }, noticeTools: { busy, canPublish: canPublish(memberProfile, subscriptions, isSupportUser), onUploadImage: uploadMemberImage, onCreateNotice: submitMemberNotice } }}>
     <main>
       <WelcomeAndTour session={session} />
       {notice ? <div className={`notice notice--${notice.kind}`}>{notice.text}</div> : null}
@@ -4195,6 +4198,7 @@ export default function CommunityCalendarApp() {
             <CreateListingPanel
               memberProfile={memberProfile}
               subscriptions={subscriptions}
+              isSupport={isSupportUser}
               busy={busy}
               locationScopes={locationScopes}
               onCreateListing={submitListing}
@@ -4221,6 +4225,7 @@ export default function CommunityCalendarApp() {
               <button type="button" className="text-link" onClick={() => { setAccountSection(null); setView("settings"); }}>← Back to Settings</button>
               <AccountHub
                 key={accountSection ?? "none"}
+                isSupport={isSupportUser}
                 initialSection={accountSection}
                 onEditOrgCard={memberProfile ? () => { setAccountSection(null); setSettingsInitialPane("org"); setView("settings"); } : undefined}
                 onRequestDelete={requestAccountDeletion}
@@ -5180,6 +5185,7 @@ function LocationTypeahead({ value, onChange, onPick, placeholder, required }: {
 function CreateListingPanel({
   memberProfile,
   subscriptions,
+  isSupport = false,
   busy,
   onCreateListing,
   onOpenAccount,
@@ -5187,6 +5193,7 @@ function CreateListingPanel({
 }: {
   memberProfile: HostRecord | null;
   subscriptions: SubscriptionRecord[];
+  isSupport?: boolean;
   busy: boolean;
   onCreateListing: (input: {
     title: string;
@@ -5208,7 +5215,7 @@ function CreateListingPanel({
   locationScopes: LocationScopeRecord[];
 }) {
   const approved = (TEMP_SUPPORT_OVERRIDE && Boolean(memberProfile)) || memberProfile?.status === "approved"; // TEMP_SUPPORT_OVERRIDE
-  const paid = canPublish(memberProfile, subscriptions);
+  const paid = canPublish(memberProfile, subscriptions, isSupport);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
@@ -5420,9 +5427,11 @@ function AccountHub({
   onCreateNotice,
   onEditOrgCard,
   onRequestDelete,
+  isSupport = false,
 }: {
   onEditOrgCard?: () => void;
   onRequestDelete?: () => void;
+  isSupport?: boolean;
   session: AuthSession;
   profile: UserProfile | null;
   memberProfile: HostRecord | null;
@@ -5504,6 +5513,7 @@ function AccountHub({
           onUploadImage={onUploadMemberImage}
           onCreateListing={onCreateListing}
           onCreateNotice={onCreateNotice}
+          isSupport={isSupport}
         />
       ) : null}
     </div>
@@ -5593,8 +5603,9 @@ function NotificationsPanel({ notifications, busy, onMarkRead }: {
   );
 }
 
-function MemberPanel({ session, profile, subscriptions, notices, busy, onSubmit, onUploadImage, onCreateListing, onCreateNotice, onManageOrg }: {
+function MemberPanel({ session, profile, subscriptions, notices, busy, onSubmit, onUploadImage, onCreateListing, onCreateNotice, onManageOrg, isSupport = false }: {
   onManageOrg?: () => void;
+  isSupport?: boolean;
   session: AuthSession;
   profile: HostRecord | null;
   subscriptions: SubscriptionRecord[];
@@ -5609,7 +5620,7 @@ function MemberPanel({ session, profile, subscriptions, notices, busy, onSubmit,
   const [editing, setEditing] = useState(!profile);
   const [uploading, setUploading] = useState<"avatar" | "hero" | null>(null);
   const [formError, setFormError] = useState("");
-  const approvedAndPaid = canPublish(profile, subscriptions);
+  const approvedAndPaid = canPublish(profile, subscriptions, isSupport);
   const hasMembership = Boolean(profile);
   const isApproved = profile?.status === "approved";
   const isPending = profile?.status === "pending_review";
