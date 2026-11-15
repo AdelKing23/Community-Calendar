@@ -30,7 +30,7 @@ const ID_BATCH = 150;
 const EVENT_SELECT = [
   "id", "title", "category", "venue", "start_at", "end_at", "price_label", "short_description", "long_description",
   "location_display_name", "town", "status", "listing_kind", "poll_question", "poll_options", "poll_allows_custom_answer",
-  "organisation_name", "business_profile_id", "is_free", "created_at", "is_featured", "is_paid_push",
+  "organisation_name", "business_profile_id", "is_free", "created_at", "is_featured", "is_paid_push", "is_all_day",
 ].join(",");
 
 type CalendarRecord = CalendarEventFields & {

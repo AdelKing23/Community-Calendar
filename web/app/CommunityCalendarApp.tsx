@@ -198,6 +198,7 @@ type EventRecord = {
   is_free?: boolean | null;
   image_url?: string | null;
   submitted_by?: string | null;
+  is_all_day?: boolean | null;
 };
 
 // One shape for the Create listing handler (Home create panel and Account/Member panels).
@@ -206,6 +207,7 @@ type CreateListingInput = {
   description: string;
   date: string;
   time: string;
+  allDay?: boolean;
   location: string;
   placeName: string;
   locationScopeId: string | null;
@@ -736,20 +738,34 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function DateText({ value }: { value: string }) {
+// t221: 00:00 New Zealand time on a YYYY-MM-DD date (plus addDays), as an instant. Matches the iOS all-day bounds.
+function nzMidnight(date: string, addDays = 0): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  const target = Date.UTC(y, m - 1, d + addDays);
+  const nzWall = (instant: number) => {
+    const parts = new Intl.DateTimeFormat("en-NZ", {
+      timeZone: "Pacific/Auckland", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    }).formatToParts(new Date(instant));
+    const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+    return Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  };
+  let guess = target;
+  for (let i = 0; i < 2; i += 1) guess = target - (nzWall(guess) - guess);
+  return new Date(guess);
+}
+
+function DateText({ value, allDay = false }: { value: string; allDay?: boolean | null }) {
   const [label, setLabel] = useState(value);
   useEffect(() => {
-    setLabel(
-      new Intl.DateTimeFormat("en-NZ", {
-        timeZone: "Pacific/Auckland",
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(new Date(value)),
-    );
-  }, [value]);
+    const formatted = new Intl.DateTimeFormat("en-NZ", {
+      timeZone: "Pacific/Auckland",
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...(allDay ? {} : { hour: "numeric", minute: "2-digit" }),
+    }).format(new Date(value));
+    setLabel(allDay ? `${formatted} · All day` : formatted);
+  }, [value, allDay]);
   return <>{label}</>;
 }
 
@@ -1743,7 +1759,7 @@ function SettingsHub({
             <li key={row.id}>
               <button type="button" className="interaction-list__title" onClick={() => onOpenListing(event)}>
                 {event.listing_kind === "poll" ? <span className="poll-chip">POLL</span> : null}{event.title}
-                <small><DateText value={event.start_at} /></small>
+                <small><DateText value={event.start_at} allDay={event.is_all_day} /></small>
               </button>
               <button type="button" className="button button--small" disabled={busy} onClick={() => onToggleEngagement(event.id, type)}>{removeLabel}</button>
             </li>
@@ -1772,7 +1788,7 @@ function SettingsHub({
                   <ul className="interaction-list">
                     {byType("going").map(({ row, event }) => (
                       <li key={row.id}>
-                        <button type="button" className="interaction-list__title" onClick={() => onOpenListing(event)}>{event.title}<small><DateText value={event.start_at} /></small></button>
+                        <button type="button" className="interaction-list__title" onClick={() => onOpenListing(event)}>{event.title}<small><DateText value={event.start_at} allDay={event.is_all_day} /></small></button>
                         <button type="button" className="button button--small" onClick={() => downloadEventIcs(event)}>Add to calendar</button>
                       </li>
                     ))}
@@ -2973,6 +2989,7 @@ export default function CommunityCalendarApp() {
         "organisation_name",
         "business_profile_id",
         "is_free",
+        "is_all_day",
       ].join(",");
       const archiveCutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
       let publicEvents: EventRecord[] = [];
@@ -3477,6 +3494,7 @@ export default function CommunityCalendarApp() {
     description: string;
     date: string;
     time: string;
+    allDay?: boolean;
     location: string;
     placeName: string;
     locationScopeId: string | null;
@@ -3496,12 +3514,14 @@ export default function CommunityCalendarApp() {
     const title = input.title.trim();
     const description = input.description.trim();
     const location = input.location.trim();
-    if (!title || !description || (!input.poll && (!input.date || !input.time)) || !location || !input.placeName.trim()) {
-      setNotice({ kind: "warn", text: "Add title, description, date, time, venue and a place." });
+    // t221: a date is always required; the time is optional (all-day listing).
+    const allDay = !input.poll && Boolean(input.allDay);
+    if (!title || !description || (!input.poll && (!input.date || (!allDay && !input.time))) || !location || !input.placeName.trim()) {
+      setNotice({ kind: "warn", text: "Add title, description, date, venue and a place." });
       return false;
     }
     // Polls start at creation time and close at input.pollClosesAt; date/time fields are hidden for polls.
-    const startAt = input.poll ? new Date() : new Date(`${input.date}T${input.time}`);
+    const startAt = input.poll ? new Date() : allDay ? nzMidnight(input.date) : new Date(`${input.date}T${input.time}`);
     if (Number.isNaN(startAt.getTime())) {
       setNotice({ kind: "warn", text: "Check the date and time." });
       return false;
@@ -3536,7 +3556,8 @@ export default function CommunityCalendarApp() {
       // Polls: start now and close at the chosen time (the server uses end_at for Finished/archive).
       // Other listings: the server follows the start date; end_at keeps a nominal 2h for the time range shown.
       start_at: input.poll ? pollStart.toISOString() : startAt.toISOString(),
-      end_at: pollEnd ? pollEnd.toISOString() : new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+      // All-day: ends one second before the next NZ midnight.
+      end_at: pollEnd ? pollEnd.toISOString() : allDay ? new Date(nzMidnight(input.date, 1).getTime() - 1000).toISOString() : new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
       price_label: "Free",
       is_free: true,
       audience: "Everyone",
@@ -3551,6 +3572,7 @@ export default function CommunityCalendarApp() {
       listing_kind: input.poll ? "poll" : "event",
       ...pollFields,
       ...recurrenceFields,
+      ...(allDay ? { is_all_day: true } : {}),
       business_profile_id: memberProfile.id,
     };
     listingSubmitLocked = true;
@@ -3971,7 +3993,7 @@ export default function CommunityCalendarApp() {
               </p>
               <h2 className="listing-detail__title">{selectedEvent.title}</h2>
               <div className="listing-detail__meta">
-                <span><span aria-hidden="true">◷</span> <DateText value={selectedEvent.start_at} /></span>
+                <span><span aria-hidden="true">◷</span> <DateText value={selectedEvent.start_at} allDay={selectedEvent.is_all_day} /></span>
                 {(selectedEvent.venue || selectedEvent.location_display_name || selectedEvent.town) ? (
                   <span><span aria-hidden="true">⌖</span> {[selectedEvent.venue, selectedEvent.location_display_name ?? selectedEvent.town].filter(Boolean).join(" · ")}</span>
                 ) : null}
@@ -4403,7 +4425,7 @@ function EventCard({ event, host, active, busy, onToggle, onOpen, ownerStatus, o
       {event.image_url ? (
         <img className="event-card__photo" alt="" src={event.image_url} />
       ) : null}
-      <div className="event-card__date"><DateText value={event.start_at} /></div>
+      <div className="event-card__date"><DateText value={event.start_at} allDay={event.is_all_day} /></div>
       <div className="event-card__body">
         <p className="event-card__meta">{event.listing_kind === "poll" ? "Poll" : event.category} · {event.location_display_name ?? event.town}</p>
         <h3>{event.title}</h3>
@@ -4470,7 +4492,7 @@ async function shareEvent(event: EventRecord) {
   recordEventAnalytics(event.id, "share", "engagement_row");
   const when = new Date(event.start_at);
   const date = Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString("en-NZ", { weekday: "short", day: "numeric", month: "short" });
-  const time = Number.isNaN(when.getTime()) ? "" : when.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" });
+  const time = event.is_all_day ? "All day" : Number.isNaN(when.getTime()) ? "" : when.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" });
   const place = [event.venue, event.location_display_name ?? event.town].filter(Boolean).join(", ");
   const text = `${event.title}\n${date}\n${time}\n${place}\n\nShared from Coast Calendar.`;
   try {
@@ -5105,6 +5127,7 @@ function CreateListingPanel({
     description: string;
     date: string;
     time: string;
+    allDay?: boolean;
     location: string;
     placeName: string;
     locationScopeId: string | null;
@@ -5124,6 +5147,7 @@ function CreateListingPanel({
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("12:00");
+  const [hasTime, setHasTime] = useState(true);
   const [location, setLocation] = useState("");
   const [locationScopeId, setLocationScopeId] = useState("");
   const [placeQuery, setPlaceQuery] = useState("");
@@ -5176,7 +5200,7 @@ function CreateListingPanel({
       void (async () => {
         setStatus("");
         if (isPoll && !locationScopeId) { setStatus("Choose the poll location coverage from the known places list."); return; }
-        const ok = await onCreateListing({ title, description, date, time, location: isPoll ? placeQuery.trim() : location, placeName: placeQuery.trim(), locationScopeId: locationScopeId || locationScopes.find((scope) => scope.scope_type === "place" && scope.name.toLowerCase() === placeQuery.trim().toLowerCase())?.id || null, topics, images, poll: isPoll ? { question: pollQuestion, options: filledPollOptions, allowCustom: pollAllowCustom } : null, pollClosesAt: isPoll ? pollClosesAt : null, recurrence: isPoll ? null : recurrence || null, recurrenceUntil: !isPoll && recurrence ? recurrenceUntil || null : null });
+        const ok = await onCreateListing({ title, description, date, time, allDay: !hasTime, location: isPoll ? placeQuery.trim() : location, placeName: placeQuery.trim(), locationScopeId: locationScopeId || locationScopes.find((scope) => scope.scope_type === "place" && scope.name.toLowerCase() === placeQuery.trim().toLowerCase())?.id || null, topics, images, poll: isPoll ? { question: pollQuestion, options: filledPollOptions, allowCustom: pollAllowCustom } : null, pollClosesAt: isPoll ? pollClosesAt : null, recurrence: isPoll ? null : recurrence || null, recurrenceUntil: !isPoll && recurrence ? recurrenceUntil || null : null });
         if (ok) {
           setIsPoll(false);
           setPollQuestion("");
@@ -5189,6 +5213,7 @@ function CreateListingPanel({
           setDescription("");
           setDate("");
           setTime("12:00");
+          setHasTime(true);
           setLocation("");
           setLocationScopeId("");
           setPlaceQuery("");
@@ -5237,7 +5262,8 @@ function CreateListingPanel({
       {isPoll ? null : (
         <>
           <label>Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
-          <label>Time<input type="time" value={time} onChange={(e) => setTime(e.target.value)} required /></label>
+          <label><span><input type="checkbox" checked={hasTime} onChange={(e) => setHasTime(e.target.checked)} /> Add a time</span><small> Leave off for an all-day listing.</small></label>
+          {hasTime ? <label>Time<input type="time" value={time} onChange={(e) => setTime(e.target.value)} required /></label> : null}
           <label>Repeats
             <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as RecurrenceChoice)}>
               {RECURRENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
