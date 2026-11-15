@@ -13,7 +13,7 @@ struct AccountScreen: View {
 
                     Text("Public browsing works without an account.")
                         .font(.title3.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .foregroundStyle(PCCTheme.text)
 
                     AccountInfoCard(
                         icon: "person.crop.circle.badge.checkmark",
@@ -39,7 +39,7 @@ struct AccountScreen: View {
                             .foregroundStyle(PCCTheme.ink)
 
                         Text("Use the Create tab to send event details for review. Include the venue, time, cost, contact details and a short public description.")
-                            .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .font(.body.weight(.medium))
                     .padding(20)
@@ -72,7 +72,7 @@ struct AccountInfoCard: View {
 
                 Text(message)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(3)
             }
         }

@@ -32,11 +32,11 @@ struct FeaturedEventTile: View {
 
             Text(event.dayText)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.74))
+                .foregroundStyle(PCCTheme.text)
 
             Text(event.venue)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.55))
+                .foregroundStyle(PCCTheme.text)
                 .lineLimit(1)
         }
         .frame(width: 215, height: 145)

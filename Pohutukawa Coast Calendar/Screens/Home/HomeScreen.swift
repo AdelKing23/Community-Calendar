@@ -256,7 +256,7 @@ struct HomeHero: View {
             if let greeting = PCCPersonalGreeting.line(name: userSessionStore.session?.greetingName) {
                 Text(greeting)
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -306,7 +306,7 @@ struct HomeHero: View {
                                 Text(scope.name)
                                     .lineLimit(1)
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.78))
+                                    .foregroundStyle(PCCTheme.text)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
                                     .background(PCCTheme.ink.opacity(0.06), in: Capsule())
@@ -340,7 +340,7 @@ struct HomeHero: View {
 
             Text("Your local guide to markets, music, family days, fundraisers and everything happening around \(selectedScope.name).")
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
 
             ViewThatFits(in: .horizontal) {
@@ -401,7 +401,7 @@ private struct HeroCounter: View {
 
                 Text(label)
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(2)
                     .minimumScaleFactor(0.78)
             }

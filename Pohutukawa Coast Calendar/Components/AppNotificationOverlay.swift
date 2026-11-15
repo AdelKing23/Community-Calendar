@@ -80,7 +80,7 @@ struct AppNotificationOverlay: View {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: badgeCount == 0 ? "bell" : "bell.badge.fill")
                     .font(.system(size: 18, weight: .black))
-                    .foregroundStyle(badgeCount == 0 ? PCCTheme.ink.opacity(0.68) : .white)
+                    .foregroundStyle(badgeCount == 0 ? PCCTheme.text : .white)
                     .frame(width: 48, height: 48)
                     .background(badgeCount == 0 ? .white.opacity(0.92) : PCCTheme.leafGreen, in: Circle())
                     .overlay(Circle().stroke(.white.opacity(0.96), lineWidth: 1))
@@ -496,7 +496,7 @@ private struct AppNotificationCenterSheet: View {
 
                             Text("Tap any card and Coast Calendar will take you to the listing, member, reminder, or sign-in step.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -567,7 +567,7 @@ private struct NotificationActionCard: View {
 
                 Text(item.message)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
             }
@@ -576,7 +576,7 @@ private struct NotificationActionCard: View {
 
             Image(systemName: "chevron.right")
                 .font(.headline.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.36))
+                .foregroundStyle(PCCTheme.text)
         }
         .padding(16)
         .pccCardStyle()
@@ -630,7 +630,7 @@ private struct NotificationEmptyCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
         }
         .padding(18)

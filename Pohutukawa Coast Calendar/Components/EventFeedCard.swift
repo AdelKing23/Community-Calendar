@@ -62,12 +62,12 @@ struct EventFeedCard: View {
 
                 Text(event.title)
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.84))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(2)
 
                 Text(event.shortDescription)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.67))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(2)
                     .lineSpacing(2)
 
@@ -76,7 +76,7 @@ struct EventFeedCard: View {
                     Label("\(event.venue), \(event.displayLocationName)", systemImage: "mappin.and.ellipse")
                 }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                .foregroundStyle(PCCTheme.text)
 
                 if let pollDetails = event.pollDetails {
                     PollInlineResponseView(event: event, pollDetails: pollDetails)
@@ -105,13 +105,13 @@ struct PollFeedCard: View {
 
                 Text(event.title)
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.84))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(2)
 
                 if !event.shortDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(event.shortDescription)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.67))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(3)
                         .lineSpacing(2)
                 }
@@ -158,11 +158,11 @@ struct PollPostCard: View {
                             .lineLimit(1)
                         Text(event.title)
                             .font(.title2.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.84))
+                            .foregroundStyle(PCCTheme.text)
                             .lineLimit(2)
                         Text(event.shortDescription)
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                            .foregroundStyle(PCCTheme.text)
                             .lineLimit(3)
                     }
                     PollCardMeta(event: event)
@@ -216,7 +216,7 @@ private struct PollCardHeader: View {
             if !compact {
                 Text("Feedback")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
     }
@@ -248,7 +248,7 @@ private struct PollCardMeta: View {
             Label("Asked by \(event.organiserDisplayName)", systemImage: "person.crop.circle")
         }
         .font(.caption.weight(.bold))
-        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+        .foregroundStyle(PCCTheme.text)
     }
 }
 
@@ -300,7 +300,7 @@ private struct PollActionRow: View {
 private extension Label where Title == Text, Icon == Image {
     func pollActionStyle(isSelected: Bool) -> some View {
         font(.system(size: 11, weight: .black))
-            .foregroundStyle(isSelected ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.66))
+            .foregroundStyle(isSelected ? PCCTheme.leafGreen : PCCTheme.text)
             .lineLimit(1)
             .minimumScaleFactor(0.76)
             .frame(maxWidth: .infinity)
@@ -317,7 +317,7 @@ struct PollUnavailablePanel: View {
     var body: some View {
         Label("This poll is being prepared. Check back shortly to have your say.", systemImage: "clock.badge.checkmark")
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(PCCTheme.ink.opacity(0.62))
+            .foregroundStyle(PCCTheme.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
             .background(PCCTheme.leafGreen.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -408,7 +408,7 @@ struct PollInlineResponseView: View {
                             HStack {
                                 Text("\(customAnswer.count)/\(PollDetails.customAnswerLimit)")
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                                    .foregroundStyle(PCCTheme.text)
 
                                 Spacer()
 
@@ -485,7 +485,7 @@ struct PollInlineResponseView: View {
         if statusMessage?.localizedCaseInsensitiveContains("could not") == true {
             return .red
         }
-        return PCCTheme.ink.opacity(0.58)
+        return PCCTheme.text
     }
 
     private var isClosed: Bool {
@@ -669,7 +669,7 @@ private struct PollOptionButton: View {
                         if let subtitle {
                             Text(subtitle)
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
                         }
                     }
 
@@ -734,7 +734,7 @@ struct DateTile: View {
 
             Text(event.weekdayShort)
                 .font(.caption2.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                .foregroundStyle(PCCTheme.text)
         }
         .frame(width: 62)
         .padding(.vertical, 11)

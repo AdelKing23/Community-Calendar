@@ -266,7 +266,7 @@ struct BelongingOnboardingSheet: View {
 
                             Text("Belonging helps Coast Calendar show nearby listings, notices and hosts first. You can keep browsing without signing in.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(18)
@@ -312,7 +312,7 @@ struct BelongingOnboardingSheet: View {
                         if let locationMessage {
                             Text(locationMessage)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(2)
                         }
 
@@ -320,7 +320,7 @@ struct BelongingOnboardingSheet: View {
                             skip()
                         }
                         .font(.subheadline.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 2)
                     }
@@ -388,7 +388,7 @@ struct PCCBottomTabBar: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
                     }
-                    .foregroundStyle(selectedTab == tab ? .white : PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(selectedTab == tab ? .white : PCCTheme.text)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 48)
                     .padding(.vertical, tab == .create ? 9 : 8)

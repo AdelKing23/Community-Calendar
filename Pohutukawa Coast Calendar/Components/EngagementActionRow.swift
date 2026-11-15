@@ -30,7 +30,7 @@ struct EngagementActionRow: View {
             ShareLink(item: shareText) {
                 Label("Share", systemImage: "square.and.arrow.up")
                     .font(.system(size: 11, weight: .black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
                     .frame(maxWidth: .infinity)
@@ -125,7 +125,7 @@ struct EventPlanSheet: View {
 
                             Text("\(event.dateText) · \(event.timeText)\n\(event.venue), \(event.displayLocationName)")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                .foregroundStyle(PCCTheme.text)
                         }
                         .padding(18)
                         .planSheetCardStyle()
@@ -185,7 +185,7 @@ struct EventPlanSheet: View {
 
                             Text(calendarSummary)
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                .foregroundStyle(PCCTheme.text)
 
                             if let calendarMessage {
                                 Text(calendarMessage)
@@ -428,7 +428,7 @@ struct EngagementButton: View {
         Button(action: action) {
             Label(title, systemImage: isSelected ? "\(icon).fill" : icon)
                 .font(.system(size: 11, weight: .black))
-                .foregroundStyle(isSelected ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.66))
+                .foregroundStyle(isSelected ? PCCTheme.leafGreen : PCCTheme.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
                 .frame(maxWidth: .infinity)

@@ -12,13 +12,21 @@ enum PCCTheme {
     static let cardRadius: CGFloat = 24
     static let smallRadius: CGFloat = 14
 
-    static let screenTitle = Color.white
-    static let screenSubtitle = Color.white.opacity(0.82)
-    static let screenSectionTitle = Color.white.opacity(0.94)
-    static let screenSectionFooter = Color.white.opacity(0.82)
+    /// t226: the ONE colour for all secondary, body, label, meta and section-header text,
+    /// on cards and on the wallpaper. #3A403E: 9.5:1 on cream #FAF2E0, 10.6:1 on white,
+    /// 8.7:1 on the darker cream #F2E8D1 (WCAG AA and AAA). Headings stay `ink`; buttons keep brand fills.
+    /// The app's surfaces are light in both appearances (UIUserInterfaceStyle = Light), so no dark variant is needed.
+    static let text = Color(red: 58 / 255, green: 64 / 255, blue: 62 / 255)
+
+    static let screenTitle = ink
+    static let screenSubtitle = text
+    static let screenSectionTitle = ink
+    static let screenSectionFooter = text
     static let cardTitle = ink
-    static let cardBody = ink.opacity(0.68)
-    static let cardMeta = ink.opacity(0.58)
+    static let cardBody = text
+    static let cardMeta = text
+    /// Soft cream halo behind text that sits straight on the wallpaper, so it stays readable on photo wallpapers.
+    static let wallpaperTextHalo = cream.opacity(0.9)
 }
 
 enum PCCWallpaperStyle: String, CaseIterable, Identifiable {
@@ -291,28 +299,33 @@ extension View {
     func pccScreenTitleStyle() -> some View {
         font(.title2.weight(.black))
             .foregroundStyle(PCCTheme.screenSectionTitle)
+            .shadow(color: PCCTheme.wallpaperTextHalo, radius: 3)
     }
 
     func pccScreenSubtitleStyle() -> some View {
         font(.subheadline.weight(.bold))
             .foregroundStyle(PCCTheme.screenSubtitle)
+            .shadow(color: PCCTheme.wallpaperTextHalo, radius: 3)
     }
 
     func pccScreenBodyStyle() -> some View {
         font(.body.weight(.medium))
             .foregroundStyle(PCCTheme.screenSubtitle)
             .lineSpacing(3)
+            .shadow(color: PCCTheme.wallpaperTextHalo, radius: 3)
     }
 
     func pccSettingsSectionTitleStyle() -> some View {
         font(.subheadline.weight(.black))
             .foregroundStyle(PCCTheme.screenSectionTitle)
             .textCase(.uppercase)
+            .shadow(color: PCCTheme.wallpaperTextHalo, radius: 3)
     }
 
     func pccSettingsFooterStyle() -> some View {
         font(.footnote.weight(.medium))
             .foregroundStyle(PCCTheme.screenSectionFooter)
+            .shadow(color: PCCTheme.wallpaperTextHalo, radius: 3)
     }
 
     func pccCardTitleStyle() -> some View {

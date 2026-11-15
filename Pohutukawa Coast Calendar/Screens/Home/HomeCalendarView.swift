@@ -143,7 +143,7 @@ struct HomeCalendarLegend: View {
                             .frame(width: 8, height: 8)
                         Text(category.shortLabel)
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
@@ -190,7 +190,7 @@ struct HomeCalendarMonthCard: View {
                 ForEach(Array(weekdayLabels.enumerated()), id: \.offset) { _, label in
                     Text(label)
                         .font(.caption2.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.45))
+                        .foregroundStyle(PCCTheme.text)
                         .accessibilityHidden(true)
                 }
 
@@ -234,7 +234,7 @@ struct HomeCalendarMonthCard: View {
                     if overflow > 0 {
                         Text("+")
                             .font(.system(size: 9, weight: .black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.6))
+                            .foregroundStyle(PCCTheme.text)
                     }
                 }
                 .frame(height: 8)
@@ -278,7 +278,7 @@ struct HomeCalendarDayScreen: View {
                             .foregroundStyle(PCCTheme.ink)
                         Text(events.isEmpty ? "Around \(areaName)" : "\(events.count) \(events.count == 1 ? "listing" : "listings") around \(areaName)")
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18)
@@ -298,7 +298,7 @@ struct HomeCalendarDayScreen: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Label("Finished", systemImage: "checkmark.circle")
                                         .font(.caption.weight(.bold))
-                                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                        .foregroundStyle(PCCTheme.text)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 5)
                                         .background(.white.opacity(0.86), in: Capsule())

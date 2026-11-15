@@ -13,7 +13,7 @@ struct EmptyStateView: View {
 
             Text("List something to be the first thing this week.")
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

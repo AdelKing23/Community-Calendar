@@ -78,7 +78,7 @@ struct SupportAccessUnavailableScreen: View {
 
                     Text("Support tools are only available to authorised listing reviewers.")
                         .font(.title3.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(3)
                 }
                 .padding(20)
@@ -91,7 +91,7 @@ struct SupportAccessUnavailableScreen: View {
 
                     Text(statusMessage)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(3)
 
                     if let email {
@@ -784,7 +784,7 @@ private extension BusinessProfileStatus {
         case .approved: return PCCTheme.leafGreen
         case .rejected: return PCCTheme.pohutukawaOrange
         case .suspended: return PCCTheme.pohutukawaRed
-        case .archived: return PCCTheme.ink.opacity(0.62)
+        case .archived: return PCCTheme.text
         }
     }
 }
@@ -801,7 +801,7 @@ struct SupportRequestsInboxPanel: View {
             if requests.isEmpty {
                 Text("No support messages yet.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 12) {
                     ForEach(requests.prefix(12)) { request in
@@ -842,7 +842,7 @@ struct SupportRequestAdminCard: View {
 
                     Text("Reference \(request.id.uuidString.prefix(8).uppercased()) · \(request.createdAt.formatted(.dateTime.day().month().hour().minute()))")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -866,18 +866,18 @@ struct SupportRequestAdminCard: View {
 
             Text(request.message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                .foregroundStyle(PCCTheme.text)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let supportNote = request.supportNote, !supportNote.isEmpty {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Support Reply")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text(supportNote)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.74))
+                        .foregroundStyle(PCCTheme.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(12)
@@ -907,7 +907,7 @@ struct SupportRequestAdminCard: View {
                     SupportStatusButton(
                         title: "Close",
                         icon: "checkmark.circle.fill",
-                        color: PCCTheme.ink.opacity(0.74),
+                        color: PCCTheme.text,
                         isUpdating: isUpdating,
                         action: onClose
                     )
@@ -930,7 +930,7 @@ struct EventReportsInboxPanel: View {
             if reports.isEmpty {
                 Text("No listing reports yet.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 12) {
                     ForEach(reports.prefix(12)) { report in
@@ -967,7 +967,7 @@ struct EventReportAdminCard: View {
 
                     Text("\(report.category.title) · \(report.createdAt.formatted(.dateTime.day().month().hour().minute()))")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -991,11 +991,11 @@ struct EventReportAdminCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("\(event.dateText) · \(event.venue), \(event.displayLocationName)")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text(event.shortDescription)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(3)
                 }
             }
@@ -1003,12 +1003,12 @@ struct EventReportAdminCard: View {
             if let details = report.details?.nilIfEmpty {
                 Text(details)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                    .foregroundStyle(PCCTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("No extra details supplied.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             if report.status == .open || report.status == .inReview {
@@ -1024,7 +1024,7 @@ struct EventReportAdminCard: View {
                     SupportStatusButton(
                         title: "Dismiss",
                         icon: "xmark.circle.fill",
-                        color: PCCTheme.ink.opacity(0.74),
+                        color: PCCTheme.text,
                         isUpdating: isUpdating,
                         action: onDismiss
                     )
@@ -1067,7 +1067,7 @@ struct SupportRequestReplySheet: View {
 
                         Text(request.message)
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                            .foregroundStyle(PCCTheme.text)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(12)
                             .background(PCCTheme.cream.opacity(0.72), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -1076,7 +1076,7 @@ struct SupportRequestReplySheet: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Status")
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
 
                         Picker("Status", selection: $selectedStatus) {
                             ForEach(SupportRequestStatus.allCases) { status in
@@ -1089,7 +1089,7 @@ struct SupportRequestReplySheet: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Reply shown to user")
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
 
                         TextEditor(text: $supportNote)
                             .font(.body.weight(.medium))
@@ -1151,7 +1151,7 @@ struct MemberApplicationsPanel: View {
             if profiles.isEmpty {
                 Text("No member applications have been submitted yet.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 12) {
                     ForEach(profiles.prefix(16)) { profile in
@@ -1228,7 +1228,7 @@ struct MemberApplicationReviewCard: View {
             if let about = profile.about?.nilIfEmpty {
                 Text(about)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1281,7 +1281,7 @@ struct MemberProfileReasonNote: View {
 
             Text(note)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.74))
+                .foregroundStyle(PCCTheme.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
@@ -1331,13 +1331,13 @@ struct MemberSubscriptionSupportSummary: View {
                     if subscriptions.count > 1 {
                         Text("\(subscriptions.count) subscription records on file. Latest shown first.")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
                     }
                 }
             } else {
                 Text("No verified Apple subscription is attached yet.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
         .padding(12)
@@ -1444,13 +1444,13 @@ struct MemberProfileDecisionSheet: View {
 
                         Text("\(profile.selectedPlan.title) · \(profile.areaScopeID)")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(fieldTitle)
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
 
                         TextEditor(text: kind == .approve ? $supportNote : $reason)
                             .font(.body.weight(.medium))
@@ -1462,14 +1462,14 @@ struct MemberProfileDecisionSheet: View {
 
                         Text(helperText)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     if kind != .approve {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Extra Support note")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
 
                             TextEditor(text: $supportNote)
                                 .font(.body.weight(.medium))
@@ -1481,7 +1481,7 @@ struct MemberProfileDecisionSheet: View {
 
                             Text("Optional. This can be shown to the member, so keep it clear and professional.")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                .foregroundStyle(PCCTheme.text)
                         }
                     }
 
@@ -1533,7 +1533,7 @@ struct PendingListingsReviewPanel: View {
             if events.isEmpty {
                 Text("No pending listings are waiting for review.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 12) {
                     ForEach(events) { event in
@@ -1571,7 +1571,7 @@ struct PendingListingReviewCard: View {
 
                 Text(event.createdAt.formatted(.dateTime.day().month().hour().minute()))
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             if event.unverifiedUserListing {
@@ -1594,7 +1594,7 @@ struct PendingListingReviewCard: View {
 
             Text(event.longDescription)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
 
             if !event.images.isEmpty {
@@ -1604,7 +1604,7 @@ struct PendingListingReviewCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text("Review Contact")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
 
                 SupportDetailRow(icon: "person", title: "Name", value: event.contactName ?? "Not supplied")
                 SupportDetailRow(icon: "envelope", title: "Email", value: event.contactEmail ?? "Not supplied")
@@ -1654,7 +1654,7 @@ struct MemberPublishingSupportSummary: View {
                     ForEach(signals.prefix(3)) { signal in
                         Text("\(signal.label): \(signal.detail)")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                            .foregroundStyle(PCCTheme.text)
                     }
                 }
                 .padding(10)
@@ -1674,7 +1674,7 @@ struct SupportImageStrip: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Submitted Photos")
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                .foregroundStyle(PCCTheme.text)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -1703,7 +1703,7 @@ struct SupportImageThumbnail: View {
                 .overlay {
                     Image(systemName: "photo")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.44))
+                        .foregroundStyle(PCCTheme.text)
                 }
         }
         .frame(width: 112, height: 84)
@@ -1722,7 +1722,7 @@ struct ChangeRequestsReviewPanel: View {
             if requests.isEmpty {
                 Text("No edit or removal requests are waiting for review.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 12) {
                     ForEach(requests.prefix(10)) { request in
@@ -1784,11 +1784,11 @@ struct ChangeRequestReviewCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Requester Note")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text(requesterNote)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                        .foregroundStyle(PCCTheme.text)
                 }
                 .padding(12)
                 .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -1855,13 +1855,13 @@ struct SupportReviewDecisionSheet: View {
 
                         Text(subtitle)
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Main reason")
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
 
                         Picker("Main reason", selection: $selectedReason) {
                             ForEach(kind.reasons(for: request)) { reason in
@@ -1878,7 +1878,7 @@ struct SupportReviewDecisionSheet: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Short note")
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
 
                         TextEditor(text: $supportNote)
                             .font(.body.weight(.medium))
@@ -1890,7 +1890,7 @@ struct SupportReviewDecisionSheet: View {
 
                         Text("This is shown to the listing owner with the request result.")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     Button {
@@ -1970,7 +1970,7 @@ struct SupportReviewDecisionSheet: View {
     private var buttonColor: Color {
         switch kind {
         case .approve:
-            return request.changeType == .removalRequest ? PCCTheme.ink.opacity(0.76) : PCCTheme.leafGreen
+            return request.changeType == .removalRequest ? PCCTheme.text : PCCTheme.leafGreen
         case .reject:
             return PCCTheme.pohutukawaRed
         }
@@ -1992,7 +1992,7 @@ struct SupportReviewOutcome: View {
             if let note, !note.isEmpty {
                 Text(note)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                    .foregroundStyle(PCCTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -2010,23 +2010,23 @@ struct ProposedChangesSummary: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(summaryRows.isEmpty ? "No field changes detected" : "What changed")
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                .foregroundStyle(PCCTheme.text)
 
             if summaryRows.isEmpty {
                 Text("The requester submitted this form with the same values as the live listing. Check the note, or reject if nothing should change.")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ForEach(summaryRows, id: \.key) { row in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(row.label)
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.50))
+                            .foregroundStyle(PCCTheme.text)
                         if let from = row.from, !from.isEmpty {
                             Text(from)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                                .foregroundStyle(PCCTheme.text)
                                 .strikethrough()
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -2105,7 +2105,7 @@ struct SupportEventListPanel: View {
             if events.isEmpty {
                 Text("No listings in this section.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 10) {
                     ForEach(events.prefix(8)) { event in
@@ -2117,7 +2117,7 @@ struct SupportEventListPanel: View {
 
                                 Text("\(event.displayLocationName) · \(event.venue)")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                    .foregroundStyle(PCCTheme.text)
 
                                 Text(event.dateText)
                                     .font(.caption.weight(.bold))
@@ -2227,7 +2227,7 @@ struct SupportPanel<Content: View>: View {
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
             .buttonStyle(.plain)
@@ -2251,7 +2251,7 @@ struct PCCSupportField: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                .foregroundStyle(PCCTheme.text)
 
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
@@ -2275,11 +2275,11 @@ struct SupportDetailRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text(value)
                     .font(.body.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.76))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
     }
@@ -2334,7 +2334,7 @@ private extension SupportRequestStatus {
         switch self {
         case .open: return PCCTheme.pohutukawaOrange
         case .inReview: return PCCTheme.leafGreen
-        case .closed: return PCCTheme.ink.opacity(0.62)
+        case .closed: return PCCTheme.text
         }
     }
 
@@ -2361,7 +2361,7 @@ private extension EventReportStatus {
         switch self {
         case .open: return PCCTheme.pohutukawaOrange
         case .inReview: return PCCTheme.leafGreen
-        case .closed: return PCCTheme.ink.opacity(0.62)
+        case .closed: return PCCTheme.text
         case .dismissed: return PCCTheme.pohutukawaRed
         }
     }

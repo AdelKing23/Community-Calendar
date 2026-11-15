@@ -653,7 +653,7 @@ struct MemberOnlyCreateGate: View {
 
                     Text(message)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
             }
@@ -706,7 +706,7 @@ struct ListingAccountGate: View {
 
                 Text(mode == .signUp ? "Use an email and password so you can manage your listings later." : "Sign in to continue creating your listing.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(3)
             }
 
@@ -733,7 +733,7 @@ struct ListingAccountGate: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Password")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                    .foregroundStyle(PCCTheme.text)
 
                 SecureField("At least 6 characters", text: $password)
                     .textFieldStyle(.plain)
@@ -826,7 +826,7 @@ struct SignedInListingBanner: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Submitting as")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.50))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text(email ?? "Signed-in account")
                     .font(.subheadline.weight(.black))
@@ -866,7 +866,7 @@ struct MyListingsPanel: View {
 
                     Text("Track listings you can manage.")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -898,7 +898,7 @@ struct MyListingsPanel: View {
                         .tint(PCCTheme.pohutukawaOrange)
                     Text("Loading your listings")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
             } else if let errorMessage {
                 VStack(alignment: .leading, spacing: 10) {
@@ -913,7 +913,7 @@ struct MyListingsPanel: View {
             } else if listings.isEmpty {
                 Text("Listings you can manage will appear here after they are sent for review.")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
             } else {
                 VStack(spacing: 10) {
                     ForEach(listings, id: \.id) { listing in
@@ -984,7 +984,7 @@ struct MyListingCard: View {
 
                     Text(listing.isPoll ? "\(listing.displayLocationName) · Poll closes \(listing.endDate.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute()))" : "\(listing.displayLocationName) · \(listing.venue)")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -1007,13 +1007,13 @@ struct MyListingCard: View {
                 }
             }
             .font(.caption.weight(.bold))
-            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+            .foregroundStyle(PCCTheme.text)
             .lineLimit(1)
             .minimumScaleFactor(0.74)
 
             Text(editNote)
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
 
             ListingAnalyticsCompactView(event: listing)
@@ -1054,14 +1054,14 @@ struct MyListingCard: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(pendingRequest == nil ? PCCTheme.ink.opacity(0.72) : PCCTheme.ink.opacity(0.34))
+                .foregroundStyle(pendingRequest == nil ? PCCTheme.text : PCCTheme.text)
                 .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                 .disabled(pendingRequest != nil)
 
                 if listing.listingStatus == .archived {
                     Text("Archived")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(PCCTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -1074,7 +1074,7 @@ struct MyListingCard: View {
                             .padding(.vertical, 10)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(canRemove ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.34))
+                    .foregroundStyle(canRemove ? PCCTheme.pohutukawaRed : PCCTheme.text)
                     .background(PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                     .disabled(!canRemove)
                 }
@@ -1151,7 +1151,7 @@ struct UserListingDetailSheet: View {
 
                         Text(listing.shortDescription)
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(3)
                     }
                     .padding(20)
@@ -1164,7 +1164,7 @@ struct UserListingDetailSheet: View {
                                 .foregroundStyle(PCCTheme.pohutukawaRed)
                             Text("Support did not approve this listing. There is no extra written reason on file. Edit and send it back, or Remove to archive it.")
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(18)
@@ -1201,7 +1201,7 @@ struct UserListingDetailSheet: View {
 
                         Text(reviewCopy)
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(3)
 
                         HStack(spacing: 9) {
@@ -1215,7 +1215,7 @@ struct UserListingDetailSheet: View {
                                     .padding(.vertical, 11)
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(pendingRequest == nil ? .white : PCCTheme.ink.opacity(0.36))
+                            .foregroundStyle(pendingRequest == nil ? .white : PCCTheme.text)
                             .background(pendingRequest == nil ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                             .disabled(pendingRequest != nil)
 
@@ -1229,7 +1229,7 @@ struct UserListingDetailSheet: View {
                                     .padding(.vertical, 11)
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(pendingRequest == nil ? .white : PCCTheme.ink.opacity(0.36))
+                            .foregroundStyle(pendingRequest == nil ? .white : PCCTheme.text)
                             .background(pendingRequest == nil ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                             .disabled(pendingRequest != nil)
                         }
@@ -1297,7 +1297,7 @@ struct PollOwnerResultsPanel: View {
 
                     Text("Option totals are anonymous. Custom answers stay private to you and Support.")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
             }
@@ -1308,7 +1308,7 @@ struct PollOwnerResultsPanel: View {
                         .tint(PCCTheme.pohutukawaOrange)
                     Text("Loading poll results")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
             } else if let errorMessage {
                 Label(errorMessage, systemImage: "wifi.exclamationmark")
@@ -1319,7 +1319,7 @@ struct PollOwnerResultsPanel: View {
                     if resultRows.isEmpty {
                         Text("No answers yet.")
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                            .foregroundStyle(PCCTheme.text)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         ForEach(resultRows, id: \.option) { row in
@@ -1340,18 +1340,18 @@ struct PollOwnerResultsPanel: View {
                     if customResponses.isEmpty {
                         Text("No custom answers have been submitted.")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
                     } else {
                         ForEach(customResponses.prefix(8)) { response in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(response.customAnswer)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.76))
+                                    .foregroundStyle(PCCTheme.text)
                                     .fixedSize(horizontal: false, vertical: true)
 
                                 Text(response.createdAt.formatted(.dateTime.day().month().hour().minute()))
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.45))
+                                    .foregroundStyle(PCCTheme.text)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)
@@ -1533,7 +1533,7 @@ struct AnalyticsPill: View {
                 .foregroundStyle(PCCTheme.leafGreen)
             Text(label)
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                .foregroundStyle(PCCTheme.text)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -1569,7 +1569,7 @@ struct ListingAnalyticsDetailCard: View {
 
                     Text("See how people discover and engage with this listing.")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
             }
@@ -1584,7 +1584,7 @@ struct ListingAnalyticsDetailCard: View {
 
             Text("Compare visibility and engagement throughout the life of your listing.")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                .foregroundStyle(PCCTheme.text)
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "wifi.exclamationmark")
@@ -1593,7 +1593,7 @@ struct ListingAnalyticsDetailCard: View {
             } else if analytics == .zero {
                 Text("Activity will appear as people discover this listing.")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
         .padding(18)
@@ -1658,7 +1658,7 @@ struct AnalyticsBarGraph: View {
                 HStack(spacing: 10) {
                     Text(row.label)
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                         .frame(width: 64, alignment: .leading)
 
                     GeometryReader { proxy in
@@ -1674,7 +1674,7 @@ struct AnalyticsBarGraph: View {
 
                     Text("\(row.value)")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .foregroundStyle(PCCTheme.text)
                         .frame(width: 34, alignment: .trailing)
                 }
             }
@@ -1696,7 +1696,7 @@ struct ListingRequestHistory: View {
 
                 Text("Support decisions and notes stay attached to this listing.")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             VStack(spacing: 10) {
@@ -1723,7 +1723,7 @@ struct UserRequestTimelineCard: View {
 
                     Text(request.createdAt.formatted(.dateTime.day().month().year().hour().minute()))
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -1740,11 +1740,11 @@ struct UserRequestTimelineCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Your note")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.50))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text(requesterNote)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
 
@@ -1756,7 +1756,7 @@ struct UserRequestTimelineCard: View {
 
                     Text(reviewReason.userNextStep(for: request.changeType, status: request.status))
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(3)
                 }
                 .padding(12)
@@ -1768,11 +1768,11 @@ struct UserRequestTimelineCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Support note")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.50))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text(supportNote)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(3)
                 }
                 .padding(12)
@@ -1803,7 +1803,7 @@ struct ReviewedRequestSummary: View {
             if let supportNote = request.supportNote, !supportNote.isEmpty {
                 Text(supportNote)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(3)
             }
         }
@@ -1826,11 +1826,11 @@ struct UserListingInfoRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.50))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text(value)
                     .font(.body.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.76))
+                    .foregroundStyle(PCCTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1863,7 +1863,7 @@ struct ListingEditRequestSheet: View {
 
                         Text("Your public listing will not change until Support reviews this request.")
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(3)
                     }
                     .padding(20)
@@ -1909,7 +1909,7 @@ struct ListingEditRequestSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Short Description")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
 
                             TextEditor(text: $draft.shortDescription)
                                 .frame(minHeight: 96)
@@ -1921,7 +1921,7 @@ struct ListingEditRequestSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Extra details")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
 
                             TextEditor(text: $draft.longDescription)
                                 .frame(minHeight: 118)
@@ -1933,7 +1933,7 @@ struct ListingEditRequestSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Note (optional)")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
 
                             TextEditor(text: $requesterNote)
                                 .frame(minHeight: 82)
@@ -1944,7 +1944,7 @@ struct ListingEditRequestSheet: View {
 
                         Label("To replace a listing photo, include the requested change in your note for Support.", systemImage: "photo.on.rectangle")
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.60))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .padding(20)
                     .pccCardStyle()
@@ -2023,7 +2023,7 @@ struct ListingRemovalRequestSheet: View {
 
                         Text("It will come off the public board. Support can restore it if this was a mistake. Poll answers and listing history stay on file.")
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(3)
                     }
                     .padding(20)
@@ -2032,7 +2032,7 @@ struct ListingRemovalRequestSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Note for Support")
                             .font(.caption.weight(.black))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
 
                         TextEditor(text: $requesterNote)
                             .frame(minHeight: 112)
@@ -2181,7 +2181,7 @@ struct CreateListingHero: View {
 
             Text("Only approved Organisations with an active plan can publish listings and polls.")
                 .font(.title3.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2259,7 +2259,7 @@ struct PendingListingForm: View {
                 )
                 Text("The poll opens when it’s published and closes at this time. It then shows as Finished until midnight.")
                     .font(.caption)
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 DatePicker("Date", selection: $draft.date, displayedComponents: .date)
@@ -2281,7 +2281,7 @@ struct PendingListingForm: View {
                     }
                     Text("A repeating listing counts as one listing.")
                         .font(.caption)
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
 
@@ -2296,12 +2296,12 @@ struct PendingListingForm: View {
                 HStack(spacing: 8) {
                     Text(draft.listingKind == .poll ? "Extra context" : "Description")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(isInvalid(.description) ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(isInvalid(.description) ? PCCTheme.pohutukawaRed : PCCTheme.text)
 
                     if draft.listingKind == .event {
                         Text("Required")
                             .font(.caption2.weight(.black))
-                            .foregroundStyle(isInvalid(.description) ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.42))
+                            .foregroundStyle(isInvalid(.description) ? PCCTheme.pohutukawaRed : PCCTheme.text)
                     }
                 }
 
@@ -2322,7 +2322,7 @@ struct PendingListingForm: View {
                         if draft.shortDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Text(draft.listingKind == .poll ? "Tell people why you’re asking." : "What should locals know?")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.34))
+                                .foregroundStyle(PCCTheme.text)
                                 .padding(.horizontal, 15)
                                 .padding(.vertical, 18)
                                 .allowsHitTesting(false)
@@ -2432,7 +2432,7 @@ struct ListingVenueAutocompleteField: View {
             if autocomplete.isSearching {
                 Label("Finding nearby matches", systemImage: "location.magnifyingglass")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             if shouldShowSuggestions {
@@ -2456,7 +2456,7 @@ struct ListingVenueAutocompleteField: View {
                                     if !suggestion.subtitle.isEmpty {
                                         Text(suggestion.subtitle)
                                             .font(.caption.weight(.semibold))
-                                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                            .foregroundStyle(PCCTheme.text)
                                             .lineLimit(2)
                                     }
                                 }
@@ -2465,7 +2465,7 @@ struct ListingVenueAutocompleteField: View {
 
                                 Image(systemName: "arrow.up.left")
                                     .font(.caption.weight(.black))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.38))
+                                    .foregroundStyle(PCCTheme.text)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -2620,17 +2620,17 @@ struct ListingLocationPicker: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Location")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text("Choose the closest named place. Search uses the wider NZ location catalogue while keeping local ladders where we have them.")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
             }
 
             HStack(spacing: 9) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                    .foregroundStyle(PCCTheme.text)
 
                 TextField("Search place", text: $query)
                     .font(.body.weight(.bold))
@@ -2641,7 +2641,7 @@ struct ListingLocationPicker: View {
                         query = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(PCCTheme.ink.opacity(0.38))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .buttonStyle(.plain)
                 }
@@ -2806,11 +2806,11 @@ struct PollBuilderSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Poll")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text("Add 2 to 10 answer options. The next answer field appears as people fill them in.")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -2877,7 +2877,7 @@ struct PollBuilderSection: View {
                         .font(.subheadline.weight(.black))
                     Text("People can write their own response, capped at \(PollDetails.customAnswerLimit) characters.")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
             .tint(PCCTheme.leafGreen)
@@ -2934,7 +2934,7 @@ struct ListingTopicMultiPicker: View {
 
             Text("Tap every topic that fits. Leave the rest off.")
                 .font(.caption.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                .foregroundStyle(PCCTheme.text)
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
                 ForEach(EventCategory.allCases) { topic in
@@ -2979,11 +2979,11 @@ struct ListingTopicPreview: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Topics")
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                .foregroundStyle(PCCTheme.text)
 
             Text("These are based on the category and wording, and match the Browse by topic filters in What’s On.")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -3022,13 +3022,13 @@ struct CommercialSignalWarning: View {
 
             Text("We spotted wording that can look commercial. Publishing is limited to approved members with an active subscription, so Support may ask for edits before this goes live.")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
 
             ForEach(signals.prefix(3)) { signal in
                 Text("\(signal.label): \(signal.detail)")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
         .padding(13)
@@ -3054,11 +3054,11 @@ struct ListingPhotoPickerSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Listing image")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text("Start with a strong photo. You can add up to 5.")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -3083,7 +3083,7 @@ struct ListingPhotoPickerSection: View {
 
                         Text("Tap to choose from your photo library")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .foregroundStyle(PCCTheme.leafGreen)
                     .frame(maxWidth: .infinity)
@@ -3120,7 +3120,7 @@ struct ListingPhotoPickerSection: View {
                         .padding(.vertical, 13)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(remainingSlots > 0 && !isDisabled ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.34))
+                .foregroundStyle(remainingSlots > 0 && !isDisabled ? PCCTheme.leafGreen : PCCTheme.text)
                 .background(PCCTheme.leafGreen.opacity(remainingSlots > 0 && !isDisabled ? 0.10 : 0.04), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                 .disabled(remainingSlots == 0 || isDisabled || isLoadingPhotos)
             }
@@ -3160,7 +3160,7 @@ struct ListingPhotoThumbnail: View {
                     .frame(width: 92, height: 92)
                     .overlay {
                         Image(systemName: "photo")
-                            .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                            .foregroundStyle(PCCTheme.text)
                     }
             }
 
@@ -3181,7 +3181,7 @@ struct ListingReviewNote: View {
     var body: some View {
         Label("Listings are reviewed before they appear publicly.", systemImage: "checkmark.seal")
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(PCCTheme.ink.opacity(0.64))
+            .foregroundStyle(PCCTheme.text)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(PCCTheme.leafGreen.opacity(0.08), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -3201,12 +3201,12 @@ struct PCCFormField: View {
             HStack(spacing: 8) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.54))
+                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaRed : PCCTheme.text)
 
                 if isRequired {
                     Text("Required")
                         .font(.caption2.weight(.black))
-                        .foregroundStyle(isInvalid ? PCCTheme.pohutukawaRed : PCCTheme.ink.opacity(0.42))
+                        .foregroundStyle(isInvalid ? PCCTheme.pohutukawaRed : PCCTheme.text)
                 }
             }
 
@@ -3260,13 +3260,13 @@ struct SubmissionReceivedCard: View {
 
             Text("Thanks—your listing is safely in the review queue. We’ll keep it here until Support has checked and published it.")
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
 
             if let listingID {
                 Text("Listing reference: \(String(listingID.uuidString.prefix(8)))")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
                     .padding(.top, 2)
             }
 
@@ -3344,7 +3344,7 @@ private extension ListingStatus {
         case .approvedAwaitingPayment: return PCCTheme.leafGreen
         case .published: return PCCTheme.leafGreen
         case .rejected: return PCCTheme.pohutukawaRed
-        case .archived: return PCCTheme.ink.opacity(0.62)
+        case .archived: return PCCTheme.text
         case .orgCalendar: return PCCTheme.leafGreen
         }
     }

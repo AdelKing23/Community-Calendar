@@ -60,7 +60,7 @@ struct SettingsScreen: View {
 
                             Text("Account, membership, saved activity and reminders.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -565,7 +565,7 @@ struct SettingsCommandCenterCard: View {
 
                     Text(primaryMessage)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
 
@@ -575,7 +575,7 @@ struct SettingsCommandCenterCard: View {
             if isLoading {
                 Label("Refreshing your account...", systemImage: "arrow.clockwise")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -654,7 +654,7 @@ struct SettingsHubButton: View {
 
                     Text(detail)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                 }
@@ -780,7 +780,7 @@ struct SettingsRow: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: content.icon)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(content.isEnabled ? PCCTheme.pohutukawaOrange : PCCTheme.ink.opacity(0.34))
+                .foregroundStyle(content.isEnabled ? PCCTheme.pohutukawaOrange : PCCTheme.text)
                 .frame(width: 34, height: 34)
                 .background(PCCTheme.cream.opacity(0.70), in: Circle())
 
@@ -792,7 +792,7 @@ struct SettingsRow: View {
                 if let subtitle = content.subtitle {
                     Text(subtitle)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -821,13 +821,13 @@ struct SettingsRow: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.34))
+                    .foregroundStyle(PCCTheme.text)
             }
         case .status:
             if let detail = content.detail {
                 Text(detail)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(PCCTheme.cream.opacity(0.86), in: Capsule())
@@ -883,7 +883,7 @@ struct MemberPageUnavailableSheet: View {
 
                     Text("Submit a member profile first. Once it exists, this opens the public page locals will see, including your profile, contact actions, listings and polls.")
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(4)
 
                     Spacer()
@@ -936,7 +936,7 @@ struct AccountAccessSheet: View {
 
                             Text("A normal account is free. Create one to save events, reminders and Belonging.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -1126,7 +1126,7 @@ struct AccountDetailsScreen: View {
 
                             Text("Add just enough detail so locals know who is behind a listing — perfect for schools, churches, sports clubs, venues and community groups.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -1145,7 +1145,7 @@ struct AccountDetailsScreen: View {
                             PCCFormField(title: "User name", text: $accountFullName, prompt: "Isaac")
                             Text("Used to greet you in the app. Not shown on public listings.")
                                 .font(.caption.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
                             PCCFormField(title: "Public contact name", text: $profile.displayName, prompt: "Sharon")
                             PCCFormField(title: "Role or title", text: $profile.publicRole, prompt: "Principal, coach, organiser")
                             PCCFormField(title: "Organisation", text: $profile.organisationName, prompt: "Maraetai School, local club")
@@ -1198,7 +1198,7 @@ struct AccountDetailsScreen: View {
 
                         Text("Payment card details are not stored here. Apple handles subscriptions; Coast Calendar only records receipts and publishing access status.")
                             .font(.footnote.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(2)
 
                         VStack(alignment: .leading, spacing: 12) {
@@ -1208,7 +1208,7 @@ struct AccountDetailsScreen: View {
 
                             Text("You can ask Coast Calendar to delete your account record and personal account details. Apple subscriptions are managed by Apple and may need to be cancelled separately.")
                                 .font(.footnote.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(2)
 
                             Button {
@@ -1352,7 +1352,7 @@ struct AccountDeletionRequestScreen: View {
 
                             Text("This starts deletion of your Coast Calendar account and personal account details. Support will confirm the request and complete deletion of data we are not legally required to keep.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -1387,7 +1387,7 @@ struct AccountDeletionRequestScreen: View {
 
                             Text("Signed-in account: \(email ?? "Unknown email")")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                .foregroundStyle(PCCTheme.text)
 
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Optional note")
@@ -1515,7 +1515,7 @@ struct OrganiserIdentityPreview: View {
 
                 Text(subtitle)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
 
                 if let email = contactEmail, profile.contactVisibility != .anonymous {
                     Label(email, systemImage: "envelope")
@@ -1567,7 +1567,7 @@ struct AccountContactVisibilityPicker: View {
 
                 Text("Choose what the app pre-fills on new listings. Support can still review everything before it goes public.")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
             }
 
@@ -1581,7 +1581,7 @@ struct AccountContactVisibilityPicker: View {
                         HStack(alignment: .top, spacing: 11) {
                             Image(systemName: profile.contactVisibility == visibility ? "checkmark.circle.fill" : "circle")
                                 .font(.title3.weight(.bold))
-                                .foregroundStyle(profile.contactVisibility == visibility ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.38))
+                                .foregroundStyle(profile.contactVisibility == visibility ? PCCTheme.leafGreen : PCCTheme.text)
                                 .frame(width: 26)
 
                             VStack(alignment: .leading, spacing: 3) {
@@ -1591,7 +1591,7 @@ struct AccountContactVisibilityPicker: View {
 
                                 Text(visibility.detail)
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                    .foregroundStyle(PCCTheme.text)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
@@ -1635,7 +1635,7 @@ struct NotificationSettingsScreen: View {
 
                             Text("When you tap Going, the app can remind you before the event starts. Simple, local, and controlled on this device.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -1650,7 +1650,7 @@ struct NotificationSettingsScreen: View {
 
                                     Text("Automatically schedule a reminder when you mark an event as Going.")
                                         .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                        .foregroundStyle(PCCTheme.text)
                                 }
                             }
                             .tint(PCCTheme.leafGreen)
@@ -1684,7 +1684,7 @@ struct NotificationSettingsScreen: View {
 
                         Text("\(reminderStore.activeReminderCount) reminder\(reminderStore.activeReminderCount == 1 ? "" : "s") currently scheduled on this device.")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, PCCKeyboardSpacing.standardTopPadding)
@@ -1721,7 +1721,7 @@ struct NotificationPermissionCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
 
             if status == .notDetermined {
@@ -2040,7 +2040,7 @@ struct WallpaperPickerScreen: View {
 
                             Text("Preview a background before saving it. The original illustrated wallpaper stays available as the default.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
 
@@ -2061,7 +2061,7 @@ struct WallpaperPickerScreen: View {
 
                                             Text(style == .ornament ? "Swift-drawn pōhutukawa background" : "Photo wallpaper")
                                                 .font(.caption.weight(.semibold))
-                                                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                                                .foregroundStyle(PCCTheme.text)
                                         }
 
                                         Spacer()
@@ -2177,7 +2177,7 @@ struct WallpaperPreviewCard: View {
 
                 Text("Saturday, 10:00 AM · Town hall")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
             }
             .padding(14)
             .background(PCCTheme.cream.opacity(0.62), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -2236,7 +2236,7 @@ struct CardTintPickerScreen: View {
 
                             Text("Pick a readable card surface for your wallpaper.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                         }
 
                         CardTintPreviewCard(style: previewStyle)
@@ -2262,7 +2262,7 @@ struct CardTintPickerScreen: View {
 
                                             Text(style == .clean ? "Highest contrast default" : "Soft tint, text stays dark")
                                                 .font(.caption.weight(.semibold))
-                                                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                                                .foregroundStyle(PCCTheme.text)
                                         }
 
                                         Spacer()
@@ -2343,7 +2343,7 @@ struct CardTintPreviewCard: View {
 
             Text("Saturday, 9:00 AM · Community park")
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
 
             HStack(spacing: 8) {
                 Label("Community", systemImage: "person.3.fill")
@@ -2405,7 +2405,7 @@ struct ContactSupportScreen: View {
 
                         Text("Send a private request to Support. Your message is attached to your app account so we can follow up without showing a personal email in the app.")
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(3)
 
                         VStack(alignment: .leading, spacing: 14) {
@@ -2434,7 +2434,7 @@ struct ContactSupportScreen: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Message")
                                     .font(.caption.weight(.black))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                    .foregroundStyle(PCCTheme.text)
 
                                 TextEditor(text: $message)
                                     .font(.body.weight(.medium))
@@ -2483,7 +2483,7 @@ struct ContactSupportScreen: View {
                                 } else if mySupportRequests.isEmpty {
                                     Text("No support requests yet. Messages you send will appear here with Support replies.")
                                         .font(.body.weight(.medium))
-                                        .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                                        .foregroundStyle(PCCTheme.text)
                                 } else {
                                     VStack(spacing: 12) {
                                         ForEach(mySupportRequests.prefix(8)) { request in
@@ -2614,7 +2614,7 @@ struct UserSupportRequestCard: View {
 
                     Text("Reference \(request.id.uuidString.prefix(8).uppercased())")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -2635,7 +2635,7 @@ struct UserSupportRequestCard: View {
 
             Text(request.message)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                .foregroundStyle(PCCTheme.text)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let supportNote = request.supportNote, !supportNote.isEmpty {
@@ -2646,7 +2646,7 @@ struct UserSupportRequestCard: View {
 
                     Text(supportNote)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.74))
+                        .foregroundStyle(PCCTheme.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(12)
@@ -2655,7 +2655,7 @@ struct UserSupportRequestCard: View {
 
             Text(request.updatedAt.formatted(.dateTime.day().month().hour().minute()))
                 .font(.caption.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.44))
+                .foregroundStyle(PCCTheme.text)
         }
         .padding(12)
         .background(PCCTheme.cream.opacity(0.66), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -2675,7 +2675,7 @@ private extension SupportRequestStatus {
         switch self {
         case .open: return PCCTheme.pohutukawaOrange
         case .inReview: return PCCTheme.leafGreen
-        case .closed: return PCCTheme.ink.opacity(0.62)
+        case .closed: return PCCTheme.text
         }
     }
 }
@@ -2941,7 +2941,7 @@ struct BusinessPlansScreen: View {
 
             Text(headerSubtitle)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
         }
         .padding(20)
@@ -3008,7 +3008,7 @@ struct BusinessPlansScreen: View {
 
                 Text("Create the account that will manage this membership. These details help Coast Calendar assess and support the application.")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
             }
 
@@ -3058,7 +3058,7 @@ struct BusinessPlansScreen: View {
                         .foregroundStyle(PCCTheme.ink)
                     Text(memberDashboardSubtitle)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -3085,7 +3085,7 @@ struct BusinessPlansScreen: View {
                         icon: "plus.circle.fill",
                         title: "Create",
                         value: "Listings and polls live in the Create tab",
-                        tint: PCCTheme.ink.opacity(0.72),
+                        tint: PCCTheme.text,
                         action: {
                             dismiss()
                             onNavigateCreate()
@@ -3096,7 +3096,7 @@ struct BusinessPlansScreen: View {
 
             Text(memberDashboardMessage)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
         }
         .padding(18)
@@ -3112,7 +3112,7 @@ struct BusinessPlansScreen: View {
                         .foregroundStyle(PCCTheme.ink)
                     Text(subscriptionSummaryText)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer()
@@ -3152,7 +3152,7 @@ struct BusinessPlansScreen: View {
 
                 Text("Tell us who you represent and who is authorised to manage this member account. Your public homepage is set up separately after approval.")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
             }
 
@@ -3168,7 +3168,7 @@ struct BusinessPlansScreen: View {
                 .foregroundStyle(PCCTheme.ink)
             Text("Add a banner and profile image now if you have them. They seed the public homepage after Support approves. You can skip this.")
                 .font(.caption.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
 
             MemberImageEditorPanel(
                 title: "Banner image",
@@ -3271,7 +3271,7 @@ struct BusinessPlansScreen: View {
 
             Text("This becomes the live page locals see when they tap your host profile. Use the web member page editor for profile photo, hero photo and positioning so the page matches what locals will see.")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
 
             BusinessTextField(
@@ -3356,7 +3356,7 @@ struct BusinessPlansScreen: View {
                         .foregroundStyle(PCCTheme.ink)
                     Text("A lighter, safer tool than a blank document editor: choose a template, add words and photos, then publish to people who Belong to or follow your page.")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
             }
@@ -3405,7 +3405,7 @@ struct BusinessPlansScreen: View {
                  ? "Support approves your organisation first. You choose a monthly plan after that."
                  : "Changing plan replaces your current subscription and may start a new Apple charge. Confirm on the Apple sheet before you continue.")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
 
             ForEach(BusinessSubscriptionPlan.allCases) { plan in
@@ -3417,7 +3417,7 @@ struct BusinessPlansScreen: View {
                                 .foregroundStyle(PCCTheme.ink)
                             Text(plan.audience)
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                .foregroundStyle(PCCTheme.text)
                         }
                         Spacer()
                         Text(purchaseService.businessProductSummary(for: plan)?.displayPrice ?? plan.priceText)
@@ -3429,7 +3429,7 @@ struct BusinessPlansScreen: View {
                         ForEach(plan.inclusions, id: \.self) { inclusion in
                             Label(inclusion, systemImage: "checkmark.circle.fill")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                                .foregroundStyle(PCCTheme.text)
                         }
                     }
 
@@ -3442,7 +3442,7 @@ struct BusinessPlansScreen: View {
                             .background(draft.selectedPlan == plan ? PCCTheme.leafGreen : PCCTheme.leafGreen.opacity(0.10), in: Capsule())
                         Text("\(plan.activeListingLimit) active listing\(plan.activeListingLimit == 1 ? "" : "s") or poll\(plan.activeListingLimit == 1 ? "" : "s")")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.55))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     planActionButtons(for: plan)
@@ -3532,7 +3532,7 @@ struct BusinessPlansScreen: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                .foregroundStyle(PCCTheme.text)
 
             SecureField(prompt, text: text)
                 .textFieldStyle(.plain)
@@ -4763,7 +4763,7 @@ struct BusinessPlansScreen: View {
         case .pendingReview:
             return PCCTheme.pohutukawaOrange
         case .rejected, .suspended, .archived:
-            return PCCTheme.ink.opacity(0.68)
+            return PCCTheme.text
         }
     }
 
@@ -4856,7 +4856,7 @@ struct MemberHomePageEditorSheet: View {
                     }
                 }
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
         .confirmationDialog(
@@ -4942,7 +4942,7 @@ struct MemberHomePageEditorSheet: View {
 
             Text(draft.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Your bio will appear here." : draft.bio)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -5135,7 +5135,7 @@ struct MemberImageEditorPanel: View {
                                 .frame(width: controlSize, height: controlSize)
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .background(.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                         .accessibilityLabel(Text("Centre \(title.lowercased())"))
@@ -5211,7 +5211,7 @@ struct MemberImageEditorPanel: View {
         } else if imageRequest != nil {
             Image(systemName: "photo")
                 .font(.title.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.35))
+                .foregroundStyle(PCCTheme.text)
         }
     }
 
@@ -5339,7 +5339,7 @@ struct MemberDashboardActionRow: View {
                         .foregroundStyle(PCCTheme.ink)
                     Text(value)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(2)
                 }
 
@@ -5347,7 +5347,7 @@ struct MemberDashboardActionRow: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.38))
+                    .foregroundStyle(PCCTheme.text)
             }
             .padding(12)
             .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
@@ -5380,7 +5380,7 @@ struct SubscriptionPaymentSheet<Content: View>: View {
 
                         Text(summaryText)
                             .font(.body.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(3)
 
                         if let active = activeSubscription {
@@ -5429,7 +5429,7 @@ struct SubscriptionFactRow: View {
         HStack {
             Text(title)
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                .foregroundStyle(PCCTheme.text)
             Spacer()
             Text(value)
                 .font(.caption.weight(.black))
@@ -5473,7 +5473,7 @@ struct BusinessPlanDisplayCard<Action: View>: View {
                         .foregroundStyle(PCCTheme.ink)
                     Text(subtitle)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                 }
                 Spacer()
                 Text(priceText)
@@ -5484,12 +5484,12 @@ struct BusinessPlanDisplayCard<Action: View>: View {
             ForEach(inclusions, id: \.self) { inclusion in
                 Label(inclusion, systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             Text(footer)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                .foregroundStyle(PCCTheme.text)
 
             action()
         }
@@ -5535,7 +5535,7 @@ struct MembershipStepRow: View {
 
                 Text(message)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
             }
         }
@@ -5557,7 +5557,7 @@ struct MemberDashboardTile: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
                 Text(value)
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(PCCTheme.ink)
@@ -5590,7 +5590,7 @@ struct NoticeTemplateRow: View {
                     .foregroundStyle(PCCTheme.ink)
                 Text(message)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
             }
 
@@ -5622,11 +5622,11 @@ struct BusinessTextField: View {
             HStack(spacing: 6) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.text)
                 if required {
                     Text("Required")
                         .font(.caption2.weight(.black))
-                        .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.ink.opacity(0.38))
+                        .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.text)
                 }
             }
 
@@ -5665,10 +5665,10 @@ struct BusinessOrganisationTypePicker: View {
             HStack(spacing: 6) {
                 Text("Organisation type")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.text)
                 Text("Required")
                     .font(.caption2.weight(.black))
-                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.ink.opacity(0.38))
+                    .foregroundStyle(isInvalid ? PCCTheme.pohutukawaOrange : PCCTheme.text)
             }
 
             Picker("Organisation type", selection: $selection) {
@@ -5706,7 +5706,7 @@ struct BusinessWebsiteField: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Website")
                 .font(.caption.weight(.black))
-                .foregroundStyle(showValidation ? PCCTheme.pohutukawaOrange : PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(showValidation ? PCCTheme.pohutukawaOrange : PCCTheme.text)
 
             TextField("https://www.example.co.nz", text: $urlText)
                 .keyboardType(.URL)
@@ -5724,7 +5724,7 @@ struct BusinessWebsiteField: View {
 
             Text("Start after https://www. Leave only the prefix if you do not have a website.")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                .foregroundStyle(PCCTheme.text)
 
             if let validationMessage {
                 Text(validationMessage)
@@ -5744,7 +5744,7 @@ struct BusinessMultilineField: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
 
             TextField(prompt, text: $text, axis: .vertical)
                 .lineLimit(3...6)
@@ -5833,7 +5833,7 @@ struct StoreKitStatusCard: View {
 
                     Text(message)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
             }
@@ -5874,13 +5874,13 @@ struct PaymentTierReadinessRow: View {
 
                 Text(description)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(2)
 
                 if let productID {
                     Text(productID)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
         }
@@ -5912,7 +5912,7 @@ struct ListingAnalyticsSettingsScreen: View {
 
                             Text("Track reach, opens and engagement across listings you can manage. Boost + Insights unlocks the richest reporting view.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -6053,7 +6053,7 @@ struct MyListingsSettingsScreen: View {
 
                             Text("Listings you can manage stay here with Support feedback attached.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -6271,7 +6271,7 @@ struct SettingsListingAnalyticsDisclosure: View {
 
                         Text(event.listingStatus.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     Spacer()
@@ -6285,7 +6285,7 @@ struct SettingsListingAnalyticsDisclosure: View {
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.42))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
             .buttonStyle(.plain)
@@ -6314,7 +6314,7 @@ struct SettingsInfoMessage: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
         }
         .padding(18)
@@ -6338,7 +6338,7 @@ struct SignInActionCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
 
             Button(action: action) {
@@ -6374,7 +6374,7 @@ struct EmailVerificationRequiredCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(3)
 
             if let email, !email.isEmpty {
@@ -6456,7 +6456,7 @@ struct SavedRemindersScreen: View {
 
                             Text("Events you save, mark interested, or mark going appear here on this device. Going can also remind you before the event starts.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -6478,7 +6478,7 @@ struct SavedRemindersScreen: View {
 
                         Text("\(reminderStore.activeReminderCount) event reminder\(reminderStore.activeReminderCount == 1 ? "" : "s") set on this device.")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                            .foregroundStyle(PCCTheme.text)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, PCCKeyboardSpacing.standardTopPadding)
@@ -6547,12 +6547,12 @@ struct SavedEventSettingsCard: View {
 
                     Text("\(event.dateText) · \(event.timeText)")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(2)
 
                     Text("\(event.venue), \(event.displayLocationName)")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(2)
                 }
 
@@ -6615,7 +6615,7 @@ struct SavedEventSettingsCard: View {
             }
             .font(.caption.weight(.black))
             .buttonStyle(.plain)
-            .foregroundStyle(PCCTheme.ink.opacity(0.66))
+            .foregroundStyle(PCCTheme.text)
         }
         .padding(14)
         .pccCardStyle()
@@ -6653,7 +6653,7 @@ struct SettingsInfoSheet: View {
                             ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
                                 Text(paragraph)
                                     .font(.body.weight(.medium))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                                    .foregroundStyle(PCCTheme.text)
                                     .lineSpacing(4)
                             }
                         }
@@ -6692,11 +6692,11 @@ struct ReviewQueueRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Review Queue")
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.78))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text("For authorised listing reviewers.")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             Spacer()
@@ -6721,18 +6721,18 @@ struct OwnerSupportRow: View {
         HStack(spacing: 12) {
             Image(systemName: "lock.shield")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                .foregroundStyle(PCCTheme.text)
                 .frame(width: 30, height: 30)
                 .background(.white.opacity(0.64), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("Owner Support")
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text("For authorised listing reviewers only.")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                    .foregroundStyle(PCCTheme.text)
             }
 
             Spacer()

@@ -244,7 +244,7 @@ struct PollDetailHero: View {
 
                 Text(event.shortDescription)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -280,7 +280,7 @@ struct PollAboutPanel: View {
 
             Text(event.publicLongDescription.isEmpty ? "No extra context was added." : event.publicLongDescription)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -362,7 +362,7 @@ struct EventDetailHero: View {
 
                 Text(event.shortDescription)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.70))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -396,7 +396,7 @@ struct EventPollPanel: View {
             } else {
                 Label("This poll is being prepared. Check back shortly to have your say.", systemImage: "clock.badge.checkmark")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(3)
             }
         }
@@ -433,7 +433,7 @@ struct EventOrganiserPanel: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Listed by")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.46))
+                        .foregroundStyle(PCCTheme.text)
 
                     Text(listedByName)
                         .font(.title3.weight(.black))
@@ -442,7 +442,7 @@ struct EventOrganiserPanel: View {
 
                     Text("Tap to view this Organisation")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer(minLength: 8)
@@ -519,13 +519,13 @@ struct OrganiserIdentitySheet: View {
 
                                     Text(profile != nil ? "Verified organisation" : "Organiser profile")
                                         .font(.body.weight(.semibold))
-                                        .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                        .foregroundStyle(PCCTheme.text)
                                 }
                             }
 
                             Text(aboutText)
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
 
                             HStack(spacing: 8) {
@@ -572,18 +572,18 @@ struct OrganiserIdentitySheet: View {
                             if contactEmail == nil, contactPhone == nil, contactAddress == nil, website == nil {
                                 Text("No public contact details have been published for this organiser yet.")
                                     .font(.body.weight(.semibold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                    .foregroundStyle(PCCTheme.text)
                                     .lineSpacing(3)
                             }
 
                             if isLoadingProfile {
                                 Label("Checking for member profile...", systemImage: "arrow.triangle.2.circlepath")
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                                    .foregroundStyle(PCCTheme.text)
                             } else if let profileMessage {
                                 Label(profileMessage, systemImage: "info.circle")
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                                    .foregroundStyle(PCCTheme.text)
                             }
                         }
                         .padding(20)
@@ -608,7 +608,7 @@ struct OrganiserIdentitySheet: View {
 
                         Text("These details are supplied by the listing owner and reviewed before publication.")
                             .font(.footnote.weight(.medium))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                            .foregroundStyle(PCCTheme.text)
                             .lineSpacing(2)
                     }
                     .padding(.horizontal, 16)
@@ -723,7 +723,7 @@ struct OrganiserContactRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text(value)
                     .font(.body.weight(.bold))
@@ -1170,7 +1170,7 @@ struct OrganiserHeaderCard: View {
 
                     Text(profile == nil ? "Organiser listings" : "Verified organisation")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer(minLength: 0)
@@ -1212,13 +1212,13 @@ struct OrganiserHeaderCard: View {
             if let aboutText {
                 Text(aboutText)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("This member page collects the host profile, contact actions, listings and polls in one place.")
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                    .foregroundStyle(PCCTheme.text)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1473,7 +1473,7 @@ struct MemberNoticesScreen: View {
 
                             Text("Latest from \(organiserName)")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                                .foregroundStyle(PCCTheme.text)
                         }
                         .padding(20)
                         .pccCardStyle()
@@ -1635,7 +1635,7 @@ struct MemberNoticeCard: View {
 
                     Text(dateText)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 Spacer(minLength: 0)
@@ -1644,7 +1644,7 @@ struct MemberNoticeCard: View {
             if let summary = cleaned(notice.summary) {
                 Text(summary)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1703,7 +1703,7 @@ struct MemberNoticeDetailScreen: View {
 
                             Text((notice.publishedAt ?? notice.createdAt).formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.56))
+                                .foregroundStyle(PCCTheme.text)
                         }
                         .padding(20)
                         .pccCardStyle()
@@ -1711,7 +1711,7 @@ struct MemberNoticeDetailScreen: View {
                         if let summary = cleaned(notice.summary) {
                             Text(summary)
                                 .font(.title3.weight(.bold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.76))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(4)
                                 .padding(18)
                                 .pccCardStyle()
@@ -1720,7 +1720,7 @@ struct MemberNoticeDetailScreen: View {
                         if let body = cleaned(notice.body) {
                             Text(body)
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(5)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .padding(18)
@@ -1780,7 +1780,7 @@ struct MemberNoticeComposerScreen: View {
 
                             Text("Write a Notice or weekly letter for people who visit \(organiserName).")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                                .foregroundStyle(PCCTheme.text)
                         }
                         .padding(20)
                         .pccCardStyle()
@@ -1875,7 +1875,7 @@ struct MemberNoticeUnavailableSheet: View {
 
             Text("\(organiserName) does not have a public member page connected to Notices yet.")
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.64))
+                .foregroundStyle(PCCTheme.text)
                 .multilineTextAlignment(.center)
         }
         .padding(24)
@@ -1924,7 +1924,7 @@ struct OrganiserLoadingCard: View {
 
             Text("Finding their upcoming listings...")
                 .font(.body.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .foregroundStyle(PCCTheme.text)
 
             Spacer()
         }
@@ -1951,7 +1951,7 @@ struct OrganiserMessageCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                .foregroundStyle(PCCTheme.text)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
         }
@@ -2036,7 +2036,7 @@ struct EventInfoRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.45))
+                    .foregroundStyle(PCCTheme.text)
 
                 Text(value)
                     .font(.body.weight(.bold))
@@ -2059,7 +2059,7 @@ struct EventAboutPanel: View {
 
             Text(event.publicLongDescription)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2091,13 +2091,13 @@ struct PublicContactNotice: View {
                 if let email {
                     Text(email)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                        .foregroundStyle(PCCTheme.text)
                 }
 
                 if let phone {
                     Text(phone)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -2118,7 +2118,7 @@ struct ReportListingPanel: View {
 
             Text("Report a listing if it looks unsafe, misleading, spammy or out of date. Reports go privately to Support.")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                .foregroundStyle(PCCTheme.text)
                 .lineSpacing(2)
 
             Button(action: onReport) {
@@ -2175,7 +2175,7 @@ struct ReportListingSheet: View {
 
                             Text("Tell Support what needs checking. Your report is private and is not shown to the organiser or public users.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(3)
                         }
                         .padding(20)
@@ -2207,7 +2207,7 @@ struct ReportListingSheet: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Optional details")
                                     .font(.caption.weight(.black))
-                                    .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                    .foregroundStyle(PCCTheme.text)
 
                                 TextEditor(text: $details)
                                     .font(.body.weight(.medium))
@@ -2343,12 +2343,12 @@ struct OrgCalendarSheet: View {
 
                         Text(selectedDay.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                             .font(.headline.weight(.black))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(PCCTheme.ink)
 
                         if daysEvents.isEmpty {
                             Text("Nothing on this day yet.")
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.92))
+                                .foregroundStyle(PCCTheme.text)
                         } else {
                             ForEach(daysEvents) { event in
                                 NavigationLink {
@@ -2375,7 +2375,7 @@ struct OrgCalendarSheet: View {
                         } else {
                             Text("This calendar is filled by \(organiserName). Belong to see private dates when they exist.")
                                 .font(.footnote.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                .foregroundStyle(PCCTheme.text)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -2466,7 +2466,7 @@ private struct OrgCreateOnThisDaySheet: View {
                                 .foregroundStyle(PCCTheme.ink)
                             Text("Listing")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
                             TextField("Title", text: $words)
                                 .textInputAutocapitalization(.sentences)
                                 .padding(14)
@@ -2474,7 +2474,7 @@ private struct OrgCreateOnThisDaySheet: View {
                                 .foregroundStyle(PCCTheme.ink)
                             Text("Venue")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
                             TextField("Beachlands Boat Club", text: $venue)
                                 .textInputAutocapitalization(.words)
                                 .padding(14)
@@ -2482,13 +2482,13 @@ private struct OrgCreateOnThisDaySheet: View {
                                 .foregroundStyle(PCCTheme.ink)
                             Text("Time")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
                             DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
                                 .labelsHidden()
                                 .tint(PCCTheme.leafGreen)
                             Text("Details")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                                .foregroundStyle(PCCTheme.text)
                             TextField("Julie is bringing lunch", text: $details, axis: .vertical)
                                 .lineLimit(2...4)
                                 .textInputAutocapitalization(.sentences)
@@ -2503,7 +2503,7 @@ private struct OrgCreateOnThisDaySheet: View {
                                 .foregroundStyle(PCCTheme.ink)
                             Text("People who Belong to this organisation can see this date. It is not on the public board.")
                                 .font(.footnote.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                .foregroundStyle(PCCTheme.text)
                         }
                         .padding(20)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2649,7 +2649,7 @@ struct OrgMonthGrid: View {
                 ForEach(Array(["S","M","T","W","T","F","S"].enumerated()), id: \.offset) { _, day in
                     Text(day)
                         .font(.caption2.weight(.black))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.45))
+                        .foregroundStyle(PCCTheme.text)
                 }
                 ForEach(daysInMonth, id: \.self) { day in
                     let inMonth = calendar.isDate(day, equalTo: month, toGranularity: .month)
@@ -2711,7 +2711,7 @@ struct OrgCalendarNoteCard: View {
             if !event.venue.isEmpty {
                 Text(event.venue)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.78))
+                    .foregroundStyle(PCCTheme.text)
             }
             Text(event.startDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
                  + " · "
@@ -2721,7 +2721,7 @@ struct OrgCalendarNoteCard: View {
             if !event.shortDescription.isEmpty, event.shortDescription != event.title {
                 Text(event.shortDescription)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.72))
+                    .foregroundStyle(PCCTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -2761,11 +2761,11 @@ struct MyCalendarSheet: View {
                         )
                         Text(selectedDay.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                             .font(.headline.weight(.black))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(PCCTheme.ink)
                         if daysEvents.isEmpty {
                             Text("Nothing on this day from organisations you belong to.")
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.92))
+                                .foregroundStyle(PCCTheme.text)
                         } else {
                             ForEach(daysEvents) { event in
                                 NavigationLink {

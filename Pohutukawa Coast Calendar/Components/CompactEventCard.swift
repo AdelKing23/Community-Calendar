@@ -51,18 +51,18 @@ struct CompactEventCard: View {
 
             Text(event.title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.78))
+                .foregroundStyle(PCCTheme.text)
                 .lineLimit(2)
 
             Spacer(minLength: 0)
 
             Text(event.isAllDay ? "All day" : event.startDate.formatted(.dateTime.hour().minute()))
                 .font(.caption.weight(.bold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
 
             Text(event.isPoll ? "Closes \(event.dateText)" : event.venue)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                .foregroundStyle(PCCTheme.text)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 188)

@@ -277,7 +277,7 @@ struct WhatsOnHeader: View {
 
             Text("Make a plan, discover something local, and never miss a good day out.")
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                .foregroundStyle(PCCTheme.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -295,7 +295,7 @@ struct WhatsOnHeader: View {
 
                 Text(reminderCount == 1 ? "reminder" : "reminders")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                    .foregroundStyle(PCCTheme.text)
             }
         }
         .padding(.horizontal, 12)
@@ -434,7 +434,7 @@ struct LocationScopeControl: View {
 
                         Text("\(selectedScope.kind.rawValue) · \(eventCount) listing\(eventCount == 1 ? "" : "s")")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                            .foregroundStyle(PCCTheme.text)
                     }
 
                     Spacer()
@@ -576,7 +576,7 @@ struct LocationFinderSheet: View {
 
                             Text("Choose a local area, search a wider region, or let the app find where you belong.")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.66))
+                                .foregroundStyle(PCCTheme.text)
                         }
 
                         Button {
@@ -610,13 +610,13 @@ struct LocationFinderSheet: View {
                         if let message = locationPreferenceStore.locationMessage {
                             Text(message)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                                .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(2)
                         }
 
                         HStack(spacing: 10) {
                             Image(systemName: "magnifyingglass")
-                                .foregroundStyle(PCCTheme.ink.opacity(0.52))
+                                .foregroundStyle(PCCTheme.text)
 
                             TextField("Search place or area", text: $query)
                                 .font(.body.weight(.bold))
@@ -628,7 +628,7 @@ struct LocationFinderSheet: View {
                                     query = ""
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(PCCTheme.ink.opacity(0.38))
+                                        .foregroundStyle(PCCTheme.text)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -645,7 +645,7 @@ struct LocationFinderSheet: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(query.isEmpty ? suggestedTitle : "Matches")
                                 .font(.subheadline.weight(.black))
-                                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                                .foregroundStyle(PCCTheme.text)
 
                             if results.isEmpty {
                                 LocationNoMatchesCard(
@@ -693,7 +693,7 @@ struct LocationLadderPreview: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Current area")
                 .font(.subheadline.weight(.black))
-                .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                .foregroundStyle(PCCTheme.text)
 
             HStack(spacing: 10) {
                 Text(selectedScope.name)
@@ -711,7 +711,7 @@ struct LocationLadderPreview: View {
             if !widerAreas.isEmpty {
                 Text("Widen to")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.48))
+                    .foregroundStyle(PCCTheme.text)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     ForEach(Array(widerAreas.prefix(4))) { item in
@@ -759,7 +759,7 @@ struct LocationScopeResultRow: View {
 
                     Text(scope.subtitle)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.58))
+                        .foregroundStyle(PCCTheme.text)
                         .lineLimit(2)
 
                     Text(scope.kind == .community ? "Local community area" : parentHint)
@@ -822,7 +822,7 @@ struct LocationNoMatchesCard: View {
 
                     Text("Try a wider area while this place is added to the location catalog.")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.60))
+                        .foregroundStyle(PCCTheme.text)
                         .lineSpacing(2)
                 }
             }
@@ -884,7 +884,7 @@ struct EmptyScopedEventsCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .multilineTextAlignment(.center)
 
             if !wideningOptions.isEmpty {
@@ -927,7 +927,7 @@ struct TopicPickerRow: View {
             HStack {
                 Text("Browse by topic")
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundStyle(PCCTheme.ink)
 
                 Spacer()
 
@@ -938,7 +938,7 @@ struct TopicPickerRow: View {
                         }
                     }
                     .font(.caption.weight(.black))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(PCCTheme.pohutukawaRed)
                 }
             }
 
@@ -1053,7 +1053,7 @@ struct FeedMessageCard: View {
 
             Text(message)
                 .font(.body.weight(.medium))
-                .foregroundStyle(PCCTheme.ink.opacity(0.62))
+                .foregroundStyle(PCCTheme.text)
                 .multilineTextAlignment(.center)
 
             if let retry {

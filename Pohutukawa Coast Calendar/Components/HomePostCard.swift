@@ -49,12 +49,12 @@ struct HomePostCard: View {
 
                 Text(event.title)
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.84))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(2)
 
                 Text(event.shortDescription)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(PCCTheme.ink.opacity(0.68))
+                    .foregroundStyle(PCCTheme.text)
                     .lineLimit(3)
                     .lineSpacing(3)
             }
@@ -65,7 +65,7 @@ struct HomePostCard: View {
                 Label("\(event.venue), \(event.displayLocationName)", systemImage: "mappin.and.ellipse")
             }
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(PCCTheme.ink.opacity(0.62))
+            .foregroundStyle(PCCTheme.text)
 
             if let pollDetails = event.pollDetails {
                 PollInlineResponseView(event: event, pollDetails: pollDetails)
@@ -99,7 +99,7 @@ struct EventImagePlaceholderView: View {
 
                     Text("Local listing")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
         }
@@ -131,7 +131,7 @@ struct PollImagePlaceholderView: View {
 
                     Text("Have your say")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(PCCTheme.ink.opacity(0.54))
+                        .foregroundStyle(PCCTheme.text)
                 }
             }
         }
