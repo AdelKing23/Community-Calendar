@@ -3686,11 +3686,20 @@ export default function CommunityCalendarApp() {
     if (!session) return;
     setBusy(true);
     try {
-      await rest(`${table}?id=eq.${id}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify(patch),
-      }, session.access_token);
+      if (table === "event_change_requests" && patch.status === "applied") {
+        // t222: Apply must change the listing too (edit fields or archive), like iOS; the RPC also marks the request applied.
+        await rpc<void>("support_apply_event_change_request", {
+          p_change_request_id: id,
+          p_review_reason: typeof patch.review_reason === "string" ? patch.review_reason : "approved_applied",
+          p_support_note: typeof patch.support_note === "string" ? patch.support_note : null,
+        }, session.access_token);
+      } else {
+        await rest(`${table}?id=eq.${id}`, {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify(patch),
+        }, session.access_token);
+      }
       await loadSupportData();
       setNotice({ kind: "good", text: "Support update saved." });
     } catch (error) {
