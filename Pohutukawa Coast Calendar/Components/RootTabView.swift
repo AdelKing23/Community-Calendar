@@ -28,9 +28,11 @@ struct RootTabView: View {
     @AppStorage("communityCalendar.belonging.onboardingSeen") private var hasSeenBelongingOnboarding = false
     @AppStorage("communityCalendar.belonging.lastPromptTime") private var lastBelongingPromptTime = 0.0
     @AppStorage("communityCalendar.belonging.promptCount") private var belongingPromptCount = 0
+    @AppStorage("communityCalendar.welcome.v1.dismissed") private var localWelcomeDismissed = false
     @State private var selectedTab: MainTab = .home
     @State private var isKeyboardVisible = false
     @State private var showBelongingOnboarding = false
+    @State private var showWelcome = false
     @State private var showAccountAccess = false
     @State private var showMembershipApplication = false
 
@@ -83,12 +85,16 @@ struct RootTabView: View {
             purchaseService.startTransactionListener()
             await purchaseService.loadProducts()
         }
-        .onAppear {
-            showBelongingOnboardingIfNeeded()
+        .task(id: userSessionStore.session?.userID) {
+            await decideWelcome()
         }
         .onChange(of: purchaseService.state) { _, newState in
             guard case .activated = newState else { return }
             showMembershipApplication = false
+        }
+        .sheet(isPresented: $showWelcome, onDismiss: welcomeDismissed) {
+            WelcomeOnceSheet { showWelcome = false }
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showBelongingOnboarding) {
             BelongingOnboardingSheet(
@@ -152,6 +158,32 @@ struct RootTabView: View {
             belongingPromptCount += 1
             lastBelongingPromptTime = now
         }
+    }
+
+    /// t221: welcome once per account (server row when signed in), or once per device when signed out.
+    private func decideWelcome() async {
+        guard !showWelcome else { return }
+        if let session = userSessionStore.session {
+            if let dismissed = try? await WelcomeDismissalService.hasDismissed(session: session) {
+                if !dismissed { presentWelcome(); return }
+            }
+        } else if !localWelcomeDismissed {
+            presentWelcome(); return
+        }
+        showBelongingOnboardingIfNeeded()
+    }
+
+    private func presentWelcome() {
+        guard !showBelongingOnboarding else { return }
+        showWelcome = true
+    }
+
+    private func welcomeDismissed() {
+        localWelcomeDismissed = true
+        if let session = userSessionStore.session {
+            Task { try? await WelcomeDismissalService.recordDismissed(session: session) }
+        }
+        showBelongingOnboardingIfNeeded()
     }
 
     private func markBelongingPromptSeen() {
