@@ -1,0 +1,5 @@
+# Copy to local.properties (git-ignored) and fill in.
+# sdk.dir=/Users/<you>/Library/Android/sdk
+# Same project and publishable key the iOS app and web use (public by design; NEVER a service_role/secret key).
+SUPABASE_URL=https://fujngeynyosnplviyvbg.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...

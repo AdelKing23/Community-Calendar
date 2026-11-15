@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light only, like iOS (UIUserInterfaceStyle = Light). Compose draws the real theme. -->
+    <style name="Theme.CoastCalendar" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/pcc_cream</item>
+        <item name="android:statusBarColor">@color/pcc_cream</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

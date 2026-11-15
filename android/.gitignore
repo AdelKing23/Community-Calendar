@@ -1,0 +1,18 @@
+# Android / Gradle (t237)
+.gradle/
+build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.kotlin/
+# Machine-local SDK path and Supabase config (never commit)
+local.properties
+# Release signing and Firebase/Play files stay out of git
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+play-service-account*.json
