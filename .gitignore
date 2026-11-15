@@ -1,0 +1,23 @@
+# Coast Calendar root ignore rules (web/.gitignore still covers web-only build output)
+
+# macOS
+.DS_Store
+
+# Xcode per-user state and build output
+xcuserdata/
+DerivedData/
+/build/
+*.xcarchive
+*.ipa
+ExportOptions.plist
+
+# Editor / manual backups
+*.bak
+*.bak-*
+*.bak.*
+
+# Web build caches and local snapshots
+*.tsbuildinfo
+.wrangler/
+**/supabase/.temp/
+/web/.backups/
