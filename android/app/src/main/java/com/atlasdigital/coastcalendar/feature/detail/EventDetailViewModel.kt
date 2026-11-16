@@ -39,6 +39,10 @@ data class DetailState(
     val going: Boolean = false,
     val saved: Boolean = false,
     val report: ReportUiState = ReportUiState(),
+    val photoPreview: ByteArray? = null,
+    val photoBusy: Boolean = false,
+    val photoMessage: String? = null,
+    val removed: Boolean = false,
 )
 
 /** iOS `EventDetailScreen` + `PollInlineResponseView` + `ReportListingSheet` logic. */
@@ -108,6 +112,52 @@ class EventDetailViewModel(private val container: AppContainer, eventId: String)
         if (kind == Engagement.Going) container.reminders.syncGoing(event, on)
         refreshEngagement()
         return on
+    }
+
+    // MARK: owner photo + calendar item (iOS canAddPhoto = submitted_by is you; canManageCalendarItem = also org_calendar)
+    fun canAddPhoto(): Boolean {
+        val uid = session?.userId ?: return false
+        return _state.value.event?.submittedBy?.equals(uid, ignoreCase = true) == true
+    }
+
+    fun canManageCalendarItem(): Boolean =
+        canAddPhoto() && _state.value.event?.status == com.atlasdigital.coastcalendar.data.model.ListingStatus.OrgCalendar
+
+    /** iOS `handlePickedPhoto`: compress, show locally, upload as position 1 (listing-images + event_images). */
+    fun addPhoto(uri: android.net.Uri) {
+        val event = _state.value.event ?: return
+        val user = session ?: return
+        if (!canAddPhoto() || _state.value.photoBusy) return
+        _state.update { it.copy(photoBusy = true, photoMessage = null) }
+        viewModelScope.launch {
+            val photo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { com.atlasdigital.coastcalendar.core.image.ListingPhotoCompressor.compress(container.appContext.contentResolver, uri) }.getOrNull()
+            }
+            if (photo == null) {
+                _state.update { it.copy(photoBusy = false, photoMessage = "That photo could not be loaded. Please choose another photo.") }
+                return@launch
+            }
+            _state.update { it.copy(photoPreview = photo.data) }
+            try {
+                container.images.uploadListingImage(photo, event.id, user.userId, position = 1)
+                _state.update { it.copy(photoBusy = false, photoMessage = "Photo saved") }
+            } catch (e: Exception) {
+                _state.update { it.copy(photoBusy = false, photoMessage = ErrorMessages.userFacing(e)) }
+            }
+        }
+    }
+
+    fun removeCalendarItem() {
+        val event = _state.value.event ?: return
+        if (!canManageCalendarItem()) return
+        viewModelScope.launch {
+            try {
+                container.ownerListings.archiveOwnListing(event.id)
+                _state.update { it.copy(removed = true) }
+            } catch (e: Exception) {
+                _state.update { it.copy(photoMessage = ErrorMessages.userFacing(e)) }
+            }
+        }
     }
 
     // MARK: report

@@ -101,6 +101,7 @@ fun EventDetailScreen(
     var showPlan by remember { mutableStateOf(false) }
     var showOrganiser by remember { mutableStateOf(false) }
     LaunchedEffect(session?.userId) { viewModel.bindSession(session) }
+    LaunchedEffect(state.removed) { if (state.removed) onBack() }
     val event = state.event
 
     Scaffold(
@@ -168,7 +169,33 @@ fun EventDetailScreen(
                     }
                     engagement()
                 } else {
-                    EventHero(event)
+                    val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+                    ) { uri -> if (uri != null) viewModel.addPhoto(uri) }
+                    EventHero(
+                        event,
+                        canAddPhoto = viewModel.canAddPhoto(),
+                        preview = state.photoPreview,
+                        busy = state.photoBusy,
+                        message = state.photoMessage,
+                    ) {
+                        photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                    if (viewModel.canManageCalendarItem()) {
+                        var confirmRemove by remember { mutableStateOf(false) }
+                        TextButton(onClick = { confirmRemove = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Remove from calendar", color = PccColors.PohutukawaRed, fontWeight = FontWeight.Bold)
+                        }
+                        if (confirmRemove) {
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { confirmRemove = false },
+                                title = { Text("Remove this date?") },
+                                text = { Text("It comes off your organisation calendar. Support can restore it if needed.") },
+                                confirmButton = { TextButton(onClick = { confirmRemove = false; viewModel.removeCalendarItem() }) { Text("Remove", color = PccColors.PohutukawaRed) } },
+                                dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Cancel") } },
+                            )
+                        }
+                    }
                     PccCard {
                         InfoRow(Icons.Filled.DateRange, "Date", event.dateText())
                         InfoRow(Icons.Filled.Refresh, "Time", event.timeText())
@@ -221,10 +248,32 @@ private fun closeText(event: LocalEvent): String =
     DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, h:mm a").format(event.end.atZone(ZoneId.systemDefault()))
 
 @Composable
-private fun EventHero(event: LocalEvent) {
+private fun EventHero(
+    event: LocalEvent,
+    canAddPhoto: Boolean = false,
+    preview: ByteArray? = null,
+    busy: Boolean = false,
+    message: String? = null,
+    onAddPhoto: () -> Unit = {},
+) {
     PccCard {
-        Box {
-            ListingRemoteImage(event.primaryImage, isPoll = false, modifier = Modifier.heightIn(min = 190.dp))
+        Box(Modifier.let { if (canAddPhoto) it.clickable(onClick = onAddPhoto) else it }) {
+            if (preview != null) {
+                coil3.compose.AsyncImage(
+                    model = preview, contentDescription = "Listing photo", contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp, max = 260.dp).clip(PccShapes.Small),
+                )
+            } else {
+                ListingRemoteImage(event.primaryImage, isPoll = false, modifier = Modifier.heightIn(min = 190.dp))
+            }
+            if (canAddPhoto && preview == null && event.primaryImage == null) {
+                Text(
+                    "Add photo", color = Color.White, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Black),
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).clip(CircleShape).background(PccColors.LeafGreen)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+            if (busy) CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp), color = PccColors.LeafGreen)
             if (event.isFinished()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -237,6 +286,7 @@ private fun EventHero(event: LocalEvent) {
                 }
             }
         }
+        message?.let { Text(it, color = if (it == "Photo saved") PccColors.LeafGreen else PccColors.PohutukawaRed, fontWeight = FontWeight.Bold) }
         if (event.images.size > 1) ImageStrip(event)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(event.category.raw.uppercase(), style = MaterialTheme.typography.labelMedium, color = PccColors.PohutukawaOrange)
