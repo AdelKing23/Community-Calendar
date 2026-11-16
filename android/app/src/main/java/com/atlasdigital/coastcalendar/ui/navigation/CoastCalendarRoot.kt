@@ -72,13 +72,14 @@ private const val EVENT_ROUTE = "event/{id}"
 private fun eventRoute(id: String) = "event/$id"
 private const val MY_LISTINGS_ROUTE = "mylistings"
 private const val CONTACT_ROUTE = "contact"
+private const val DELETE_ACCOUNT_ROUTE = "delete-account"
 private const val ORGANISATION_ROUTE = "organisation"
 private const val ORG_PAGE_ROUTE = "org/{id}"
 private fun orgPageRoute(id: String) = "org/$id"
 internal const val SUPPORT_ROUTE = "support"
 
 /** Pushed screens hide the tab bar like iOS NavigationStack pushes. */
-private val PUSHED_ROUTES = setOf(AUTH_ROUTE, EVENT_ROUTE, MY_LISTINGS_ROUTE, CONTACT_ROUTE, ORGANISATION_ROUTE, ORG_PAGE_ROUTE, SUPPORT_ROUTE)
+private val PUSHED_ROUTES = setOf(AUTH_ROUTE, EVENT_ROUTE, MY_LISTINGS_ROUTE, CONTACT_ROUTE, DELETE_ACCOUNT_ROUTE, ORGANISATION_ROUTE, ORG_PAGE_ROUTE, SUPPORT_ROUTE)
 
 @Composable
 fun CoastCalendarRoot(container: AppContainer) {
@@ -167,6 +168,7 @@ fun CoastCalendarRoot(container: AppContainer) {
                         onOrganisation = { nav.navigate(ORGANISATION_ROUTE) },
                         onContactSupport = { nav.navigate(CONTACT_ROUTE) },
                         onSupportDashboard = { nav.navigate(SUPPORT_ROUTE) },
+                        onDeleteAccount = { nav.navigate(DELETE_ACCOUNT_ROUTE) },
                     ),
                 )
             }
@@ -177,6 +179,11 @@ fun CoastCalendarRoot(container: AppContainer) {
             composable(CONTACT_ROUTE) {
                 val vm: ContactSupportViewModel = viewModel { ContactSupportViewModel(container) }
                 ContactSupportScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) })
+            }
+            composable(DELETE_ACCOUNT_ROUTE) {
+                val vm: com.atlasdigital.coastcalendar.feature.settings.AccountDeletionViewModel =
+                    viewModel { com.atlasdigital.coastcalendar.feature.settings.AccountDeletionViewModel(container) }
+                com.atlasdigital.coastcalendar.feature.settings.AccountDeletionScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) })
             }
             composable(ORGANISATION_ROUTE) {
                 val vm: OrganisationViewModel = viewModel { OrganisationViewModel(container) }

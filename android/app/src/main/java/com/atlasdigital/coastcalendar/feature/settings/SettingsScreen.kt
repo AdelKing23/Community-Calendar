@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -76,12 +77,13 @@ data class SettingsNav(
     val onOrganisation: () -> Unit,
     val onContactSupport: () -> Unit,
     val onSupportDashboard: () -> Unit,
+    val onDeleteAccount: () -> Unit,
 )
 
 /**
  * iOS Settings hub, Android subset: Organisations (Organisation, My listings), Support (dashboard for Support
  * accounts), Contact Support, Documents (Terms, Privacy on coastcalendar.nz), Account and About.
- * Not ported: My Calendar, engagements list, reminder settings, wallpaper/card colour, account deletion request.
+ * Not ported: engagements list, wallpaper/card colour.
  */
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel, session: UserSession?, contentPadding: PaddingValues, nav: SettingsNav) {
@@ -136,6 +138,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, session: UserSession?, contentP
                 } else {
                     Row(Icons.Filled.AccountCircle, session.fullName ?: "Account", session.email + if (session.isEmailVerified) " · Email verified" else " · Email not verified", null)
                     OutlinedButton(onClick = nav.onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+                    Row(Icons.Filled.Delete, "Request account deletion", "Ask Support to delete this account and its personal details.", nav.onDeleteAccount)
                 }
             }
 

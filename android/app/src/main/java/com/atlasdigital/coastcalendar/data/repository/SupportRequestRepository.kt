@@ -14,10 +14,14 @@ import kotlinx.serialization.json.put
 /** iOS Contact Support: RPC `submit_support_request(p_topic, p_message, p_listing_reference)` + own `support_requests`. */
 class SupportRequestRepository(private val client: SupabaseClient) {
     suspend fun submit(topic: SupportTopic, message: String, listingReference: String?): String =
+        submitRaw(topic.raw, message, listingReference)
+
+    /** Raw topic, e.g. iOS "Account deletion" (Support dashboard shows Complete deletion for topics containing "deletion"). */
+    suspend fun submitRaw(topic: String, message: String, listingReference: String?): String =
         client.postgrest.rpc(
             "submit_support_request",
             buildJsonObject {
-                put("p_topic", topic.raw)
+                put("p_topic", topic)
                 put("p_message", message.trim())
                 put("p_listing_reference", listingReference?.trim()?.takeIf { it.isNotEmpty() }?.let(::JsonPrimitive) ?: JsonNull)
             },
