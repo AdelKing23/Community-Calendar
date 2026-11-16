@@ -205,3 +205,81 @@ data class NoticeDismissalInsert(
     @SerialName("user_id") val userId: String,
     @SerialName("notice_id") val noticeId: String,
 )
+
+/**
+ * iOS `BusinessSubscriptionPlan` ids/titles/limits/inclusions, stored as `business_profiles.selected_plan_id`
+ * through `save_my_business_profile(p_selected_plan_id)`. Android shows no prices: member access is switched on
+ * separately (Play Billing is not set up yet).
+ */
+enum class MemberPlan(val id: String, val title: String, val audience: String, val listingLimit: Int, val inclusions: List<String>) {
+    LocalBusiness("local_business", "Local Member", "New local publishers", 1, listOf(
+        "Verified member page", "1 active listing or poll at a time", "Basic insights: views, taps, saves and shares",
+        "Verified member badge", "Edit or remove your own listings and polls",
+    )),
+    Growth("growth", "Growth Member", "Regular local publishers", 4, listOf(
+        "Everything in Local Member", "Up to 4 active listings or polls", "Richer engagement analytics",
+        "Member page with optional contact details", "Better audience insight reporting",
+    )),
+    Sponsor("sponsor", "Community Partner", "High-activity community publishers", 8, listOf(
+        "Up to 8 active listings or polls", "Community Partner badge", "Priority member placement", "Best available insights package",
+    ));
+
+    companion object {
+        fun from(id: String?) = entries.firstOrNull { it.id == id } ?: LocalBusiness
+    }
+}
+
+/** iOS `PublicMemberProfileDraft` → `save_member_public_profile_with_images`. */
+data class PublicPageDraft(
+    val displayName: String = "",
+    val areaScopeId: String = "",
+    val bio: String = "",
+    val contactName: String = "",
+    val contactEmail: String = "",
+    val phone: String = "",
+    val locationText: String = "",
+    val address: String = "",
+    val website: String = "",
+    val avatarImagePath: String? = null,
+    val heroImagePath: String? = null,
+    val positions: List<Double> = listOf(50.0, 50.0, 50.0, 50.0), // avatar x,y, hero x,y
+) {
+    /** iOS `validateHomepageDetails`: public name + area required; optional email must be usable. */
+    val problems: List<String>
+        get() = buildList {
+            if (displayName.isBlank()) add("memberName")
+            if (contactEmail.isNotBlank() && !ContactEmailValidator.isUsable(contactEmail)) add("contactEmail")
+            if (areaScopeId.isBlank()) add("areaScope")
+        }
+
+    companion object {
+        fun from(p: PublicMemberProfileRecord) = PublicPageDraft(
+            displayName = p.displayName, areaScopeId = p.areaScopeId.orEmpty(), bio = p.bio.orEmpty(),
+            contactName = p.publicContactName.orEmpty(), contactEmail = p.publicContactEmail.orEmpty(), phone = p.publicPhone.orEmpty(),
+            locationText = p.publicLocationText.orEmpty(), address = p.publicAddress.orEmpty(), website = p.publicWebsite.orEmpty(),
+            avatarImagePath = p.avatarImagePath, heroImagePath = p.heroImagePath,
+            positions = listOf(p.avatarImagePositionX, p.avatarImagePositionY, p.heroImagePositionX, p.heroImagePositionY),
+        )
+
+        /** iOS prefill from the application when the public draft is empty. */
+        fun prefill(base: PublicPageDraft, org: OrganisationDraft) = base.copy(
+            displayName = base.displayName.ifBlank { org.name },
+            areaScopeId = base.areaScopeId.ifBlank { org.areaScopeId },
+            contactName = base.contactName.ifBlank { org.contactName },
+            phone = base.phone.ifBlank { org.phone },
+            address = base.address.ifBlank { org.address },
+            website = base.website.ifBlank { org.website },
+            bio = base.bio.ifBlank { org.about },
+        )
+    }
+}
+
+/** iOS `uploadMemberProfileImage`: `member-images/<user id>/<hero|avatar>-<uuid>.jpg` (bucket limit 5 MB, jpeg/png/webp). */
+object MemberImagePath {
+    const val BUCKET = "member-images"
+    const val MAX_BYTES = 5 * 1024 * 1024
+    fun make(userId: String, kind: String, imageId: String = java.util.UUID.randomUUID().toString()): String {
+        val safe = if (kind == "avatar") "avatar" else "hero"
+        return "${userId.lowercase()}/$safe-${imageId.lowercase()}.jpg"
+    }
+}

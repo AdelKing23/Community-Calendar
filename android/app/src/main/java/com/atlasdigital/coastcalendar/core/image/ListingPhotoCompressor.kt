@@ -25,16 +25,20 @@ object ListingPhotoCompressor {
         return (width * scale).roundToInt().coerceAtLeast(1) to (height * scale).roundToInt().coerceAtLeast(1)
     }
 
-    fun compress(resolver: ContentResolver, uri: Uri): ListingPhotoUpload? {
+    /** iOS `compressedMemberPhoto`: member page hero/avatar, longest side ≤ 1800 px, JPEG 0.82. */
+    const val MEMBER_MAX_DIMENSION = 1800
+    const val MEMBER_JPEG_QUALITY = 82
+
+    fun compress(resolver: ContentResolver, uri: Uri, maxDimension: Int = MAX_DIMENSION, quality: Int = JPEG_QUALITY): ListingPhotoUpload? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
-        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_DIMENSION) sample *= 2
+        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxDimension) sample *= 2
         val decoded = resolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
         } ?: return null
-        val (w, h) = targetSize(bounds.outWidth, bounds.outHeight)
+        val (w, h) = targetSize(bounds.outWidth, bounds.outHeight, maxDimension)
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         Canvas(out).apply {
             drawColor(Color.WHITE)
@@ -42,7 +46,7 @@ object ListingPhotoCompressor {
         }
         decoded.recycle()
         val bytes = ByteArrayOutputStream().use { stream ->
-            out.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
+            out.compress(Bitmap.CompressFormat.JPEG, quality, stream)
             stream.toByteArray()
         }
         out.recycle()

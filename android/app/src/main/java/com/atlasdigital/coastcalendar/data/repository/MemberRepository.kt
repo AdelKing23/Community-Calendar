@@ -13,6 +13,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import io.github.jan.supabase.storage.storage
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -102,6 +103,67 @@ class MemberRepository(private val client: SupabaseClient) {
                 endsAt = com.atlasdigital.coastcalendar.core.time.NzTime.iso(com.atlasdigital.coastcalendar.data.model.NoticeExpiry.endsAt(days)),
             ),
         ) { select(Columns.raw(MemberNoticeRecord.SELECT)) }.decodeSingle<MemberNoticeRecord>()
+
+    /** Owner read of their own public page draft (RLS lets the owner read unpublished rows). */
+    suspend fun ownPublicPage(profileId: String): PublicMemberProfileRecord? =
+        client.from("public_member_profiles").select(Columns.raw(PublicMemberProfileRecord.SELECT)) {
+            filter { eq("id", profileId.lowercase()) }
+            limit(1)
+        }.decodeList<PublicMemberProfileRecord>().firstOrNull()
+
+    suspend fun uploadMemberImage(bytes: ByteArray, kind: String, userId: String): String {
+        require(bytes.size <= com.atlasdigital.coastcalendar.data.model.MemberImagePath.MAX_BYTES) { "That image is larger than 5 MB." }
+        val path = com.atlasdigital.coastcalendar.data.model.MemberImagePath.make(userId, kind)
+        client.storage.from(com.atlasdigital.coastcalendar.data.model.MemberImagePath.BUCKET).upload(path, bytes) {
+            upsert = false
+            contentType = io.ktor.http.ContentType.Image.JPEG
+        }
+        return path
+    }
+
+    suspend fun deleteMemberImage(path: String) {
+        client.storage.from(com.atlasdigital.coastcalendar.data.model.MemberImagePath.BUCKET).delete(path)
+    }
+
+    fun memberImageUrl(path: String?): String? =
+        path?.takeIf { it.isNotBlank() }?.let { client.storage.from(com.atlasdigital.coastcalendar.data.model.MemberImagePath.BUCKET).publicUrl(it) }
+
+    /** iOS `saveOwnPublicProfileDraft` then `confirmOwnPublicContact`. */
+    suspend fun savePublicPage(profileId: String, d: com.atlasdigital.coastcalendar.data.model.PublicPageDraft): PublicMemberProfileRecord {
+        fun opt(v: String) = v.trim().ifEmpty { null }?.let(::JsonPrimitive) ?: JsonNull
+        val saved = client.postgrest.rpc(
+            "save_member_public_profile_with_images",
+            buildJsonObject {
+                put("p_business_profile_id", JsonPrimitive(profileId.lowercase()))
+                put("p_display_name", JsonPrimitive(d.displayName.trim()))
+                put("p_area_scope_id", JsonPrimitive(d.areaScopeId.trim()))
+                put("p_bio", opt(d.bio))
+                put("p_public_contact_name", opt(d.contactName))
+                put("p_public_contact_email", opt(d.contactEmail))
+                put("p_public_phone", opt(d.phone))
+                put("p_public_location_text", opt(d.locationText))
+                put("p_public_address", opt(d.address))
+                put("p_public_website", opt(d.website))
+                put("p_avatar_image_path", d.avatarImagePath?.let(::JsonPrimitive) ?: JsonNull)
+                put("p_hero_image_path", d.heroImagePath?.let(::JsonPrimitive) ?: JsonNull)
+                put("p_avatar_image_position_x", JsonPrimitive(d.positions[0]))
+                put("p_avatar_image_position_y", JsonPrimitive(d.positions[1]))
+                put("p_hero_image_position_x", JsonPrimitive(d.positions[2]))
+                put("p_hero_image_position_y", JsonPrimitive(d.positions[3]))
+            },
+        ).decodeProfile()
+        val revision = saved.publicContactRevision ?: return saved
+        return client.postgrest.rpc(
+            "confirm_member_public_contact",
+            buildJsonObject {
+                put("p_business_profile_id", JsonPrimitive(profileId.lowercase()))
+                put("p_public_contact_revision", JsonPrimitive(revision))
+            },
+        ).decodeProfile()
+    }
+
+    private inline fun io.github.jan.supabase.postgrest.result.PostgrestResult.decodeProfile(): PublicMemberProfileRecord =
+        runCatching { decodeAs<PublicMemberProfileRecord>() }.getOrNull() ?: decodeList<PublicMemberProfileRecord>().first()
 
     suspend fun saveOrganisation(draft: OrganisationDraft): BusinessProfileRecord {
         val params = buildJsonObject {

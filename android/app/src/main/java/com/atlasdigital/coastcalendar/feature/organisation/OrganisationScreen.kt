@@ -1,6 +1,11 @@
 package com.atlasdigital.coastcalendar.feature.organisation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -55,21 +60,94 @@ data class OrganisationState(
     val saving: Boolean = false,
     val message: String? = null,
     val error: String? = null,
+    val page: com.atlasdigital.coastcalendar.data.model.PublicPageDraft = com.atlasdigital.coastcalendar.data.model.PublicPageDraft(),
+    val pendingHero: ByteArray? = null,
+    val pendingAvatar: ByteArray? = null,
+    val pageSaving: Boolean = false,
+    val pageMessage: String? = null,
+    val pageError: String? = null,
 )
 
 /** Owner Organisation status + application form (`my_business_profile` / `save_my_business_profile`). */
 class OrganisationViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(OrganisationState())
     val state = _state.asStateFlow()
+    private var session: UserSession? = null
+
+    fun imageUrl(path: String?) = container.members.memberImageUrl(path)
 
     fun bind(session: UserSession?) {
+        this.session = session
         if (session == null) { _state.value = OrganisationState(loading = false); return }
         _state.update { it.copy(loading = true) }
         viewModelScope.launch {
             val account = runCatching { container.account.businessAccount(session.userId) }.getOrDefault(BusinessAccountState.Empty)
             val draft = account.profile?.let(OrganisationDraft::from)
                 ?: OrganisationDraft(contactName = session.fullName.orEmpty(), email = session.email)
-            _state.update { it.copy(loading = false, account = account, draft = draft) }
+            val page = account.profile?.id?.let { id -> runCatching { container.members.ownPublicPage(id) }.getOrNull() }
+            val pageDraft = com.atlasdigital.coastcalendar.data.model.PublicPageDraft.prefill(
+                page?.let(com.atlasdigital.coastcalendar.data.model.PublicPageDraft::from) ?: com.atlasdigital.coastcalendar.data.model.PublicPageDraft(),
+                draft,
+            )
+            _state.update { it.copy(loading = false, account = account, draft = draft, page = pageDraft) }
+        }
+    }
+
+    fun editPage(t: (com.atlasdigital.coastcalendar.data.model.PublicPageDraft) -> com.atlasdigital.coastcalendar.data.model.PublicPageDraft) =
+        _state.update { it.copy(page = t(it.page), pageError = null, pageMessage = null) }
+
+    /** iOS member photo: ≤ 1800 px, JPEG 0.82, kept on the device until Save. */
+    fun pickImage(uri: android.net.Uri, kind: String) {
+        viewModelScope.launch {
+            val photo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    com.atlasdigital.coastcalendar.core.image.ListingPhotoCompressor.compress(
+                        container.appContext.contentResolver, uri,
+                        com.atlasdigital.coastcalendar.core.image.ListingPhotoCompressor.MEMBER_MAX_DIMENSION,
+                        com.atlasdigital.coastcalendar.core.image.ListingPhotoCompressor.MEMBER_JPEG_QUALITY,
+                    )
+                }.getOrNull()
+            }
+            when {
+                photo == null -> _state.update { it.copy(pageError = "That image could not be loaded. Please choose another photo.") }
+                photo.data.size > com.atlasdigital.coastcalendar.data.model.MemberImagePath.MAX_BYTES ->
+                    _state.update { it.copy(pageError = "That image is larger than 5 MB after resizing. Please choose another photo.") }
+                kind == "avatar" -> _state.update { it.copy(pendingAvatar = photo.data, pageError = null) }
+                else -> _state.update { it.copy(pendingHero = photo.data, pageError = null) }
+            }
+        }
+    }
+
+    /** iOS `finishHomePageSetup`: upload pending images, save the public page, confirm contact; clean up uploads on failure. */
+    fun savePage() {
+        val s = _state.value
+        val profile = s.account.profile ?: return
+        val user = session ?: return
+        if (s.pageSaving) return
+        if (s.page.problems.isNotEmpty()) {
+            _state.update { it.copy(pageError = "Add a public name and location, then check any optional contact details before saving.") }
+            return
+        }
+        _state.update { it.copy(pageSaving = true, pageError = null, pageMessage = null) }
+        viewModelScope.launch {
+            val uploaded = mutableListOf<String>()
+            try {
+                var draft = s.page
+                s.pendingHero?.let { bytes -> container.members.uploadMemberImage(bytes, "hero", user.userId).also { uploaded += it; draft = draft.copy(heroImagePath = it) } }
+                s.pendingAvatar?.let { bytes -> container.members.uploadMemberImage(bytes, "avatar", user.userId).also { uploaded += it; draft = draft.copy(avatarImagePath = it) } }
+                val saved = container.members.savePublicPage(profile.id, draft)
+                _state.update {
+                    it.copy(
+                        pageSaving = false, pendingHero = null, pendingAvatar = null,
+                        page = com.atlasdigital.coastcalendar.data.model.PublicPageDraft.from(saved),
+                        pageMessage = if (saved.publishedAt == null) "Your public page details are saved and confirmed. Publication remains server-controlled."
+                        else "Your public page details are saved.",
+                    )
+                }
+            } catch (e: Exception) {
+                uploaded.forEach { runCatching { container.members.deleteMemberImage(it) } }
+                _state.update { it.copy(pageSaving = false, pageError = "Your public page could not be saved. Your edits are still here so you can try again. (${ErrorMessages.userFacing(e)})") }
+            }
         }
     }
 
@@ -157,6 +235,7 @@ fun OrganisationScreen(viewModel: OrganisationViewModel, session: UserSession?, 
                 OutlinedTextField(d.about, { v -> viewModel.edit { it.copy(about = v) } }, label = { Text("About") }, minLines = 4, modifier = Modifier.fillMaxWidth())
                 Text("Contact details here are private to Support. Public page details are confirmed separately.", style = MaterialTheme.typography.bodyMedium)
             }
+            PlanChoiceCard(d.selectedPlanId) { id -> viewModel.edit { it.copy(selectedPlanId = id) } }
             state.message?.let { Text(it, color = PccColors.LeafGreen, fontWeight = FontWeight.Bold) }
             state.error?.let { Text(it, color = PccColors.PohutukawaRed) }
             PrimaryButton(
@@ -164,6 +243,85 @@ fun OrganisationScreen(viewModel: OrganisationViewModel, session: UserSession?, 
                 viewModel::save,
                 enabled = !state.saving,
             )
+            if (state.account.profile != null) PublicPageCard(viewModel, state)
         }
+    }
+}
+
+
+/** iOS plan list (same ids). No prices or payment here: member access is switched on separately. */
+@Composable
+private fun PlanChoiceCard(selectedId: String, onSelect: (String) -> Unit) {
+    PccCard {
+        Text("Plan", style = MaterialTheme.typography.titleLarge)
+        Text("Choose the plan that fits how often you post. Support sees your choice with the application; member access is switched on separately.",
+            style = MaterialTheme.typography.bodyMedium)
+        com.atlasdigital.coastcalendar.data.model.MemberPlan.entries.forEach { plan ->
+            val selected = plan.id == selectedId
+            Column(
+                Modifier.fillMaxWidth().clip(com.atlasdigital.coastcalendar.ui.theme.PccShapes.Small)
+                    .background(if (selected) PccColors.LeafGreen.copy(alpha = 0.08f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.74f))
+                    .border(1.5.dp, if (selected) PccColors.LeafGreen.copy(alpha = 0.45f) else androidx.compose.ui.graphics.Color.Transparent, com.atlasdigital.coastcalendar.ui.theme.PccShapes.Small)
+                    .clickable { onSelect(plan.id) }
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(plan.title, style = MaterialTheme.typography.titleMedium, color = PccColors.Ink, fontWeight = FontWeight.Black)
+                        Text(plan.audience, style = MaterialTheme.typography.labelMedium)
+                    }
+                    androidx.compose.material3.RadioButton(selected = selected, onClick = { onSelect(plan.id) })
+                }
+                plan.inclusions.forEach { Text("✓  $it", style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+    }
+}
+
+/** iOS member home page editor: public name, area, bio, public contact details, hero + avatar images (`member-images`). */
+@Composable
+private fun PublicPageCard(viewModel: OrganisationViewModel, state: OrganisationState) {
+    val p = state.page
+    val heroPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> if (uri != null) viewModel.pickImage(uri, "hero") }
+    val avatarPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> if (uri != null) viewModel.pickImage(uri, "avatar") }
+    val imageOnly = androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)
+    PccCard {
+        Text("Public page", style = MaterialTheme.typography.titleLarge)
+        Text("What people see on your Organisation page. Images are optional.", style = MaterialTheme.typography.bodyMedium)
+        ImageSlot("Cover image", state.pendingHero, viewModel.imageUrl(p.heroImagePath), 150.dp) { heroPicker.launch(imageOnly) }
+        ImageSlot("Profile image", state.pendingAvatar, viewModel.imageUrl(p.avatarImagePath), 96.dp) { avatarPicker.launch(imageOnly) }
+        OutlinedTextField(p.displayName, { v -> viewModel.editPage { it.copy(displayName = v) } }, label = { Text("Public name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.bio, { v -> viewModel.editPage { it.copy(bio = v) } }, label = { Text("About") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.contactName, { v -> viewModel.editPage { it.copy(contactName = v) } }, label = { Text("Public contact name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.contactEmail, { v -> viewModel.editPage { it.copy(contactEmail = v) } }, label = { Text("Public contact email") }, singleLine = true,
+            isError = "contactEmail" in p.problems, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.phone, { v -> viewModel.editPage { it.copy(phone = v) } }, label = { Text("Public phone") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.locationText, { v -> viewModel.editPage { it.copy(locationText = v) } }, label = { Text("Location") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.address, { v -> viewModel.editPage { it.copy(address = v) } }, label = { Text("Public address") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(p.website, { v -> viewModel.editPage { it.copy(website = v) } }, label = { Text("Website") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        state.pageMessage?.let { Text(it, color = PccColors.LeafGreen, fontWeight = FontWeight.Bold) }
+        state.pageError?.let { Text(it, color = PccColors.PohutukawaRed) }
+        PrimaryButton(if (state.pageSaving) "Saving" else "Save public page", viewModel::savePage, enabled = !state.pageSaving)
+    }
+}
+
+@Composable
+private fun ImageSlot(title: String, pending: ByteArray?, url: String?, height: androidx.compose.ui.unit.Dp, onPick: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = PccColors.Ink)
+        val model: Any? = pending ?: url
+        if (model != null) {
+            coil3.compose.AsyncImage(
+                model = model, contentDescription = title, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(height).clip(com.atlasdigital.coastcalendar.ui.theme.PccShapes.Small),
+            )
+        }
+        OutlinedButton(onClick = onPick, modifier = Modifier.fillMaxWidth()) { Text(if (model == null) "Choose image" else "Replace image") }
     }
 }

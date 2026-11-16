@@ -218,6 +218,11 @@ data class PublicMemberProfileRecord(
     @SerialName("avatar_image_path") val avatarImagePath: String? = null,
     @SerialName("hero_image_path") val heroImagePath: String? = null,
     @SerialName("published_at") val publishedAt: String? = null,
+    @SerialName("avatar_image_position_x") val avatarImagePositionX: Double = 50.0,
+    @SerialName("avatar_image_position_y") val avatarImagePositionY: Double = 50.0,
+    @SerialName("hero_image_position_x") val heroImagePositionX: Double = 50.0,
+    @SerialName("hero_image_position_y") val heroImagePositionY: Double = 50.0,
+    @SerialName("public_contact_revision") val publicContactRevision: String? = null,
 ) {
     companion object {
         const val SELECT = "id,public_slug,display_name,area_scope_id,bio,public_contact_name,public_contact_email,public_phone," +
