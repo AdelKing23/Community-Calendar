@@ -75,11 +75,14 @@ private const val CONTACT_ROUTE = "contact"
 private const val DELETE_ACCOUNT_ROUTE = "delete-account"
 private const val ORGANISATION_ROUTE = "organisation"
 private const val ORG_PAGE_ROUTE = "org/{id}"
+private const val MY_CALENDAR_ROUTE = "my-calendar"
+private const val ORG_CALENDAR_ROUTE = "org-calendar/{id}?name={name}"
+private fun orgCalendarRoute(id: String, name: String) = "org-calendar/$id?name=" + android.net.Uri.encode(name)
 private fun orgPageRoute(id: String) = "org/$id"
 internal const val SUPPORT_ROUTE = "support"
 
 /** Pushed screens hide the tab bar like iOS NavigationStack pushes. */
-private val PUSHED_ROUTES = setOf(AUTH_ROUTE, EVENT_ROUTE, MY_LISTINGS_ROUTE, CONTACT_ROUTE, DELETE_ACCOUNT_ROUTE, ORGANISATION_ROUTE, ORG_PAGE_ROUTE, SUPPORT_ROUTE)
+private val PUSHED_ROUTES = setOf(AUTH_ROUTE, EVENT_ROUTE, MY_LISTINGS_ROUTE, CONTACT_ROUTE, DELETE_ACCOUNT_ROUTE, MY_CALENDAR_ROUTE, ORG_CALENDAR_ROUTE, ORGANISATION_ROUTE, ORG_PAGE_ROUTE, SUPPORT_ROUTE)
 
 @Composable
 fun CoastCalendarRoot(container: AppContainer, openEventId: String? = null, onOpenedEvent: () -> Unit = {}) {
@@ -175,6 +178,7 @@ fun CoastCalendarRoot(container: AppContainer, openEventId: String? = null, onOp
                         onContactSupport = { nav.navigate(CONTACT_ROUTE) },
                         onSupportDashboard = { nav.navigate(SUPPORT_ROUTE) },
                         onDeleteAccount = { nav.navigate(DELETE_ACCOUNT_ROUTE) },
+                        onMyCalendar = { nav.navigate(MY_CALENDAR_ROUTE) },
                     ),
                 )
             }
@@ -185,6 +189,23 @@ fun CoastCalendarRoot(container: AppContainer, openEventId: String? = null, onOp
             composable(CONTACT_ROUTE) {
                 val vm: ContactSupportViewModel = viewModel { ContactSupportViewModel(container) }
                 ContactSupportScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) })
+            }
+            composable(MY_CALENDAR_ROUTE) {
+                val vm: com.atlasdigital.coastcalendar.feature.calendar.MyCalendarViewModel =
+                    viewModel { com.atlasdigital.coastcalendar.feature.calendar.MyCalendarViewModel(container) }
+                com.atlasdigital.coastcalendar.feature.calendar.MyCalendarScreen(
+                    vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) }, onOpen = { nav.navigate(eventRoute(it)) },
+                )
+            }
+            composable(
+                ORG_CALENDAR_ROUTE,
+                arguments = listOf(androidx.navigation.navArgument("name") { defaultValue = "Organisation" }),
+            ) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                val name = entry.arguments?.getString("name") ?: "Organisation"
+                val vm: com.atlasdigital.coastcalendar.feature.calendar.OrgCalendarViewModel =
+                    viewModel(key = "org-cal-$id") { com.atlasdigital.coastcalendar.feature.calendar.OrgCalendarViewModel(container, id) }
+                com.atlasdigital.coastcalendar.feature.calendar.OrgCalendarScreen(vm, user, name, onBack = { nav.popBackStack() }, onOpen = { nav.navigate(eventRoute(it)) })
             }
             composable(DELETE_ACCOUNT_ROUTE) {
                 val vm: com.atlasdigital.coastcalendar.feature.settings.AccountDeletionViewModel =
@@ -202,7 +223,10 @@ fun CoastCalendarRoot(container: AppContainer, openEventId: String? = null, onOp
             composable(ORG_PAGE_ROUTE) { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()
                 val vm: OrganisationPageViewModel = viewModel(key = "org-$id") { OrganisationPageViewModel(container, id) }
-                OrganisationPageScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) }, onOpen = { nav.navigate(eventRoute(it)) })
+                OrganisationPageScreen(
+                    vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) }, onOpen = { nav.navigate(eventRoute(it)) },
+                    onOpenCalendar = { name -> nav.navigate(orgCalendarRoute(id, name)) },
+                )
             }
             composable(EVENT_ROUTE) { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()

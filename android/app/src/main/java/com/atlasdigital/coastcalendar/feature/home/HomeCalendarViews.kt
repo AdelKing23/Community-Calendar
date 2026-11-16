@@ -89,6 +89,8 @@ fun HomeCalendarMonthCard(
     didFail: Boolean,
     onRetry: () -> Unit,
     onSelectDay: (LocalDate) -> Unit,
+    allowPastDays: Boolean = false,
+    selectedDay: LocalDate? = null,
 ) {
     PccCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -110,7 +112,7 @@ fun HomeCalendarMonthCard(
             Row(Modifier.fillMaxWidth()) {
                 week.forEach { day ->
                     Box(Modifier.weight(1f)) {
-                        if (day != null) DayCell(day, today, topicsByDay[day].orEmpty(), onSelectDay)
+                        if (day != null) DayCell(day, today, topicsByDay[day].orEmpty(), onSelectDay, allowPastDays, day == selectedDay)
                     }
                 }
                 repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
@@ -120,8 +122,11 @@ fun HomeCalendarMonthCard(
 }
 
 @Composable
-private fun DayCell(day: LocalDate, today: LocalDate, topics: List<EventCategory>, onSelect: (LocalDate) -> Unit) {
-    val isPast = day < today
+private fun DayCell(
+    day: LocalDate, today: LocalDate, topics: List<EventCategory>, onSelect: (LocalDate) -> Unit,
+    allowPast: Boolean = false, isSelected: Boolean = false,
+) {
+    val isPast = day < today && !allowPast
     val isToday = day == today
     val visible = topics.take(HomeCalendarLogic.MAXIMUM_VISIBLE_DOTS)
     val overflow = topics.size - visible.size
@@ -137,7 +142,9 @@ private fun DayCell(day: LocalDate, today: LocalDate, topics: List<EventCategory
             },
     ) {
         Box(
-            Modifier.size(30.dp).clip(CircleShape).background(if (isToday) PccColors.PohutukawaOrange else Color.Transparent),
+            Modifier.size(30.dp).clip(CircleShape).background(
+                when { isToday -> PccColors.PohutukawaOrange; isSelected -> PccColors.LeafGreen.copy(alpha = 0.18f); else -> Color.Transparent },
+            ),
             contentAlignment = Alignment.Center,
         ) {
             Text("${day.dayOfMonth}", fontWeight = if (isToday) FontWeight.Black else FontWeight.Bold, color = if (isToday) Color.White else PccColors.Ink, fontSize = 14.sp)

@@ -50,6 +50,7 @@ fun OrganisationPageScreen(
     onBack: () -> Unit,
     onSignIn: () -> Unit,
     onOpen: (String) -> Unit,
+    onOpenCalendar: (name: String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var showNotices by remember { mutableStateOf(false) }
@@ -86,6 +87,7 @@ fun OrganisationPageScreen(
                             Text(if (state.unreadCount > 0 && session != null) "Notices ${state.unreadCount}" else "Notices")
                         }
                     }
+                    OutlinedButton(onClick = { onOpenCalendar(state.name) }, modifier = Modifier.fillMaxWidth()) { Text("Calendar") }
                 }
             }
             state.actionMessage?.let { msg -> item { Text(msg, color = PccColors.LeafGreen, fontWeight = FontWeight.Bold) } }

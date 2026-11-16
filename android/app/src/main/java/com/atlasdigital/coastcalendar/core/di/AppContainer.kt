@@ -41,6 +41,7 @@ class AppContainer(context: android.content.Context) {
     val account by lazy { AccountRepository(client) }
     val welcome by lazy { WelcomeRepository(client) }
     val listings by lazy { ListingRepository(client) }
+    val calendar by lazy { com.atlasdigital.coastcalendar.data.repository.CalendarRepository(client, events) }
     val reminders by lazy { com.atlasdigital.coastcalendar.core.reminders.EventReminderStore(appContext) }
     val billing: BillingGateway = NotIntegratedBillingGateway
 }

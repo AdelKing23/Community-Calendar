@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
@@ -81,6 +82,7 @@ data class SettingsNav(
     val onContactSupport: () -> Unit,
     val onSupportDashboard: () -> Unit,
     val onDeleteAccount: () -> Unit,
+    val onMyCalendar: () -> Unit,
 )
 
 /**
@@ -123,6 +125,10 @@ fun SettingsScreen(viewModel: SettingsViewModel, session: UserSession?, contentP
                 Section("Support") {
                     Row(Icons.Filled.Build, "Support dashboard", "Inbox, reports, applications, listings and change requests.", nav.onSupportDashboard)
                 }
+            }
+
+            Section("My Calendar") {
+                Row(Icons.Filled.DateRange, "My Calendar", "Dates from organisations you Belong to and listings you're Going to.", nav.onMyCalendar)
             }
 
             Section("Reminders") {
