@@ -205,7 +205,7 @@ fun EventDetailScreen(
         }
     }
     if (showPlan && event != null) {
-        PlanSheet(event, onAddToCalendar = { addToCalendar(context, event) }, onNotGoing = {
+        PlanSheet(event, viewModel.reminders, onAddToCalendar = { addToCalendar(context, event) }, onNotGoing = {
             viewModel.toggle(Engagement.Going); showPlan = false
         }) { showPlan = false }
     }
@@ -471,10 +471,16 @@ private fun ReportSheet(
     }
 }
 
-/** iOS `EventPlanSheet` (Going): device calendar add. Reminder alarms are not ported yet. */
+/** iOS `EventPlanSheet` (Going): reminder alarm + device calendar add. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlanSheet(event: LocalEvent, onAddToCalendar: () -> Unit, onNotGoing: () -> Unit, onDismiss: () -> Unit) {
+private fun PlanSheet(
+    event: LocalEvent,
+    reminders: com.atlasdigital.coastcalendar.core.reminders.EventReminderStore,
+    onAddToCalendar: () -> Unit,
+    onNotGoing: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = PccColors.Cream) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -486,6 +492,7 @@ private fun PlanSheet(event: LocalEvent, onAddToCalendar: () -> Unit, onNotGoing
                 Text(event.title, style = MaterialTheme.typography.titleLarge)
                 Text("${event.dateText()} · ${event.timeText()}\n${event.venue}, ${event.displayLocationName}")
             }
+            ReminderCard(event, reminders)
             PccCard {
                 Text("Device calendar", style = MaterialTheme.typography.titleMedium, color = PccColors.Ink)
                 Text("Add this listing to your phone’s calendar.")
@@ -510,4 +517,67 @@ private fun openMaps(context: Context, address: String) = open(context, "geo:0,0
 
 private fun open(context: Context, uri: String) {
     try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri))) } catch (_: ActivityNotFoundException) { }
+}
+
+
+/** iOS "Reminder alarm": pick a lead time, Set reminder (asks for notification permission on Android 13+), Remove. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderCard(event: LocalEvent, reminders: com.atlasdigital.coastcalendar.core.reminders.EventReminderStore) {
+    val context = LocalContext.current
+    var lead by remember(event.id) { mutableStateOf(reminders.leadTime(event.id)) }
+    var has by remember(event.id) { mutableStateOf(reminders.hasReminder(event.id)) }
+    var needsSettings by remember { mutableStateOf(false) }
+    var message by remember(event.id) { mutableStateOf(if (reminders.hasReminder(event.id)) "Reminder set for ${reminders.leadTime(event.id).title.lowercase()}." else null) }
+    var expanded by remember { mutableStateOf(false) }
+
+    fun apply() {
+        when (reminders.schedule(event, lead)) {
+            is com.atlasdigital.coastcalendar.core.reminders.ScheduleResult.Scheduled -> {
+                has = true; needsSettings = false; message = "Reminder set for ${lead.title.lowercase()}."
+            }
+            com.atlasdigital.coastcalendar.core.reminders.ScheduleResult.Denied -> {
+                needsSettings = true; message = "Notifications are off for Coast Calendar. Turn them on in Android Settings to get reminders."
+            }
+            com.atlasdigital.coastcalendar.core.reminders.ScheduleResult.Unavailable -> {
+                has = false; message = "This listing starts too soon for a reminder."
+            }
+        }
+    }
+    val permission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) apply() else { needsSettings = true; message = "Notifications are off for Coast Calendar. Turn them on in Android Settings to get reminders." } }
+
+    PccCard {
+        Text(if (has) "Reminder alarm · on" else "Reminder alarm", style = MaterialTheme.typography.titleMedium, color = PccColors.Ink)
+        androidx.compose.material3.ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            androidx.compose.material3.OutlinedTextField(
+                value = lead.title, onValueChange = {}, readOnly = true, label = { Text("Reminder time") },
+                modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            )
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                com.atlasdigital.coastcalendar.core.reminders.ReminderLeadTime.entries.forEach { option ->
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(option.title) }, onClick = { lead = option; expanded = false })
+                }
+            }
+        }
+        message?.let { Text(it, color = if (needsSettings) PccColors.PohutukawaOrange else PccColors.LeafGreen, fontWeight = FontWeight.Bold) }
+        PrimaryButton(if (needsSettings) "Open notification settings" else "Set reminder", onClick = {
+            if (needsSettings) {
+                val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                try { context.startActivity(intent) } catch (_: ActivityNotFoundException) { }
+                needsSettings = false
+            } else if (android.os.Build.VERSION.SDK_INT >= 33 && !reminders.notificationsAllowed() &&
+                androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                apply()
+            }
+        })
+        TextButton(onClick = { reminders.cancel(event.id); has = false; needsSettings = false; message = "Reminder removed." }, enabled = has, modifier = Modifier.fillMaxWidth()) {
+            Text("Remove reminder", color = PccColors.Text, fontWeight = FontWeight.Bold)
+        }
+    }
 }

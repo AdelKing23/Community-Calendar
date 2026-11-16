@@ -48,6 +48,22 @@ class EventDetailViewModel(private val container: AppContainer, eventId: String)
     private var session: UserSession? = null
 
     init {
+        if (_state.value.event == null) {
+            // Opened from a reminder or My Calendar without the list cache: read the public listing.
+            viewModelScope.launch {
+                val loaded = runCatching { container.events.byIds(listOf(eventId)).firstOrNull() }.getOrNull()
+                if (loaded != null) {
+                    container.eventCache.put(loaded)
+                    _state.update { it.copy(event = loaded) }
+                    afterEventLoaded()
+                }
+            }
+        } else {
+            afterEventLoaded()
+        }
+    }
+
+    private fun afterEventLoaded() {
         refreshEngagement()
         val event = _state.value.event
         if (event?.businessProfileId != null) {
@@ -59,12 +75,19 @@ class EventDetailViewModel(private val container: AppContainer, eventId: String)
     }
 
     /** Poll logic shared with the inline feed card (iOS `PollInlineResponseView`). */
-    val poll: PollController? = _state.value.event?.takeIf { it.isPoll }?.let { PollController(container, viewModelScope, it) }
+    private var pollController: PollController? = null
+    val poll: PollController?
+        get() = pollController ?: _state.value.event?.takeIf { it.isPoll }?.let { e ->
+            PollController(container, viewModelScope, e).also { pollController = it; it.bind(session) }
+        }
 
     fun bindSession(session: UserSession?) {
         this.session = session
         poll?.bind(session)
     }
+
+    /** Reminder state for the Plan sheet (device-only, iOS `EventReminderStore`). */
+    val reminders get() = container.reminders
 
     // MARK: engagement (device-only, iOS EventEngagementStore)
     private fun refreshEngagement() {
@@ -80,8 +103,9 @@ class EventDetailViewModel(private val container: AppContainer, eventId: String)
     }
 
     fun toggle(kind: Engagement): Boolean {
-        val id = _state.value.event?.id ?: return false
-        val on = container.prefs.toggleEngagement(kind, id)
+        val event = _state.value.event ?: return false
+        val on = container.prefs.toggleEngagement(kind, event.id)
+        if (kind == Engagement.Going) container.reminders.syncGoing(event, on)
         refreshEngagement()
         return on
     }

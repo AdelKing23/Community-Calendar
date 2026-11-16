@@ -74,6 +74,19 @@ class EventsRepository(private val client: SupabaseClient, private val images: I
         return withTopics(rows)
     }
 
+    /** Public listings by id (iOS `fetchEventsByIDs`; Android reads `public_events`, so only published listings come back). */
+    suspend fun byIds(ids: Collection<String>): List<LocalEvent> {
+        val unique = ids.map { it.lowercase() }.distinct()
+        if (unique.isEmpty()) return emptyList()
+        val rows = unique.chunked(150).flatMap { batch ->
+            client.from("public_events").select(Columns.raw(PublicEventRecord.SELECT)) {
+                filter { isIn("id", batch) }
+                order("start_at", Order.ASCENDING)
+            }.decodeList<PublicEventRecord>()
+        }
+        return withTopics(rows)
+    }
+
     suspend fun boardEvents(locationSlug: String): Pair<List<LocalEvent>, Boolean> =
         try {
             publishedEvents(locationSlug).filter { it.isPubliclyVisible } to true

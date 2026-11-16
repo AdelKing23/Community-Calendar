@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,6 +59,7 @@ import kotlinx.coroutines.launch
 
 /** Loads the signed-in account's Organisation + Support flags for the Settings hub. */
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
+    val reminders get() = container.reminders
     private val _account = MutableStateFlow(BusinessAccountState.Empty)
     val account: StateFlow<BusinessAccountState> = _account.asStateFlow()
 
@@ -122,6 +125,17 @@ fun SettingsScreen(viewModel: SettingsViewModel, session: UserSession?, contentP
                 }
             }
 
+            Section("Reminders") {
+                var showReminders by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                val store = viewModel.reminders
+                Row(
+                    Icons.Filled.Notifications, "Reminder settings",
+                    "Choose how Going reminders behave on this device. " +
+                        (if (store.automaticGoingReminders) store.defaultLeadTime.title else "Off") + " · ${store.activeCount} set",
+                ) { showReminders = true }
+                if (showReminders) ReminderSettingsDialog(store) { showReminders = false }
+            }
+
             Section("Contact Support") {
                 Row(Icons.Filled.Email, "Contact Coast Calendar", "Send a private support request from this app.", nav.onContactSupport)
             }
@@ -172,4 +186,35 @@ private fun Row(icon: ImageVector, title: String, subtitle: String, onClick: (()
         }
         if (onClick != null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = PccColors.Text)
     }
+}
+
+
+/** iOS `ReminderSettingsScreen`: Going reminders on/off and the default lead time (device only). */
+@Composable
+private fun ReminderSettingsDialog(store: com.atlasdigital.coastcalendar.core.reminders.EventReminderStore, onDismiss: () -> Unit) {
+    var auto by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(store.automaticGoingReminders) }
+    var lead by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(store.defaultLeadTime) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reminders") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("When you tap Going, the app can remind you before the listing starts. Simple, local, and controlled on this device.")
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Going reminders", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Switch(checked = auto, onCheckedChange = { auto = it; store.automaticGoingReminders = it })
+                }
+                com.atlasdigital.coastcalendar.core.reminders.ReminderLeadTime.entries.forEach { option ->
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable(enabled = auto) { lead = option; store.defaultLeadTime = option },
+                    ) {
+                        androidx.compose.material3.RadioButton(selected = lead == option, onClick = { lead = option; store.defaultLeadTime = option }, enabled = auto)
+                        Text(option.title)
+                    }
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Done") } },
+    )
 }

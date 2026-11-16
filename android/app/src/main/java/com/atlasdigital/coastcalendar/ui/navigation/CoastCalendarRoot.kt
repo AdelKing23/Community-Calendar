@@ -82,11 +82,17 @@ internal const val SUPPORT_ROUTE = "support"
 private val PUSHED_ROUTES = setOf(AUTH_ROUTE, EVENT_ROUTE, MY_LISTINGS_ROUTE, CONTACT_ROUTE, DELETE_ACCOUNT_ROUTE, ORGANISATION_ROUTE, ORG_PAGE_ROUTE, SUPPORT_ROUTE)
 
 @Composable
-fun CoastCalendarRoot(container: AppContainer) {
+fun CoastCalendarRoot(container: AppContainer, openEventId: String? = null, onOpenedEvent: () -> Unit = {}) {
     val session: SessionViewModel = viewModel { SessionViewModel(container) }
     val authState by session.authState.collectAsState()
     val showWelcome by session.showWelcome.collectAsState()
     val nav = rememberNavController()
+    // Reminder notification tap: open that listing (detail loads it by id if it isn't cached).
+    androidx.compose.runtime.LaunchedEffect(openEventId) {
+        val id = openEventId ?: return@LaunchedEffect
+        nav.navigate(eventRoute(id.lowercase()))
+        onOpenedEvent()
+    }
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val user = (authState as? AuthState.SignedIn)?.session
