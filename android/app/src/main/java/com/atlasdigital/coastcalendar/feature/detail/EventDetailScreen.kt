@@ -152,10 +152,11 @@ fun EventDetailScreen(
                         InfoRow(Icons.Filled.AccountCircle, "Asked by", event.organiserDisplayName)
                     }
                     val details = event.pollDetails
-                    if (details != null) {
+                    val pollController = viewModel.poll
+                    if (details != null && pollController != null) {
                         PccCard {
                             Text("Cast your answer", style = MaterialTheme.typography.labelMedium, color = PccColors.PohutukawaOrange)
-                            PollResponsePanel(details, state.poll, viewModel)
+                            PollResponsePanel(details, pollController)
                         }
                     } else {
                         PccCard { Text("This poll is being prepared. Check back shortly to have your say.") }
@@ -276,7 +277,8 @@ private fun PollHero(event: LocalEvent) {
 
 /** iOS `PollInlineResponseView`. */
 @Composable
-private fun PollResponsePanel(details: PollDetails, poll: PollUiState, viewModel: EventDetailViewModel) {
+internal fun PollResponsePanel(details: PollDetails, viewModel: PollController) {
+    val poll by viewModel.state.collectAsState()
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth().clip(PccShapes.Small).background(PccColors.LeafGreen.copy(alpha = 0.07f)).padding(12.dp),
@@ -326,7 +328,7 @@ private fun PollResponsePanel(details: PollDetails, poll: PollUiState, viewModel
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = PccColors.LeafGreen)
                 Spacer(Modifier.width(8.dp))
             }
-            val status = viewModel.pollStatusText(poll)
+            val status = viewModel.statusText(poll)
             Text(
                 status,
                 style = MaterialTheme.typography.labelLarge,

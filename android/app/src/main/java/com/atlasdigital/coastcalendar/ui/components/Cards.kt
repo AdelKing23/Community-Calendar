@@ -68,6 +68,8 @@ fun Chip(text: String, background: Color, foreground: Color, modifier: Modifier 
 /** iOS `HomePostCard` (no image yet: Coast Calendar placeholder like `EventImagePlaceholderView`). */
 @Composable
 fun EventCard(event: LocalEvent, onOpen: () -> Unit = {}) {
+    // iOS feed shows polls as `PollFeedCard` with inline voting.
+    if (event.isPoll && com.atlasdigital.coastcalendar.feature.detail.PollFeedCard(event, onOpen)) return
     PccCard(onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (event.isPoll) Chip("Poll", PccColors.LeafGreen, Color.White)

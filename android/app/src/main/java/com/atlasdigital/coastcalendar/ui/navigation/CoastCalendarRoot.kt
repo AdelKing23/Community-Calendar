@@ -101,6 +101,10 @@ fun CoastCalendarRoot(container: AppContainer) {
         restoreState = true
     }
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.atlasdigital.coastcalendar.ui.components.LocalAppContainer provides container,
+        com.atlasdigital.coastcalendar.ui.components.LocalUserSession provides user,
+    ) {
     Scaffold(
         containerColor = PccColors.Cream,
         bottomBar = {
@@ -201,6 +205,8 @@ fun CoastCalendarRoot(container: AppContainer) {
                 AuthScreen(session, onSignedIn = { nav.popBackStack() }, onBack = { nav.popBackStack() })
             }
         }
+    }
+
     }
 
     if (showWelcome) {
