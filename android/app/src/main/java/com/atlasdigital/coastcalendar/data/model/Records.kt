@@ -148,6 +148,8 @@ data class MemberNoticeInsert(
     val body: String? = null,
     @SerialName("template_style") val templateStyle: String = "weekly_letter",
     val status: String = "published",
+    /** `notices_ends_at_and_dismissals_v3`: server default now()+14d, check ≤ publish + 90d. Android sends the owner's choice. */
+    @SerialName("ends_at") val endsAt: String? = null,
 )
 
 /** Row from `public_event_images` (iOS `publicEventImageSelect`). */

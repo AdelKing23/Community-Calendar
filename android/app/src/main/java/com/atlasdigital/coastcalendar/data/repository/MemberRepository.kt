@@ -71,7 +71,27 @@ class MemberRepository(private val client: SupabaseClient) {
         client.from("notice_reads").upsert(NoticeReadInsert(noticeId.lowercase(), userId.lowercase()))
     }
 
-    suspend fun createNotice(profileId: String, ownerUserId: String, title: String, summary: String, body: String): MemberNoticeRecord =
+    /** Per-user dismiss (`member_notice_dismissals`, RLS: own rows only). */
+    suspend fun dismissedNoticeIds(): Set<String> =
+        client.from("member_notice_dismissals").select(Columns.list("notice_id"))
+            .decodeList<NoticeReadRow>().map { it.notice_id.lowercase() }.toSet()
+
+    suspend fun dismissNotice(noticeId: String, userId: String) {
+        client.from("member_notice_dismissals").upsert(
+            com.atlasdigital.coastcalendar.data.model.NoticeDismissalInsert(userId.lowercase(), noticeId.lowercase()),
+        ) { onConflict = "user_id,notice_id"; ignoreDuplicates = true }
+    }
+
+    suspend fun undoDismissNotice(noticeId: String, userId: String) {
+        client.from("member_notice_dismissals").delete {
+            filter {
+                eq("notice_id", noticeId.lowercase())
+                eq("user_id", userId.lowercase())
+            }
+        }
+    }
+
+    suspend fun createNotice(profileId: String, ownerUserId: String, title: String, summary: String, body: String, days: Int = com.atlasdigital.coastcalendar.data.model.NoticeExpiry.DEFAULT_DAYS): MemberNoticeRecord =
         client.from("member_notices").insert(
             MemberNoticeInsert(
                 businessProfileId = profileId.lowercase(),
@@ -79,6 +99,7 @@ class MemberRepository(private val client: SupabaseClient) {
                 title = title.trim(),
                 summary = summary.trim().ifEmpty { null },
                 body = body.trim().ifEmpty { null },
+                endsAt = com.atlasdigital.coastcalendar.core.time.NzTime.iso(com.atlasdigital.coastcalendar.data.model.NoticeExpiry.endsAt(days)),
             ),
         ) { select(Columns.raw(MemberNoticeRecord.SELECT)) }.decodeSingle<MemberNoticeRecord>()
 

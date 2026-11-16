@@ -32,7 +32,7 @@ class ListingRepository(private val client: SupabaseClient) {
         }
     }
 
-    suspend fun createNotice(profileId: String, ownerUserId: String, title: String, summary: String, body: String): String =
+    suspend fun createNotice(profileId: String, ownerUserId: String, title: String, summary: String, body: String, days: Int = com.atlasdigital.coastcalendar.data.model.NoticeExpiry.DEFAULT_DAYS): String =
         client.from("member_notices").insert(
             MemberNoticeInsert(
                 businessProfileId = profileId,
@@ -40,6 +40,7 @@ class ListingRepository(private val client: SupabaseClient) {
                 title = title.trim(),
                 summary = summary.trim().ifEmpty { null },
                 body = body.trim().ifEmpty { null },
+                endsAt = com.atlasdigital.coastcalendar.core.time.NzTime.iso(com.atlasdigital.coastcalendar.data.model.NoticeExpiry.endsAt(days)),
             ),
         ) { select(Columns.list("id")) }.decodeSingle<InsertedId>().id
 }

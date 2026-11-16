@@ -124,6 +124,18 @@ private fun NoticesSheet(viewModel: OrganisationPageViewModel, session: UserSess
                     Text(noticeDate.format(n.displayDate.atZone(ZoneId.systemDefault())), style = MaterialTheme.typography.labelMedium)
                     n.summary?.takeIf { it.isNotBlank() }?.let { Text(it, fontWeight = FontWeight.Bold) }
                     n.body?.takeIf { it.isNotBlank() }?.let { Text(it) }
+                    n.endsInstant?.let { end ->
+                        Text(
+                            (if (n.hasEnded()) "Ended " else "Shows until ") + noticeDate.format(end.atZone(ZoneId.systemDefault())),
+                            style = MaterialTheme.typography.labelMedium, color = PccColors.Text,
+                        )
+                    }
+                    if (session != null && !viewModel.canCreateNotice) {
+                        val hidden = n.id.lowercase() in state.dismissedIds
+                        TextButton(onClick = { viewModel.setDismissed(n.id, !hidden); if (!hidden) selected = null }) {
+                            Text(if (hidden) "Show this Notice again" else "Hide this Notice for me", color = PccColors.LeafGreen, fontWeight = FontWeight.Black)
+                        }
+                    }
                 }
                 else -> {
                     PccCard {
@@ -131,6 +143,11 @@ private fun NoticesSheet(viewModel: OrganisationPageViewModel, session: UserSess
                         Text("Latest from ${state.name}")
                     }
                     if (viewModel.canCreateNotice) PrimaryButton("Create Notice", { viewModel.clearComposerMessage(); composing = true })
+                    if (session != null && state.hiddenCount > 0) {
+                        TextButton(onClick = { viewModel.setShowHidden(!state.showHidden) }) {
+                            Text(if (state.showHidden) "Hide the Notices I hid" else "Show hidden Notices (${state.hiddenCount})", color = PccColors.LeafGreen, fontWeight = FontWeight.Black)
+                        }
+                    }
                     if (session != null && state.unreadCount > 0) {
                         TextButton(onClick = { viewModel.markRead(state.notices.map { it.id }) }) {
                             Text("Mark all as read", color = PccColors.LeafGreen, fontWeight = FontWeight.Black)
@@ -139,8 +156,8 @@ private fun NoticesSheet(viewModel: OrganisationPageViewModel, session: UserSess
                     when {
                         state.noticesLoading -> LoadingCard("Loading Notices")
                         state.noticesError != null -> FeedMessageCard("Could not load Notices", state.noticesError ?: "", viewModel::loadNotices)
-                        state.notices.isEmpty() -> FeedMessageCard("No Notices yet", "${state.name} has not published a Notice or weekly letter yet.")
-                        else -> state.notices.forEach { n ->
+                        state.visibleNotices.isEmpty() && state.hiddenCount == 0 -> FeedMessageCard("No Notices yet", "${state.name} has not published a Notice or weekly letter yet.")
+                        else -> state.visibleNotices.forEach { n ->
                             val unread = session != null && n.id.lowercase() !in state.readIds
                             PccCard(onClick = { selected = n; viewModel.markRead(listOf(n.id)) }) {
                                 Text(n.title, fontWeight = FontWeight.Black, color = PccColors.Ink, maxLines = 3)
@@ -149,6 +166,12 @@ private fun NoticesSheet(viewModel: OrganisationPageViewModel, session: UserSess
                                     style = MaterialTheme.typography.labelMedium,
                                 )
                                 n.summary?.takeIf { it.isNotBlank() }?.let { Text(it, maxLines = 4) }
+                                if (n.hasEnded()) {
+                                    Text("Ended", color = PccColors.Text, fontWeight = FontWeight.Black)
+                                }
+                                if (n.id.lowercase() in state.dismissedIds) {
+                                    Text("Hidden for you", color = PccColors.Text, fontWeight = FontWeight.Black)
+                                }
                                 if (n.status != "published") {
                                     Text(n.status.replace('_', ' ').replaceFirstChar { it.uppercase() }, color = PccColors.PohutukawaOrange, fontWeight = FontWeight.Black)
                                 }
@@ -168,12 +191,14 @@ private fun NoticeComposer(viewModel: OrganisationPageViewModel, organiserName: 
     var title by remember { mutableStateOf("") }
     var summary by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
+    var days by remember { mutableStateOf(com.atlasdigital.coastcalendar.data.model.NoticeExpiry.DEFAULT_DAYS) }
     TextButton(onClick = onClose) { Text("Cancel") }
     Text("New Notice", style = MaterialTheme.typography.headlineSmall)
     Text("Write a Notice or weekly letter for people who visit $organiserName.")
     OutlinedTextField(title, { title = it }, label = { Text("Title *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, placeholder = { Text("A short intro for the Notice list.") }, minLines = 2, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(body, { body = it }, label = { Text("Notice") }, placeholder = { Text("Write the full Notice or weekly letter.") }, minLines = 6, modifier = Modifier.fillMaxWidth())
+    com.atlasdigital.coastcalendar.ui.components.NoticeDurationPicker(days) { days = it }
     state.composerMessage?.let { Text(it, color = PccColors.PohutukawaRed) }
-    PrimaryButton(if (state.publishing) "Publishing" else "Publish Notice", { viewModel.publishNotice(title, summary, body, onClose) }, enabled = !state.publishing)
+    PrimaryButton(if (state.publishing) "Publishing" else "Publish Notice", { viewModel.publishNotice(title, summary, body, days, onClose) }, enabled = !state.publishing)
 }

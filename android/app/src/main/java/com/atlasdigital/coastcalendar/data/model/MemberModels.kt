@@ -138,11 +138,14 @@ data class MemberNoticeRecord(
     @SerialName("published_at") val publishedAt: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("ends_at") val endsAt: String? = null,
 ) {
+    val endsInstant: Instant? get() = NzTime.parse(endsAt)
+    fun hasEnded(now: Instant = Instant.now()): Boolean = endsInstant?.let { it <= now } ?: false
     val displayDate: Instant get() = NzTime.parse(publishedAt) ?: NzTime.parse(createdAt) ?: Instant.EPOCH
 
     companion object {
-        const val SELECT = "id,business_profile_id,owner_user_id,title,summary,body,template_style,status,hero_image_url,published_at,created_at,updated_at"
+        const val SELECT = "id,business_profile_id,owner_user_id,title,summary,body,template_style,status,hero_image_url,published_at,created_at,updated_at,ends_at"
     }
 }
 
@@ -180,3 +183,25 @@ data class HostDirectoryItem(val profile: PublicMemberProfileRecord, val events:
         }
     }
 }
+
+/** Locked rule: Notices run 14 days by default, the owner can choose 1–90 days (server check ≤ publish + 90 days). */
+object NoticeExpiry {
+    const val DEFAULT_DAYS = 14
+    const val MAX_DAYS = 90
+    const val MIN_DAYS = 1
+
+    fun clampDays(days: Int): Int = days.coerceIn(MIN_DAYS, MAX_DAYS)
+
+    /** 90 days is trimmed by a minute so the insert stays inside the server check (published_at is set server-side, a moment later). */
+    fun endsAt(days: Int, now: Instant = Instant.now()): Instant {
+        val d = clampDays(days)
+        val end = now.plus(java.time.Duration.ofDays(d.toLong()))
+        return if (d == MAX_DAYS) end.minusSeconds(60) else end
+    }
+}
+
+@Serializable
+data class NoticeDismissalInsert(
+    @SerialName("user_id") val userId: String,
+    @SerialName("notice_id") val noticeId: String,
+)

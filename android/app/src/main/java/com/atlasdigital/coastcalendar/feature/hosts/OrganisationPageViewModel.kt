@@ -26,11 +26,16 @@ data class OrganisationPageState(
     val noticesLoading: Boolean = false,
     val noticesError: String? = null,
     val readIds: Set<String> = emptySet(),
+    val dismissedIds: Set<String> = emptySet(),
+    val showHidden: Boolean = false,
     val composerMessage: String? = null,
     val publishing: Boolean = false,
 ) {
     val name: String get() = profile?.displayName?.ifBlank { null } ?: "Organisation"
-    val unreadCount: Int get() = notices.count { it.id.lowercase() !in readIds }
+    /** Hidden for this user only (`member_notice_dismissals`). */
+    val visibleNotices: List<MemberNoticeRecord> get() = if (showHidden) notices else notices.filter { it.id.lowercase() !in dismissedIds }
+    val hiddenCount: Int get() = notices.count { it.id.lowercase() in dismissedIds }
+    val unreadCount: Int get() = notices.count { it.id.lowercase() !in readIds && it.id.lowercase() !in dismissedIds }
 }
 
 /** iOS `OrganiserEventsScreen` + `MemberNoticesScreen` + `MemberNoticeComposerScreen` for a public profile. */
@@ -46,7 +51,7 @@ class OrganisationPageViewModel(private val container: AppContainer, private val
 
     fun bind(s: UserSession?) {
         session = s
-        _state.update { it.copy(isFollowing = false, ownedProfileId = null, readIds = emptySet()) }
+        _state.update { it.copy(isFollowing = false, ownedProfileId = null, readIds = emptySet(), dismissedIds = emptySet()) }
         if (s == null) return
         viewModelScope.launch {
             runCatching { container.members.isFollowing(profileId, s.userId) }.onSuccess { f -> _state.update { it.copy(isFollowing = f) } }
@@ -98,7 +103,8 @@ class OrganisationPageViewModel(private val container: AppContainer, private val
             try {
                 val notices = container.members.notices(profileId, publishedOnly = !canCreateNotice)
                 val reads = if (session != null) runCatching { container.members.noticeReads() }.getOrDefault(emptySet()) else emptySet()
-                _state.update { it.copy(notices = notices, readIds = reads, noticesLoading = false) }
+                val dismissed = if (session != null) runCatching { container.members.dismissedNoticeIds() }.getOrDefault(emptySet()) else emptySet()
+                _state.update { it.copy(notices = notices, readIds = reads, dismissedIds = dismissed, noticesLoading = false) }
             } catch (e: Exception) {
                 _state.update { it.copy(noticesLoading = false, noticesError = ErrorMessages.userFacing(e)) }
             }
@@ -111,7 +117,28 @@ class OrganisationPageViewModel(private val container: AppContainer, private val
         viewModelScope.launch { noticeIds.forEach { id -> runCatching { container.members.markRead(id, s.userId) } } }
     }
 
-    fun publishNotice(title: String, summary: String, body: String, onDone: () -> Unit) {
+    fun setShowHidden(show: Boolean) = _state.update { it.copy(showHidden = show) }
+
+    /** Hide a Notice for this user only; undo removes the dismissal row. */
+    fun setDismissed(noticeId: String, dismissed: Boolean) {
+        val s = session ?: return
+        val id = noticeId.lowercase()
+        _state.update { it.copy(dismissedIds = if (dismissed) it.dismissedIds + id else it.dismissedIds - id) }
+        viewModelScope.launch {
+            try {
+                if (dismissed) container.members.dismissNotice(id, s.userId) else container.members.undoDismissNotice(id, s.userId)
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        dismissedIds = if (dismissed) it.dismissedIds - id else it.dismissedIds + id,
+                        noticesError = "That Notice could not be updated: ${ErrorMessages.userFacing(e)}",
+                    )
+                }
+            }
+        }
+    }
+
+    fun publishNotice(title: String, summary: String, body: String, days: Int, onDone: () -> Unit) {
         if (title.isBlank()) { _state.update { it.copy(composerMessage = "Add a title before publishing.") }; return }
         val s = session
         if (s == null || !canCreateNotice) { _state.update { it.copy(composerMessage = "Sign in as this member to publish a Notice.") }; return }
@@ -119,7 +146,7 @@ class OrganisationPageViewModel(private val container: AppContainer, private val
         _state.update { it.copy(publishing = true, composerMessage = null) }
         viewModelScope.launch {
             try {
-                val notice = container.members.createNotice(profileId, s.userId, title, summary, body)
+                val notice = container.members.createNotice(profileId, s.userId, title, summary, body, days)
                 _state.update { it.copy(publishing = false, notices = listOf(notice) + it.notices) }
                 onDone()
             } catch (e: Exception) {

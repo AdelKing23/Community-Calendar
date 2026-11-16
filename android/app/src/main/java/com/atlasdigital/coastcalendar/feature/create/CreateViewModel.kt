@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class NoticeDraft(val title: String = "", val summary: String = "", val body: String = "")
+data class NoticeDraft(val title: String = "", val summary: String = "", val body: String = "", val days: Int = com.atlasdigital.coastcalendar.data.model.NoticeExpiry.DEFAULT_DAYS)
 
 data class CreateState(
     val account: BusinessAccountState = BusinessAccountState.Empty,
@@ -152,7 +152,7 @@ class CreateViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             try {
                 val id = if (s.kind == CreateKind.Notice) {
-                    container.listings.createNotice(profileId, session.userId, s.notice.title, s.notice.summary, s.notice.body)
+                    container.listings.createNotice(profileId, session.userId, s.notice.title, s.notice.summary, s.notice.body, s.notice.days)
                 } else {
                     container.listings.submitPendingListing(s.draft, profileId)
                 }

@@ -183,7 +183,7 @@ private fun CreateForm(state: CreateState, viewModel: CreateViewModel, session: 
             Field("Title", state.notice.title, "title" in state.missing) { v -> viewModel.updateNotice { it.copy(title = v) } }
             Field("Summary", state.notice.summary, false) { v -> viewModel.updateNotice { it.copy(summary = v) } }
             Field("Notice", state.notice.body, false, singleLine = false) { v -> viewModel.updateNotice { it.copy(body = v) } }
-            Text("Notices show for 14 days by default.", style = MaterialTheme.typography.bodyMedium)
+            com.atlasdigital.coastcalendar.ui.components.NoticeDurationPicker(state.notice.days) { d -> viewModel.updateNotice { it.copy(days = d) } }
         }
     } else {
         PccCard {
