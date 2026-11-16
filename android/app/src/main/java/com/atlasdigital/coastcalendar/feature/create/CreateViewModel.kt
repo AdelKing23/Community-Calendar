@@ -12,7 +12,13 @@ import com.atlasdigital.coastcalendar.data.model.ListingKind
 import com.atlasdigital.coastcalendar.data.model.LocationCatalog
 import com.atlasdigital.coastcalendar.data.model.LocationScope
 import com.atlasdigital.coastcalendar.data.remote.ErrorMessages
+import com.atlasdigital.coastcalendar.data.repository.ListingPhotoUpload
 import com.atlasdigital.coastcalendar.data.repository.UserSession
+import com.atlasdigital.coastcalendar.core.image.ListingPhotoCompressor
+import com.atlasdigital.coastcalendar.data.model.ListingImageStoragePath
+import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +40,11 @@ data class CreateState(
     val submittedId: String? = null,
     val submittedTitle: String? = null,
     val submittedKind: CreateKind? = null,
+    /** iOS `selectedPhotos`: up to 5 compressed JPEGs, uploaded after the insert in order (position = index + 1). */
+    val photos: List<ListingPhotoUpload> = emptyList(),
+    val loadingPhotos: Boolean = false,
+    val submissionStatus: String? = null,
+    val submissionNotice: String? = null,
 )
 
 /** iOS Create gate texts (`createGateTitle` / `createGateMessage`), wording kept free of payment/web references. */
@@ -145,9 +156,23 @@ class CreateViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     container.listings.submitPendingListing(s.draft, profileId)
                 }
+                var notice: String? = null
+                if (s.kind != CreateKind.Notice && s.photos.isNotEmpty()) {
+                    try {
+                        s.photos.forEachIndexed { index, photo ->
+                            _state.update { it.copy(submissionStatus = "Uploading photo ${index + 1} of ${s.photos.size}") }
+                            container.images.uploadListingImage(photo, id, session.userId, position = index + 1)
+                        }
+                    } catch (e: Exception) {
+                        notice = "Your listing was sent for review, but one or more photos could not be uploaded. The text listing is still pending."
+                    }
+                }
                 _state.update {
                     it.copy(
                         submitting = false,
+                        submissionStatus = null,
+                        submissionNotice = notice,
+                        photos = emptyList(),
                         submittedId = id,
                         submittedTitle = if (s.kind == CreateKind.Notice) s.notice.title.trim() else s.draft.title.trim(),
                         submittedKind = s.kind,
@@ -156,10 +181,32 @@ class CreateViewModel(private val container: AppContainer) : ViewModel() {
                     )
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(submitting = false, error = ErrorMessages.userFacing(e)) }
+                _state.update { it.copy(submitting = false, submissionStatus = null, error = ErrorMessages.userFacing(e)) }
             }
         }
     }
 
-    fun createAnother() = _state.update { it.copy(submittedId = null, submittedTitle = null, submittedKind = null, error = null) }
+    fun createAnother() = _state.update { it.copy(submittedId = null, submittedTitle = null, submittedKind = null, submissionNotice = null, error = null) }
+
+    /** iOS `loadPhotos`: stops at 5; a photo that can't be read shows the iOS message. */
+    fun addPhotos(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        _state.update { it.copy(loadingPhotos = true) }
+        viewModelScope.launch {
+            for (uri in uris) {
+                if (_state.value.photos.size >= ListingImageStoragePath.MAX_PHOTOS) break
+                val photo = withContext(Dispatchers.IO) {
+                    runCatching { ListingPhotoCompressor.compress(container.appContext.contentResolver, uri) }.getOrNull()
+                }
+                if (photo != null) {
+                    _state.update { it.copy(photos = it.photos + photo) }
+                } else {
+                    _state.update { it.copy(error = "One photo could not be loaded. Please choose another image.") }
+                }
+            }
+            _state.update { it.copy(loadingPhotos = false) }
+        }
+    }
+
+    fun removePhoto(photo: ListingPhotoUpload) = _state.update { it.copy(photos = it.photos - photo) }
 }

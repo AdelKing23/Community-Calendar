@@ -42,7 +42,7 @@ import com.atlasdigital.coastcalendar.ui.theme.PccScreenBackground
 
 /** iOS What's On: header, Today/Week/Month/Upcoming tabs, Browse by topic, area control, then the feed. */
 @Composable
-fun WhatsOnScreen(viewModel: WhatsOnViewModel, contentPadding: PaddingValues) {
+fun WhatsOnScreen(viewModel: WhatsOnViewModel, contentPadding: PaddingValues, onOpen: (String) -> Unit = {}) {
     val state by viewModel.state.collectAsState()
     val scope by viewModel.dateScope.collectAsState()
     val topic by viewModel.topic.collectAsState()
@@ -103,7 +103,7 @@ fun WhatsOnScreen(viewModel: WhatsOnViewModel, contentPadding: PaddingValues) {
                     if (visible.isEmpty()) {
                         item { FeedMessageCard(WhatsOnViewModel.emptyTitle(scope), WhatsOnViewModel.emptyMessage(scope, state.selectedScope.name)) }
                     } else {
-                        items(visible, key = { it.id }) { EventCard(it) }
+                        items(visible, key = { it.id }) { event -> EventCard(event) { onOpen(event.id) } }
                     }
                 }
             }

@@ -34,6 +34,8 @@ import com.atlasdigital.coastcalendar.feature.auth.AuthScreen
 import com.atlasdigital.coastcalendar.feature.auth.SessionViewModel
 import com.atlasdigital.coastcalendar.feature.create.CreateScreen
 import com.atlasdigital.coastcalendar.feature.create.CreateViewModel
+import com.atlasdigital.coastcalendar.feature.detail.EventDetailScreen
+import com.atlasdigital.coastcalendar.feature.detail.EventDetailViewModel
 import com.atlasdigital.coastcalendar.feature.home.HomeScreen
 import com.atlasdigital.coastcalendar.feature.home.HomeViewModel
 import com.atlasdigital.coastcalendar.feature.hosts.HostsScreen
@@ -53,6 +55,8 @@ enum class Tab(val route: String, val label: String, val icon: ImageVector) {
 }
 
 private const val AUTH_ROUTE = "auth"
+private const val EVENT_ROUTE = "event/{id}"
+private fun eventRoute(id: String) = "event/$id"
 
 @Composable
 fun CoastCalendarRoot(container: AppContainer) {
@@ -78,7 +82,7 @@ fun CoastCalendarRoot(container: AppContainer) {
     Scaffold(
         containerColor = PccColors.Cream,
         bottomBar = {
-            if (currentRoute != AUTH_ROUTE) {
+            if (currentRoute != AUTH_ROUTE && currentRoute != EVENT_ROUTE) {
                 NavigationBar(containerColor = Color.White.copy(alpha = 0.96f)) {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -102,11 +106,11 @@ fun CoastCalendarRoot(container: AppContainer) {
         NavHost(navController = nav, startDestination = Tab.Home.route) {
             composable(Tab.Home.route) {
                 val vm: HomeViewModel = viewModel { HomeViewModel(container) }
-                HomeScreen(vm, user, padding)
+                HomeScreen(vm, user, padding, onOpen = { nav.navigate(eventRoute(it)) })
             }
             composable(Tab.WhatsOn.route) {
                 val vm: WhatsOnViewModel = viewModel { WhatsOnViewModel(container) }
-                WhatsOnScreen(vm, padding)
+                WhatsOnScreen(vm, padding, onOpen = { nav.navigate(eventRoute(it)) })
             }
             composable(Tab.Create.route) {
                 val vm: CreateViewModel = viewModel { CreateViewModel(container) }
@@ -128,6 +132,11 @@ fun CoastCalendarRoot(container: AppContainer) {
                     onSignOut = { session.signOut() },
                     onShowWelcome = session::showWelcomeAgain,
                 )
+            }
+            composable(EVENT_ROUTE) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                val vm: EventDetailViewModel = viewModel(key = "detail-$id") { EventDetailViewModel(container, id) }
+                EventDetailScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) })
             }
             composable(AUTH_ROUTE) {
                 AuthScreen(session, onSignedIn = { nav.popBackStack() }, onBack = { nav.popBackStack() })

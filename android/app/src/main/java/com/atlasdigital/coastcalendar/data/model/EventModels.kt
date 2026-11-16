@@ -132,7 +132,24 @@ data class LocalEvent(
     val createdAt: Instant,
     val activePromotionRank: Int = 0,
     val activePromotionPaidAt: Instant? = null,
+    val audience: String = "",
+    val contactEmail: String? = null,
+    val contactPhone: String? = null,
+    /** Signed listing photos in position order (iOS `LocalEvent.images`). */
+    val images: List<EventImage> = emptyList(),
+    /** Owner id; only present on owner/Support reads (not in `public_events`). */
+    val submittedBy: String? = null,
+    val recurrenceInterval: String? = null,
 ) {
+    val primaryImage: EventImage? get() = images.firstOrNull { it.signedUrl != null }
+
+    /** iOS `HomeCalendarLogic.isFinished`: ended, but still shown until midnight. */
+    fun isFinished(now: Instant = Instant.now()): Boolean = maxOf(end, start) < now
+
+    /** iOS `applyingActivePromotion(rank:paidAt:)`. */
+    fun applyingActivePromotion(rank: Int, paidAt: Instant?): LocalEvent =
+        copy(activePromotionRank = rank, activePromotionPaidAt = paidAt)
+
     val isPubliclyVisible: Boolean get() = status == ListingStatus.Published
     val isPoll: Boolean get() = kind == ListingKind.Poll || pollDetails != null || longDescription.contains("[POLL]")
     val publicLongDescription: String get() = PollDetails.strippedReviewBlock(longDescription)
@@ -174,6 +191,24 @@ data class LocalEvent(
         const val PROMO_PRIORITY_FIRST = 2
         private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy")
     }
+}
+
+/** iOS `EventImage`: one row of `public_event_images` with its 1-hour signed URL (null if signing failed). */
+data class EventImage(
+    val id: String,
+    val storagePath: String,
+    val position: Int,
+    val signedUrl: String?,
+    val width: Int? = null,
+    val height: Int? = null,
+)
+
+/** iOS `ListingImageStoragePath.make`: `<userId>/<eventId>/<imageId>.jpg`, all lowercase, in bucket `listing-images`. */
+object ListingImageStoragePath {
+    const val BUCKET = "listing-images"
+    const val MAX_PHOTOS = 5
+    fun make(userId: String, eventId: String, imageId: String): String =
+        "${userId.lowercase()}/${eventId.lowercase()}/${imageId.lowercase()}.jpg"
 }
 
 /** iOS `EventFeedOrdering`. */

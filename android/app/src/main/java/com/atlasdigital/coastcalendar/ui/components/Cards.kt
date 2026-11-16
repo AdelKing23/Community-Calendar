@@ -89,7 +89,16 @@ fun EventCard(event: LocalEvent, onOpen: () -> Unit = {}) {
                 )
             }
         }
-        ImagePlaceholder(isPoll = event.isPoll)
+        androidx.compose.foundation.layout.Box {
+            com.atlasdigital.coastcalendar.feature.detail.ListingRemoteImage(
+                event.primaryImage, isPoll = event.isPoll,
+                modifier = Modifier.height(138.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            )
+            if (event.isFinished()) {
+                Chip("Finished", PccColors.Ink.copy(alpha = 0.78f), Color.White, Modifier.align(Alignment.TopStart).padding(10.dp))
+            }
+        }
         Text(event.organiserDisplayName, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(event.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (event.shortDescription.isNotBlank()) {
@@ -116,22 +125,6 @@ private fun MetaLine(icon: ImageVector, text: String, contentDescription: String
     }
 }
 
-@Composable
-private fun ImagePlaceholder(isPoll: Boolean) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(138.dp)
-            .clip(PccShapes.Small)
-            .background(if (isPoll) PccColors.LeafGreen.copy(alpha = 0.10f) else PccColors.Cream.copy(alpha = 0.78f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (isPoll) "Community poll" else "Coast Calendar", style = MaterialTheme.typography.titleLarge)
-            Text(if (isPoll) "Have your say" else "Local listing", style = MaterialTheme.typography.labelLarge, color = PccColors.Text)
-        }
-    }
-}
 
 /** iOS `FeedMessageCard` (loading error / empty state). */
 @Composable

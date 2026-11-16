@@ -37,7 +37,7 @@ import com.atlasdigital.coastcalendar.ui.theme.PccShapes
 
 /** iOS Home board: hero (greeting, brand, area, chips, counter) then the board feed or the empty/error card. */
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, session: UserSession?, contentPadding: PaddingValues) {
+fun HomeScreen(viewModel: HomeViewModel, session: UserSession?, contentPadding: PaddingValues, onOpen: (String) -> Unit = {}) {
     val state by viewModel.state.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
     val board = viewModel.boardEvents(state)
@@ -79,7 +79,7 @@ fun HomeScreen(viewModel: HomeViewModel, session: UserSession?, contentPadding: 
                 state.isLoading -> item { LoadingCard() }
                 state.error != null -> item { FeedMessageCard("Local board could not be loaded", state.error!!, viewModel::reload) }
                 board.isEmpty() -> item { FeedMessageCard("It’s a quiet time right now", "List something to be the first thing this week.") }
-                else -> items(board, key = { it.id }) { EventCard(it) }
+                else -> items(board, key = { it.id }) { event -> EventCard(event) { onOpen(event.id) } }
             }
         }
     }

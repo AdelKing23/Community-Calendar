@@ -1,5 +1,20 @@
 package com.atlasdigital.coastcalendar.feature.create
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import com.atlasdigital.coastcalendar.data.model.ListingImageStoragePath
+import com.atlasdigital.coastcalendar.ui.theme.PccShapes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -132,6 +147,7 @@ private fun SubmittedCard(state: CreateState, onCreateAnother: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text("Listing reference: ${state.submittedId?.take(8)}", style = MaterialTheme.typography.labelLarge)
+            state.submissionNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = PccColors.PohutukawaRed) }
         }
         PrimaryButton("Create another", onCreateAnother)
     }
@@ -174,6 +190,8 @@ private fun CreateForm(state: CreateState, viewModel: CreateViewModel, session: 
             Field("Title", draft.title, "title" in state.missing) { v -> viewModel.updateDraft { it.copy(title = v) } }
             CategoryDropdown(draft.category) { c -> viewModel.updateDraft { it.copy(category = c) } }
         }
+
+        ListingPhotoSection(state, viewModel)
 
         PccCard {
             Text("Location", style = MaterialTheme.typography.titleLarge)
@@ -239,7 +257,7 @@ private fun CreateForm(state: CreateState, viewModel: CreateViewModel, session: 
     state.error?.let { Text(it, color = PccColors.PohutukawaRed, style = MaterialTheme.typography.bodyMedium) }
     PrimaryButton(
         text = when {
-            state.submitting -> "Sending…"
+            state.submitting -> state.submissionStatus ?: "Sending…"
             state.kind == CreateKind.Notice -> "Publish notice"
             else -> "Send for review"
         },
@@ -376,6 +394,67 @@ private fun RecurrenceDropdown(selected: ListingRecurrence, onSelect: (ListingRe
             ListingRecurrence.entries.forEach { r ->
                 DropdownMenuItem(text = { Text(r.label) }, onClick = { onSelect(r); expanded = false })
             }
+        }
+    }
+}
+
+/** iOS `ListingPhotoPickerSection`: up to 5 photos, first one leads. */
+@Composable
+private fun ListingPhotoSection(state: CreateState, viewModel: CreateViewModel) {
+    val remaining = (ListingImageStoragePath.MAX_PHOTOS - state.photos.size).coerceAtLeast(0)
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(ListingImageStoragePath.MAX_PHOTOS),
+    ) { uris -> viewModel.addPhotos(uris.take(remaining)) }
+    PccCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Listing image", style = MaterialTheme.typography.titleLarge)
+                Text("Start with a strong photo. You can add up to 5.", style = MaterialTheme.typography.bodyMedium)
+            }
+            Text("${state.photos.size}/${ListingImageStoragePath.MAX_PHOTOS}", style = MaterialTheme.typography.labelLarge)
+        }
+        if (state.photos.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                state.photos.forEach { photo ->
+                    val bitmap = remember(photo.id) {
+                        android.graphics.BitmapFactory.decodeByteArray(photo.data, 0, photo.data.size)?.asImageBitmap()
+                    }
+                    Box(Modifier.weight(1f).aspectRatio(1f).clip(PccShapes.Small).background(PccColors.Cream)) {
+                        bitmap?.let {
+                            Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                        Text(
+                            "✕",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(CircleShape)
+                                .background(PccColors.Ink.copy(alpha = 0.6f)).clickable(enabled = !state.submitting) { viewModel.removePhoto(photo) }
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                repeat(remaining) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        OutlinedButton(
+            onClick = {
+                picker.launch(
+                    androidx.activity.result.PickVisualMediaRequest(
+                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
+                    ),
+                )
+            },
+            enabled = remaining > 0 && !state.loadingPhotos && !state.submitting,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                when {
+                    state.loadingPhotos -> "Preparing Photos"
+                    remaining == 0 -> "Maximum Photos Added"
+                    state.photos.isEmpty() -> "Upload image or photo"
+                    else -> "Add more photos"
+                },
+            )
         }
     }
 }

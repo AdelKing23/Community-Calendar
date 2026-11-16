@@ -58,6 +58,7 @@ abstract class BoardViewModel(protected val container: AppContainer, initialScop
             val slug = catalog.defaultScope(_state.value.selectedId).id
             try {
                 val (events, scoped) = container.events.boardEvents(slug)
+                container.eventCache.put(events)
                 _state.update { it.copy(catalog = catalog, events = events, isUsingBackendLocationFilter = scoped, isLoading = false) }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = catalog, isLoading = false, error = "Please try again soon.") }

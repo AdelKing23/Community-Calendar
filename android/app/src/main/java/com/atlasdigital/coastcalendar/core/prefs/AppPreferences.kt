@@ -28,6 +28,24 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(WELCOME_ACCOUNTS, "") ?: ""
         set(value) = prefs.edit().putString(WELCOME_ACCOUNTS, value).apply()
 
+    /** iOS `EventEngagementStore` sets (device only, not synced). */
+    fun engagementIds(kind: Engagement): Set<String> = prefs.getStringSet(kind.key, emptySet()).orEmpty().toSet()
+
+    fun toggleEngagement(kind: Engagement, eventId: String): Boolean {
+        val set = engagementIds(kind).toMutableSet()
+        val now = if (!set.remove(eventId.uppercase())) { set.add(eventId.uppercase()); true } else false
+        prefs.edit().putStringSet(kind.key, set).apply()
+        return now
+    }
+
+    fun hasEngagement(kind: Engagement, eventId: String): Boolean = eventId.uppercase() in engagementIds(kind)
+
+    enum class Engagement(val key: String) {
+        Interested("community_calendar_interested_events"),
+        Going("community_calendar_going_events"),
+        Saved("community_calendar_saved_events"),
+    }
+
     private companion object {
         const val HOME_SCOPE = "communityCalendar.home.locationScope"
         const val WHATS_ON_SCOPE = "communityCalendar.whatsOn.locationScope"

@@ -6,7 +6,10 @@ import com.atlasdigital.coastcalendar.core.config.SupabaseConfig
 import com.atlasdigital.coastcalendar.data.remote.SupabaseProvider
 import com.atlasdigital.coastcalendar.data.repository.AccountRepository
 import com.atlasdigital.coastcalendar.data.repository.AuthRepository
+import com.atlasdigital.coastcalendar.data.repository.EventCache
 import com.atlasdigital.coastcalendar.data.repository.EventsRepository
+import com.atlasdigital.coastcalendar.data.repository.ImageRepository
+import com.atlasdigital.coastcalendar.data.repository.InteractionRepository
 import com.atlasdigital.coastcalendar.data.repository.ListingRepository
 import com.atlasdigital.coastcalendar.data.repository.LocationRepository
 import com.atlasdigital.coastcalendar.data.repository.WelcomeRepository
@@ -14,6 +17,7 @@ import io.github.jan.supabase.SupabaseClient
 
 /** Simple manual DI (small app; no Hilt yet). Created once in [com.atlasdigital.coastcalendar.CoastCalendarApp]. */
 class AppContainer(context: android.content.Context) {
+    val appContext: android.content.Context = context.applicationContext
     val prefs = com.atlasdigital.coastcalendar.core.prefs.AppPreferences(context.applicationContext)
 
     val isConfigured: Boolean = SupabaseConfig.isConfigured
@@ -21,7 +25,10 @@ class AppContainer(context: android.content.Context) {
     private val client: SupabaseClient by lazy { SupabaseProvider.create() }
 
     val auth by lazy { AuthRepository(client) }
-    val events by lazy { EventsRepository(client) }
+    val images by lazy { ImageRepository(client) }
+    val events by lazy { EventsRepository(client, images) }
+    val interactions by lazy { InteractionRepository(client) }
+    val eventCache = EventCache()
     val locations by lazy { LocationRepository(client) }
     val account by lazy { AccountRepository(client) }
     val welcome by lazy { WelcomeRepository(client) }

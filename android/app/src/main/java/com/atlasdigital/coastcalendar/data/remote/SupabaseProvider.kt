@@ -7,12 +7,13 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.serializer.KotlinXSerializer
+import io.github.jan.supabase.storage.Storage
 import kotlinx.serialization.json.Json
 
 /**
  * One SupabaseClient for the app. supabase-kt makes the same HTTP calls iOS and web make by hand
  * (`/auth/v1`, `/rest/v1`, `/rest/v1/rpc/{fn}`, `/functions/v1`) with the same `apikey` + Bearer headers,
- * so table, RPC and RLS contracts are identical. Realtime and Storage are not installed yet.
+ * so table, RPC and RLS contracts are identical. Storage covers `/storage/v1` (listing photos). Realtime is not installed.
  */
 object SupabaseProvider {
     val json: Json = Json {
@@ -35,5 +36,7 @@ object SupabaseProvider {
         }
         install(Postgrest)
         install(Functions)
+        // Listing photos: private `listing-images` bucket, read through signed URLs like iOS.
+        install(Storage)
     }
 }

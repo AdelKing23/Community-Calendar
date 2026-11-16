@@ -69,6 +69,9 @@ data class PublicEventRecord(
             pollDetails = poll,
             isAllDay = isAllDay ?: false,
             createdAt = NzTime.parse(createdAt) ?: Instant.EPOCH,
+            audience = audience.orEmpty(),
+            contactEmail = contactEmail,
+            contactPhone = contactPhone,
         )
     }
 
@@ -140,3 +143,78 @@ data class MemberNoticeInsert(
     @SerialName("template_style") val templateStyle: String = "weekly_letter",
     val status: String = "published",
 )
+
+/** Row from `public_event_images` (iOS `publicEventImageSelect`). */
+@Serializable
+data class EventImageRecord(
+    val id: String,
+    @SerialName("event_id") val eventId: String,
+    @SerialName("storage_path") val storagePath: String,
+    val position: Int = 1,
+    @SerialName("mime_type") val mimeType: String? = null,
+    @SerialName("byte_size") val byteSize: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+) {
+    companion object {
+        const val SELECT = "id,event_id,storage_path,position,mime_type,byte_size,width,height"
+    }
+}
+
+/** iOS `EventImageInsert` into `event_images`. */
+@Serializable
+data class EventImageInsert(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("storage_path") val storagePath: String,
+    val position: Int,
+    @SerialName("mime_type") val mimeType: String,
+    @SerialName("byte_size") val byteSize: Int,
+    val width: Int,
+    val height: Int,
+)
+
+/** Row from `active_event_promotions` (iOS `SupabaseActiveEventPromotionRecord`). */
+@Serializable
+data class ActivePromotionRecord(
+    @SerialName("event_id") val eventId: String,
+    val tier: String? = null,
+    val placement: String? = null,
+    @SerialName("starts_at") val startsAt: String? = null,
+    @SerialName("ends_at") val endsAt: String? = null,
+    @SerialName("paid_at") val paidAt: String? = null,
+    @SerialName("placement_rank") val placementRank: Int = 0,
+) {
+    /** iOS `sortsBefore`: higher rank first, then earliest paid. */
+    fun sortsBefore(other: ActivePromotionRecord): Boolean {
+        if (placementRank != other.placementRank) return placementRank > other.placementRank
+        val l = NzTime.parse(paidAt) ?: Instant.MAX
+        val r = NzTime.parse(other.paidAt) ?: Instant.MAX
+        return l < r
+    }
+}
+
+/** Row from `public_host_directory` (iOS `PublicBusinessProfileRecord`, `publicMemberProfileSelect`). */
+@Serializable
+data class PublicMemberProfileRecord(
+    val id: String,
+    @SerialName("public_slug") val publicSlug: String? = null,
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("area_scope_id") val areaScopeId: String? = null,
+    val bio: String? = null,
+    @SerialName("public_contact_name") val publicContactName: String? = null,
+    @SerialName("public_contact_email") val publicContactEmail: String? = null,
+    @SerialName("public_phone") val publicPhone: String? = null,
+    @SerialName("public_location_text") val publicLocationText: String? = null,
+    @SerialName("public_address") val publicAddress: String? = null,
+    @SerialName("public_website") val publicWebsite: String? = null,
+    @SerialName("avatar_image_path") val avatarImagePath: String? = null,
+    @SerialName("hero_image_path") val heroImagePath: String? = null,
+    @SerialName("published_at") val publishedAt: String? = null,
+) {
+    companion object {
+        const val SELECT = "id,public_slug,display_name,area_scope_id,bio,public_contact_name,public_contact_email,public_phone," +
+            "public_location_text,public_address,public_website,avatar_image_path,hero_image_path,avatar_image_position_x," +
+            "avatar_image_position_y,hero_image_position_x,hero_image_position_y,published_at,public_contact_revision," +
+            "public_contact_confirmed_revision,public_contact_confirmed_at"
+    }
+}
