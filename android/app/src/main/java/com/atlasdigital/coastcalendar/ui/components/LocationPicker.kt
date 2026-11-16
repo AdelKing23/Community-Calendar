@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.atlasdigital.coastcalendar.data.model.LocationCatalog
 import com.atlasdigital.coastcalendar.data.model.LocationScope
 import com.atlasdigital.coastcalendar.ui.theme.PccColors
@@ -74,7 +75,7 @@ fun ScopeChipRow(scopes: List<LocationScope>, green: Boolean, onSelect: (Locatio
     }
 }
 
-/** Simplified iOS `LocationFinderSheet`: current ladder + search the catalogue. (No device location yet.) */
+/** Simplified iOS `LocationFinderSheet`: "Use my location" (coarse, optional), current ladder + search the catalogue. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationPickerSheet(
@@ -84,10 +85,54 @@ fun LocationPickerSheet(
     onDismiss: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val container = LocalAppContainer.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var locating by remember { mutableStateOf(false) }
+    var locationMessage by remember { mutableStateOf<String?>(null) }
+
+    fun useLocation() {
+        locating = true
+        locationMessage = null
+        scope.launch {
+            val fix = com.atlasdigital.coastcalendar.core.location.CoarseLocation.current(context)
+            if (fix == null) {
+                locating = false
+                locationMessage = "We couldn’t read your location. Choose an area to set where you belong."
+                return@launch
+            }
+            val (id, remoteName) = container?.nearestScope?.resolve(fix.latitude, fix.longitude)
+                ?: (com.atlasdigital.coastcalendar.core.location.KnownCoordinates.nearest(fix.latitude, fix.longitude) to null)
+            val match = catalog.scope(id) ?: catalog.defaultScope(id)
+            locating = false
+            locationMessage = "We’ll start with ${remoteName ?: match.name}."
+            onSelect(match)
+        }
+    }
+    val permission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) useLocation() else locationMessage = "No worries. Choose an area from the list to set where you belong."
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = PccColors.Cream) {
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Find events near...", style = MaterialTheme.typography.headlineSmall)
             Text("Choose a local area or search a wider region.", style = MaterialTheme.typography.bodyMedium)
+            Row(
+                Modifier.fillMaxWidth().clip(CircleShape).background(PccColors.LeafGreen.copy(alpha = 0.10f))
+                    .clickable(enabled = !locating) {
+                        if (com.atlasdigital.coastcalendar.core.location.CoarseLocation.hasPermission(context)) useLocation()
+                        else permission.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                    }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Filled.LocationOn, contentDescription = null, tint = PccColors.LeafGreen)
+                Text(if (locating) "Finding your area…" else "Use my location", style = MaterialTheme.typography.labelLarge, color = PccColors.LeafGreen)
+            }
+            locationMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = PccColors.Text) }
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },

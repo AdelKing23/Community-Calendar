@@ -5,6 +5,8 @@
     <!-- Local listing reminders (iOS EventReminderStore). Asked at the moment a reminder is set (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- "Use my location" in the area picker: approximate only, asked when tapped (iOS kCLLocationAccuracyKilometer). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".CoastCalendarApp"
