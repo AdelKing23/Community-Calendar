@@ -81,6 +81,28 @@ class EventsRepository(private val client: SupabaseClient, private val images: I
         return applyingActivePromotions(withImages(events))
     }
 
+    /**
+     * iOS `fetchHomeCalendarEvents(eventIDs:from:to:)`: public listings overlapping [rangeStart, rangeEnd)
+     * (end_at >= start, start_at < end, order start_at asc). Null ids = unscoped fallback.
+     */
+    suspend fun homeCalendarEvents(eventIds: List<String>?, rangeStart: java.time.Instant, rangeEnd: java.time.Instant): List<LocalEvent> {
+        if (eventIds != null && eventIds.isEmpty()) return emptyList()
+        val from = NzTime.iso(rangeStart)
+        val to = NzTime.iso(rangeEnd)
+        val batches: List<List<String>?> = eventIds?.chunked(150) ?: listOf(null)
+        val rows = batches.flatMap { batch ->
+            client.from("public_events").select(Columns.raw(PublicEventRecord.SELECT)) {
+                filter {
+                    if (batch != null) isIn("id", batch)
+                    gte("end_at", from)
+                    lt("start_at", to)
+                }
+                order("start_at", Order.ASCENDING)
+            }.decodeList<PublicEventRecord>()
+        }
+        return withTopics(rows)
+    }
+
     /** iOS: public images are best effort ("[Home] public images skipped"). */
     suspend fun withImages(events: List<LocalEvent>): List<LocalEvent> {
         val records = runCatching { images.imageRecords(events.map { it.id }) }.getOrDefault(emptyMap())

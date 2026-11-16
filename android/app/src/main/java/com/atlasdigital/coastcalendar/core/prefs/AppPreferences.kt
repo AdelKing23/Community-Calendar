@@ -18,6 +18,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(WHATS_ON_SCOPE, LocationScope.DEFAULT_ID) ?: LocationScope.DEFAULT_ID
         set(value) = prefs.edit().putString(WHATS_ON_SCOPE, value).apply()
 
+    /** iOS `HomeViewMode.storageKey`: "board" or "calendar". */
+    var homeViewMode: String
+        get() = prefs.getString("communityCalendar.home.viewMode", "board") ?: "board"
+        set(value) = prefs.edit().putString("communityCalendar.home.viewMode", value).apply()
+
     /** Signed-out welcome flag on this device. */
     var signedOutWelcomeDismissed: Boolean
         get() = prefs.getBoolean(WELCOME_SIGNED_OUT, false)

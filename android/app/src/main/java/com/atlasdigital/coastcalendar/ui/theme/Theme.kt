@@ -34,6 +34,26 @@ object PccColors {
     val CardFill = Color.White.copy(alpha = 0.94f)
 }
 
+/** iOS `PCCTopicPalette`: one dot colour per topic on the Home calendar. */
+object PccTopicPalette {
+    fun color(category: com.atlasdigital.coastcalendar.data.model.EventCategory): Color = Color(
+        0xFF000000 or when (category) {
+            com.atlasdigital.coastcalendar.data.model.EventCategory.LiveMusic -> 0x7E57C2
+            com.atlasdigital.coastcalendar.data.model.EventCategory.FoodDrink -> 0xE8A317
+            com.atlasdigital.coastcalendar.data.model.EventCategory.Markets -> 0xD1495B
+            com.atlasdigital.coastcalendar.data.model.EventCategory.KidsFamily -> 0xF28C28
+            com.atlasdigital.coastcalendar.data.model.EventCategory.Sport -> 0x2E86DE
+            com.atlasdigital.coastcalendar.data.model.EventCategory.Community -> 0x2F855A
+            com.atlasdigital.coastcalendar.data.model.EventCategory.Fundraisers -> 0xE05297
+            com.atlasdigital.coastcalendar.data.model.EventCategory.ClassesWorkshops -> 0x1A9E9E
+            com.atlasdigital.coastcalendar.data.model.EventCategory.Seniors -> 0x8D6E63
+            com.atlasdigital.coastcalendar.data.model.EventCategory.ChurchMaraeCultural -> 0x5C6BC0
+            com.atlasdigital.coastcalendar.data.model.EventCategory.Nightlife -> 0x2C3E70
+            com.atlasdigital.coastcalendar.data.model.EventCategory.PublicNotices -> 0x6B7280
+        }.toLong(),
+    )
+}
+
 object PccShapes {
     val Card = RoundedCornerShape(24.dp)   // PCCTheme.cardRadius
     val Small = RoundedCornerShape(14.dp)  // PCCTheme.smallRadius
