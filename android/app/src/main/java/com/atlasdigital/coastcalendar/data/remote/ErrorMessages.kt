@@ -15,7 +15,7 @@ object ErrorMessages {
             error is AuthRestException && raw.contains("already registered") -> "An account already uses that email. Sign in instead."
             raw.contains("allowance") || raw.contains("listing limit") ->
                 "Your plan’s listing allowance is used up for this period."
-            raw.contains("subscription") -> "An active plan is needed before this Organisation can create listings."
+            raw.contains("subscription") -> "Member access must be active before this Organisation can create listings."
             raw.contains("row-level security") -> "This account can’t do that yet. Refresh your Organisation status and try again."
             error is RestException -> "Something went wrong on our side. Please try again soon."
             else -> "Please try again soon."

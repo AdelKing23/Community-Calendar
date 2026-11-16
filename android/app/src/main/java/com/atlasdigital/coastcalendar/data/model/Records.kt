@@ -37,6 +37,10 @@ data class PublicEventRecord(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("is_all_day") val isAllDay: Boolean? = null,
+    /** Owner / Support reads of `events` only (not in `public_events`). */
+    @SerialName("submitted_by") val submittedBy: String? = null,
+    @SerialName("recurrence_interval") val recurrenceInterval: String? = null,
+    @SerialName("event_images") val eventImages: List<EventImageRecord>? = null,
 ) {
     fun toLocalEvent(topics: List<EventCategory> = emptyList()): LocalEvent? {
         val start = NzTime.parse(startAt) ?: return null
@@ -72,6 +76,8 @@ data class PublicEventRecord(
             audience = audience.orEmpty(),
             contactEmail = contactEmail,
             contactPhone = contactPhone,
+            submittedBy = submittedBy,
+            recurrenceInterval = recurrenceInterval,
         )
     }
 

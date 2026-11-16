@@ -277,7 +277,7 @@ private fun CreateForm(state: CreateState, viewModel: CreateViewModel, session: 
 }
 
 @Composable
-private fun Field(label: String, value: String, isError: Boolean, singleLine: Boolean = true, onChange: (String) -> Unit) {
+internal fun Field(label: String, value: String, isError: Boolean, singleLine: Boolean = true, onChange: (String) -> Unit) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
@@ -290,7 +290,7 @@ private fun Field(label: String, value: String, isError: Boolean, singleLine: Bo
 }
 
 @Composable
-private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange)
@@ -302,7 +302,7 @@ private val TIME_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateRow(label: String, date: LocalDate, onPicked: (LocalDate) -> Unit) {
+internal fun DateRow(label: String, date: LocalDate, onPicked: (LocalDate) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -328,7 +328,7 @@ private fun DateRow(label: String, date: LocalDate, onPicked: (LocalDate) -> Uni
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TimeRow(time: LocalTime, onPicked: (LocalTime) -> Unit) {
+internal fun TimeRow(time: LocalTime, onPicked: (LocalTime) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -349,7 +349,7 @@ private fun TimeRow(time: LocalTime, onPicked: (LocalTime) -> Unit) {
 }
 
 @Composable
-private fun PollCloseRow(closesAt: Instant, onPicked: (Instant) -> Unit) {
+internal fun PollCloseRow(closesAt: Instant, onPicked: (Instant) -> Unit) {
     val zone = ZoneId.systemDefault()
     val local = closesAt.atZone(zone)
     DateRow("Poll closes on", local.toLocalDate()) { d -> onPicked(d.atTime(local.toLocalTime()).atZone(zone).toInstant()) }
@@ -358,7 +358,7 @@ private fun PollCloseRow(closesAt: Instant, onPicked: (Instant) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryDropdown(selected: EventCategory, onSelect: (EventCategory) -> Unit) {
+internal fun CategoryDropdown(selected: EventCategory, onSelect: (EventCategory) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(

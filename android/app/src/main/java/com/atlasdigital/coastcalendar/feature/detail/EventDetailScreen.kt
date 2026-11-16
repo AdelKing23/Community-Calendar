@@ -88,7 +88,13 @@ import java.time.format.DateTimeFormatter
 /** iOS `EventDetailScreen`: event or poll layout, organiser card, engagement row, report panel. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventDetailScreen(viewModel: EventDetailViewModel, session: UserSession?, onBack: () -> Unit, onSignIn: () -> Unit) {
+fun EventDetailScreen(
+    viewModel: EventDetailViewModel,
+    session: UserSession?,
+    onBack: () -> Unit,
+    onSignIn: () -> Unit,
+    onOpenOrganisation: (String) -> Unit = {},
+) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     var showReport by remember { mutableStateOf(false) }
@@ -203,7 +209,10 @@ fun EventDetailScreen(viewModel: EventDetailViewModel, session: UserSession?, on
         }) { showPlan = false }
     }
     if (showOrganiser && event != null) {
-        OrganiserSheet(event, state.profile) { showOrganiser = false }
+        OrganiserSheet(event, state.profile, onOpenPage = {
+            showOrganiser = false
+            event.businessProfileId?.let(onOpenOrganisation)
+        }) { showOrganiser = false }
     }
 }
 
@@ -348,7 +357,7 @@ private fun OrganiserPanel(event: LocalEvent, profile: PublicMemberProfileRecord
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OrganiserSheet(event: LocalEvent, profile: PublicMemberProfileRecord?, onDismiss: () -> Unit) {
+private fun OrganiserSheet(event: LocalEvent, profile: PublicMemberProfileRecord?, onOpenPage: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = PccColors.Cream) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -372,6 +381,9 @@ private fun OrganiserSheet(event: LocalEvent, profile: PublicMemberProfileRecord
                     Text("No public contact details have been published for this organiser yet.")
                 }
                 Text("These details are supplied by the listing owner and reviewed before publication.", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (profile != null) {
+                com.atlasdigital.coastcalendar.ui.components.PrimaryButton("Open Organisation page", onOpenPage)
             }
         }
     }

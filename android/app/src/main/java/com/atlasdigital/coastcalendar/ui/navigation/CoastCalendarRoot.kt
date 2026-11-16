@@ -39,7 +39,20 @@ import com.atlasdigital.coastcalendar.feature.detail.EventDetailViewModel
 import com.atlasdigital.coastcalendar.feature.home.HomeScreen
 import com.atlasdigital.coastcalendar.feature.home.HomeViewModel
 import com.atlasdigital.coastcalendar.feature.hosts.HostsScreen
+import com.atlasdigital.coastcalendar.feature.hosts.HostsViewModel
+import com.atlasdigital.coastcalendar.feature.hosts.OrganisationPageScreen
+import com.atlasdigital.coastcalendar.feature.hosts.OrganisationPageViewModel
+import com.atlasdigital.coastcalendar.feature.mylistings.MyListingsScreen
+import com.atlasdigital.coastcalendar.feature.mylistings.MyListingsViewModel
+import com.atlasdigital.coastcalendar.feature.organisation.OrganisationScreen
+import com.atlasdigital.coastcalendar.feature.organisation.OrganisationViewModel
+import com.atlasdigital.coastcalendar.feature.settings.ContactSupportScreen
+import com.atlasdigital.coastcalendar.feature.settings.ContactSupportViewModel
+import com.atlasdigital.coastcalendar.feature.settings.SettingsNav
 import com.atlasdigital.coastcalendar.feature.settings.SettingsScreen
+import com.atlasdigital.coastcalendar.feature.settings.SettingsViewModel
+import com.atlasdigital.coastcalendar.feature.support.SupportDashboardScreen
+import com.atlasdigital.coastcalendar.feature.support.SupportDashboardViewModel
 import com.atlasdigital.coastcalendar.feature.welcome.WelcomeSheet
 import com.atlasdigital.coastcalendar.feature.whatson.WhatsOnScreen
 import com.atlasdigital.coastcalendar.feature.whatson.WhatsOnViewModel
@@ -57,6 +70,15 @@ enum class Tab(val route: String, val label: String, val icon: ImageVector) {
 private const val AUTH_ROUTE = "auth"
 private const val EVENT_ROUTE = "event/{id}"
 private fun eventRoute(id: String) = "event/$id"
+private const val MY_LISTINGS_ROUTE = "mylistings"
+private const val CONTACT_ROUTE = "contact"
+private const val ORGANISATION_ROUTE = "organisation"
+private const val ORG_PAGE_ROUTE = "org/{id}"
+private fun orgPageRoute(id: String) = "org/$id"
+internal const val SUPPORT_ROUTE = "support"
+
+/** Pushed screens hide the tab bar like iOS NavigationStack pushes. */
+private val PUSHED_ROUTES = setOf(AUTH_ROUTE, EVENT_ROUTE, MY_LISTINGS_ROUTE, CONTACT_ROUTE, ORGANISATION_ROUTE, ORG_PAGE_ROUTE, SUPPORT_ROUTE)
 
 @Composable
 fun CoastCalendarRoot(container: AppContainer) {
@@ -82,7 +104,7 @@ fun CoastCalendarRoot(container: AppContainer) {
     Scaffold(
         containerColor = PccColors.Cream,
         bottomBar = {
-            if (currentRoute != AUTH_ROUTE && currentRoute != EVENT_ROUTE) {
+            if (currentRoute !in PUSHED_ROUTES) {
                 NavigationBar(containerColor = Color.White.copy(alpha = 0.96f)) {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -123,20 +145,57 @@ fun CoastCalendarRoot(container: AppContainer) {
                     onRefreshUser = { session.refreshUser() },
                 )
             }
-            composable(Tab.Hosts.route) { HostsScreen(padding) }
+            composable(Tab.Hosts.route) {
+                val vm: HostsViewModel = viewModel { HostsViewModel(container) }
+                HostsScreen(vm, padding, onOpenHost = { nav.navigate(orgPageRoute(it)) })
+            }
             composable(Tab.Settings.route) {
+                val vm: SettingsViewModel = viewModel { SettingsViewModel(container) }
                 SettingsScreen(
+                    viewModel = vm,
                     session = user,
                     contentPadding = padding,
-                    onSignIn = { nav.navigate(AUTH_ROUTE) },
-                    onSignOut = { session.signOut() },
-                    onShowWelcome = session::showWelcomeAgain,
+                    nav = SettingsNav(
+                        onSignIn = { nav.navigate(AUTH_ROUTE) },
+                        onSignOut = { session.signOut() },
+                        onShowWelcome = session::showWelcomeAgain,
+                        onMyListings = { nav.navigate(MY_LISTINGS_ROUTE) },
+                        onOrganisation = { nav.navigate(ORGANISATION_ROUTE) },
+                        onContactSupport = { nav.navigate(CONTACT_ROUTE) },
+                        onSupportDashboard = { nav.navigate(SUPPORT_ROUTE) },
+                    ),
                 )
+            }
+            composable(MY_LISTINGS_ROUTE) {
+                val vm: MyListingsViewModel = viewModel { MyListingsViewModel(container) }
+                MyListingsScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) }, onOpen = { nav.navigate(eventRoute(it)) })
+            }
+            composable(CONTACT_ROUTE) {
+                val vm: ContactSupportViewModel = viewModel { ContactSupportViewModel(container) }
+                ContactSupportScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) })
+            }
+            composable(ORGANISATION_ROUTE) {
+                val vm: OrganisationViewModel = viewModel { OrganisationViewModel(container) }
+                OrganisationScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) }, onOpenPage = { nav.navigate(orgPageRoute(it)) })
+            }
+            composable(SUPPORT_ROUTE) {
+                val vm: SupportDashboardViewModel = viewModel { SupportDashboardViewModel(container) }
+                SupportDashboardScreen(vm, user, onBack = { nav.popBackStack() }, onOpen = { nav.navigate(eventRoute(it)) })
+            }
+            composable(ORG_PAGE_ROUTE) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                val vm: OrganisationPageViewModel = viewModel(key = "org-$id") { OrganisationPageViewModel(container, id) }
+                OrganisationPageScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) }, onOpen = { nav.navigate(eventRoute(it)) })
             }
             composable(EVENT_ROUTE) { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()
                 val vm: EventDetailViewModel = viewModel(key = "detail-$id") { EventDetailViewModel(container, id) }
-                EventDetailScreen(vm, user, onBack = { nav.popBackStack() }, onSignIn = { nav.navigate(AUTH_ROUTE) })
+                EventDetailScreen(
+                    vm, user,
+                    onBack = { nav.popBackStack() },
+                    onSignIn = { nav.navigate(AUTH_ROUTE) },
+                    onOpenOrganisation = { nav.navigate(orgPageRoute(it)) },
+                )
             }
             composable(AUTH_ROUTE) {
                 AuthScreen(session, onSignedIn = { nav.popBackStack() }, onBack = { nav.popBackStack() })

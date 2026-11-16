@@ -18,6 +18,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(WHATS_ON_SCOPE, LocationScope.DEFAULT_ID) ?: LocationScope.DEFAULT_ID
         set(value) = prefs.edit().putString(WHATS_ON_SCOPE, value).apply()
 
+    /** iOS `communityCalendar.hosts.locationScope`. */
+    var hostsScopeId: String
+        get() = prefs.getString("communityCalendar.hosts.locationScope", LocationScope.DEFAULT_ID) ?: LocationScope.DEFAULT_ID
+        set(value) = prefs.edit().putString("communityCalendar.hosts.locationScope", value).apply()
+
     /** iOS `HomeViewMode.storageKey`: "board" or "calendar". */
     var homeViewMode: String
         get() = prefs.getString("communityCalendar.home.viewMode", "board") ?: "board"

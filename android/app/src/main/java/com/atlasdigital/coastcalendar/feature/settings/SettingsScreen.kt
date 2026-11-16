@@ -1,32 +1,97 @@
 package com.atlasdigital.coastcalendar.feature.settings
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.atlasdigital.coastcalendar.BuildConfig
+import com.atlasdigital.coastcalendar.core.di.AppContainer
+import com.atlasdigital.coastcalendar.data.model.BusinessAccountState
 import com.atlasdigital.coastcalendar.data.repository.UserSession
 import com.atlasdigital.coastcalendar.ui.components.PccCard
 import com.atlasdigital.coastcalendar.ui.components.PrimaryButton
+import com.atlasdigital.coastcalendar.ui.theme.PccColors
 import com.atlasdigital.coastcalendar.ui.theme.PccScreenBackground
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+/** Loads the signed-in account's Organisation + Support flags for the Settings hub. */
+class SettingsViewModel(private val container: AppContainer) : ViewModel() {
+    private val _account = MutableStateFlow(BusinessAccountState.Empty)
+    val account: StateFlow<BusinessAccountState> = _account.asStateFlow()
+
+    fun load(session: UserSession?) {
+        if (session == null) { _account.value = BusinessAccountState.Empty; return }
+        viewModelScope.launch {
+            _account.value = runCatching { container.account.businessAccount(session.userId) }.getOrDefault(BusinessAccountState.Empty)
+        }
+    }
+}
+
+/** Where Settings rows go (routes live in CoastCalendarRoot). */
+data class SettingsNav(
+    val onSignIn: () -> Unit,
+    val onSignOut: () -> Unit,
+    val onShowWelcome: () -> Unit,
+    val onMyListings: () -> Unit,
+    val onOrganisation: () -> Unit,
+    val onContactSupport: () -> Unit,
+    val onSupportDashboard: () -> Unit,
+)
 
 /**
- * Settings STUB (t237). Account basics only. Not yet ported from iOS: Organisation application/profile,
- * My Listings, notifications, wallpaper/card tint, Support inbox, deletion request, legal pages.
- * No plan purchase or payment wording until Google Play Billing is integrated.
+ * iOS Settings hub, Android subset: Organisations (Organisation, My listings), Support (dashboard for Support
+ * accounts), Contact Support, Documents (Terms, Privacy on coastcalendar.nz), Account and About.
+ * Not ported: My Calendar, engagements list, reminder settings, wallpaper/card colour, account deletion request.
  */
 @Composable
-fun SettingsScreen(session: UserSession?, contentPadding: PaddingValues, onSignIn: () -> Unit, onSignOut: () -> Unit, onShowWelcome: () -> Unit) {
+fun SettingsScreen(viewModel: SettingsViewModel, session: UserSession?, contentPadding: PaddingValues, nav: SettingsNav) {
+    val account by viewModel.account.collectAsState()
+    val context = LocalContext.current
+    LaunchedEffect(session?.userId) { viewModel.load(session) }
+    fun openUrl(url: String) {
+        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: ActivityNotFoundException) { }
+    }
+
     PccScreenBackground {
         Column(
             Modifier
@@ -36,31 +101,72 @@ fun SettingsScreen(session: UserSession?, contentPadding: PaddingValues, onSignI
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("Settings", style = MaterialTheme.typography.headlineMedium)
-            PccCard {
-                Text("Account", style = MaterialTheme.typography.titleLarge)
-                if (session == null) {
-                    Text("Sign in to save listings, belong to organisations and manage your Organisation.", style = MaterialTheme.typography.bodyMedium)
-                    PrimaryButton("Sign in or create account", onSignIn)
-                } else {
-                    session.fullName?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-                    Text(session.email, style = MaterialTheme.typography.bodyMedium)
-                    Text(if (session.isEmailVerified) "Email verified" else "Email not verified yet", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+
+            Section("Organisations") {
+                val status = account.profile?.let { p ->
+                    when {
+                        p.isApproved && account.canSubmitAsOrganisation -> "${p.businessName} · Approved"
+                        p.isApproved -> "${p.businessName} · Approved, member access not active yet"
+                        else -> "${p.businessName} · ${p.memberStatus.raw.replace('_', ' ').replaceFirstChar { it.uppercase() }}"
+                    }
+                } ?: "Organisations list on Coast Calendar. Register, then Support reviews your application."
+                Row(Icons.Filled.Home, "Organisation", status, nav.onOrganisation)
+                Row(Icons.AutoMirrored.Filled.List, "My listings", "Review, edit, remove, and follow Support feedback.", nav.onMyListings)
+            }
+
+            if (account.isSupport) {
+                Section("Support") {
+                    Row(Icons.Filled.Build, "Support dashboard", "Inbox, reports, applications, listings and change requests.", nav.onSupportDashboard)
                 }
             }
-            PccCard {
-                Text("Coming to Android next", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Organisation application and profile, My Listings, notifications, appearance, Support messages and account deletion requests.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+
+            Section("Contact Support") {
+                Row(Icons.Filled.Email, "Contact Coast Calendar", "Send a private support request from this app.", nav.onContactSupport)
             }
-            PccCard {
-                Text("About", style = MaterialTheme.typography.titleLarge)
+
+            Section("Documents") {
+                Row(Icons.Filled.Info, "Terms of Use", "Rules for using the Coast Calendar app and website.") { openUrl("https://coastcalendar.nz/terms") }
+                Row(Icons.Filled.Lock, "Privacy Policy", "How Coast Calendar handles personal information.") { openUrl("https://coastcalendar.nz/privacy") }
+            }
+
+            Section("Account") {
+                if (session == null) {
+                    Text("Create a free account to save listings, set reminders, and Belong to organisations.", style = MaterialTheme.typography.bodyMedium)
+                    PrimaryButton("Create account or sign in", nav.onSignIn)
+                } else {
+                    Row(Icons.Filled.AccountCircle, session.fullName ?: "Account", session.email + if (session.isEmailVerified) " · Email verified" else " · Email not verified", null)
+                    OutlinedButton(onClick = nav.onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+                }
+            }
+
+            Section("About") {
                 Text("Coast Calendar ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · Android preview", style = MaterialTheme.typography.bodyMedium)
-                Text("Support: support@coastcalendar.nz", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = onShowWelcome, modifier = Modifier.fillMaxWidth()) { Text("Show welcome") }
+                OutlinedButton(onClick = nav.onShowWelcome, modifier = Modifier.fillMaxWidth()) { Text("Show welcome") }
             }
         }
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    PccCard {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        content()
+    }
+}
+
+@Composable
+private fun Row(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)?) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(vertical = 6.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = PccColors.PohutukawaOrange, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Bold, color = PccColors.Ink)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (onClick != null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = PccColors.Text)
     }
 }

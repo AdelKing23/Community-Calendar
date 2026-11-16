@@ -10,6 +10,10 @@ import com.atlasdigital.coastcalendar.data.repository.EventCache
 import com.atlasdigital.coastcalendar.data.repository.EventsRepository
 import com.atlasdigital.coastcalendar.data.repository.ImageRepository
 import com.atlasdigital.coastcalendar.data.repository.InteractionRepository
+import com.atlasdigital.coastcalendar.data.repository.MemberRepository
+import com.atlasdigital.coastcalendar.data.repository.OwnerListingsRepository
+import com.atlasdigital.coastcalendar.data.repository.SupportAdminRepository
+import com.atlasdigital.coastcalendar.data.repository.SupportRequestRepository
 import com.atlasdigital.coastcalendar.data.repository.ListingRepository
 import com.atlasdigital.coastcalendar.data.repository.LocationRepository
 import com.atlasdigital.coastcalendar.data.repository.WelcomeRepository
@@ -28,6 +32,10 @@ class AppContainer(context: android.content.Context) {
     val images by lazy { ImageRepository(client) }
     val events by lazy { EventsRepository(client, images) }
     val interactions by lazy { InteractionRepository(client) }
+    val members by lazy { MemberRepository(client) }
+    val supportAdmin by lazy { SupportAdminRepository(client, images) }
+    val supportRequests by lazy { SupportRequestRepository(client) }
+    val ownerListings by lazy { OwnerListingsRepository(client, images) }
     val eventCache = EventCache()
     val locations by lazy { LocationRepository(client) }
     val account by lazy { AccountRepository(client) }

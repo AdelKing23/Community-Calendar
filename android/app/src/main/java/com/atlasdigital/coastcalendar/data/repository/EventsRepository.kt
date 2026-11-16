@@ -61,6 +61,19 @@ class EventsRepository(private val client: SupabaseClient, private val images: I
     }
 
     /** Scoped first, unscoped fallback (iOS Home/What's On `loadEvents`). Returns events + whether the scoped read worked. */
+    /** iOS `fetchPublishedEvents(businessProfileID:)`: start_at >= now - 2 days, start_at asc. */
+    suspend fun profileEvents(profileId: String): List<LocalEvent> {
+        val cutoff = NzTime.iso(java.time.Instant.now().minus(java.time.Duration.ofDays(2)))
+        val rows = client.from("public_events").select(Columns.raw(PublicEventRecord.SELECT)) {
+            filter {
+                eq("business_profile_id", profileId.lowercase())
+                gte("start_at", cutoff)
+            }
+            order("start_at", Order.ASCENDING)
+        }.decodeList<PublicEventRecord>()
+        return withTopics(rows)
+    }
+
     suspend fun boardEvents(locationSlug: String): Pair<List<LocalEvent>, Boolean> =
         try {
             publishedEvents(locationSlug).filter { it.isPubliclyVisible } to true

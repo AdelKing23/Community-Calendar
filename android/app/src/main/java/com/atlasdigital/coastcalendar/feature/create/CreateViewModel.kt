@@ -53,7 +53,7 @@ object CreateGate {
         val profile = account.profile ?: return "Register your Organisation"
         return when (profile.memberStatus) {
             BusinessProfileStatus.PendingReview -> "Organisation pending review"
-            BusinessProfileStatus.Approved -> "Subscription required"
+            BusinessProfileStatus.Approved -> "Member access not active"
             BusinessProfileStatus.Rejected -> "Organisation needs changes"
             BusinessProfileStatus.Suspended -> "Publishing paused"
             BusinessProfileStatus.Archived -> "Organisation archived"
@@ -62,11 +62,11 @@ object CreateGate {
 
     fun message(account: BusinessAccountState): String {
         val profile = account.profile
-            ?: return "Only approved Organisations with an active plan can list here. Organisation registration in the Android app is coming soon."
+            ?: return "Only approved Organisations with active member access can list here. Register your Organisation in Settings, then Support reviews it."
         return when (profile.memberStatus) {
-            BusinessProfileStatus.PendingReview -> "Support is reviewing your Organisation. Listing and polling tools unlock after approval and an active subscription."
-            // Android has no plan purchase yet (Play Billing not integrated), so no "choose a subscription in Settings" here.
-            BusinessProfileStatus.Approved -> "Your Organisation is approved. An active subscription is needed before you can create listings or polls."
+            BusinessProfileStatus.PendingReview -> "Support is reviewing your Organisation. Listing and polling tools unlock after approval and once member access is active."
+            // Android has no plan purchase yet (Play Billing not integrated), so there is no plan-choice prompt here.
+            BusinessProfileStatus.Approved -> "Your Organisation is approved. Member access must be active before you can create listings or polls."
             BusinessProfileStatus.Rejected -> profile.rejectionReason ?: profile.supportNote ?: "Support needs changes before this Organisation can list. Contact Support for the next step."
             BusinessProfileStatus.Suspended -> profile.suspensionReason ?: profile.supportNote ?: "Support has paused publishing for this Organisation. Contact Support."
             BusinessProfileStatus.Archived -> "This Organisation is archived. Contact Support to register again."
@@ -126,7 +126,7 @@ class CreateViewModel(private val container: AppContainer) : ViewModel() {
         val s = _state.value
         if (s.submitting || session == null) return
         if (!s.account.canSubmitAsOrganisation) {
-            _state.update { it.copy(error = "Only an approved Organisation with an active subscription can submit.") }
+            _state.update { it.copy(error = "Only an approved Organisation with active member access can submit.") }
             return
         }
         val profileId = s.account.profile?.id ?: run {
