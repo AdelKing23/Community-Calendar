@@ -505,6 +505,39 @@ function messageFromError(error: unknown) {
 }
 
 
+// Re-encode a photo through a canvas before upload. This drops EXIF/GPS and other metadata
+// (matching iOS and Android), applies the camera orientation, and caps the size.
+async function sanitizeImage(file: File, maxDimension = 2560): Promise<Blob> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    throw new Error("That photo format can't be read in this browser. Use a JPEG or PNG photo.");
+  }
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not prepare that photo. Try again.");
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("Could not prepare that photo. Try again.");
+  return blob;
+}
+
+// Revoke this browser's session on the server as well as locally (scope=local keeps other devices signed in).
+function revokeServerSession(accessToken?: string | null) {
+  if (!accessToken) return;
+  void fetch(`${supabaseUrl}/auth/v1/logout?scope=local`, {
+    method: "POST",
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${accessToken}` },
+  }).catch(() => undefined);
+}
+
 async function signedStorageImageUrl(bucket: string, storagePath: string, accessToken?: string): Promise<string | null> {
   const response = await fetch(`${supabaseUrl}/storage/v1/object/sign/${bucket}/${storagePath}`, {
     method: "POST",
@@ -3254,6 +3287,7 @@ export default function CommunityCalendarApp() {
   }
 
   function logout() {
+    revokeServerSession(session?.access_token);
     window.localStorage.removeItem(sessionKey);
     setSession(null);
     setEngagements([]);
@@ -3387,17 +3421,17 @@ export default function CommunityCalendarApp() {
     if (!session) {
       throw new Error("Sign in before uploading images.");
     }
-    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `${session.user.id.toLowerCase()}/${kind}-${crypto.randomUUID().toLowerCase()}.${extension}`;
+    const cleaned = await sanitizeImage(file);
+    const path = `${session.user.id.toLowerCase()}/${kind}-${crypto.randomUUID().toLowerCase()}.jpg`;
     const response = await fetch(`${supabaseUrl}/storage/v1/object/member-images/${path}`, {
       method: "POST",
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${session.access_token}`,
-        "Content-Type": file.type || "image/jpeg",
+        "Content-Type": "image/jpeg",
         "x-upsert": "false",
       },
-      body: file,
+      body: cleaned,
     });
 
     if (!response.ok) {
@@ -3653,16 +3687,18 @@ export default function CommunityCalendarApp() {
         }, session.access_token).catch((error: unknown) => { attachProblems.push(`topic: ${messageFromError(error)}`); return null; })));
         for (const [index, file] of input.images.entries()) {
           const imageId = crypto.randomUUID();
-          const path = `${session.user.id}/${eventId}/${imageId}.jpg`;
+          const path = `${session.user.id.toLowerCase()}/${eventId.toLowerCase()}/${imageId.toLowerCase()}.jpg`;
+          let cleaned: Blob;
+          try { cleaned = await sanitizeImage(file); } catch (error) { attachProblems.push(`image ${index + 1}: ${messageFromError(error)}`); continue; }
           const upload = await fetch(`${supabaseUrl}/storage/v1/object/listing-images/${path}`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${session.access_token}`,
               apikey: supabaseKey,
-              "Content-Type": file.type || "image/jpeg",
-              "x-upsert": "true",
+              "Content-Type": "image/jpeg",
+              "x-upsert": "false",
             },
-            body: file,
+            body: cleaned,
           });
           if (!upload.ok) { attachProblems.push(`image ${index + 1} upload: ${userFacingServiceMessage(await upload.text(), upload.status)}`); continue; }
           await rest("event_images", {
@@ -3770,7 +3806,7 @@ export default function CommunityCalendarApp() {
           <div className="dashboard-grid">
             <SupportAdminPanel
               onShowPublic={() => setSupportView("public")}
-              onSignOut={() => { setSession(null); try { localStorage.removeItem("community_calendar_web_session"); } catch {}; setSupportView("public"); }}
+              onSignOut={() => { revokeServerSession(session?.access_token); setSession(null); try { localStorage.removeItem("community_calendar_web_session"); } catch {}; setSupportView("public"); }}
               profiles={supportProfiles}
               subscriptions={supportSubscriptions}
               listings={supportListings}
@@ -3801,7 +3837,7 @@ export default function CommunityCalendarApp() {
             ) : null}
             <div className="app-nav__bottom">
             {session ? (
-              <button type="button" className="app-nav__item" onClick={() => { setSession(null); try { localStorage.removeItem("community_calendar_web_session"); } catch {} }}>
+              <button type="button" className="app-nav__item" onClick={() => { revokeServerSession(session?.access_token); setSession(null); try { localStorage.removeItem("community_calendar_web_session"); } catch {} }}>
                 Sign out
               </button>
             ) : (
@@ -4314,6 +4350,7 @@ export default function CommunityCalendarApp() {
             hosts={hosts}
             onToggleBelong={(host) => void toggleMemberBelong(host)}
             onSignOut={() => {
+              revokeServerSession(session?.access_token);
               setSession(null);
               localStorage.removeItem(sessionKey);
               setView("account");
