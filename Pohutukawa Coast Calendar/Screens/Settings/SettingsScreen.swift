@@ -1206,7 +1206,7 @@ struct AccountDetailsScreen: View {
                                 .font(.headline.weight(.black))
                                 .foregroundStyle(PCCTheme.ink)
 
-                            Text("You can ask Coast Calendar to delete your account record and personal account details. Apple subscriptions are managed by Apple and may need to be cancelled separately.")
+                            Text("You can ask Coast Calendar to delete your account. Support completes deletion within 30 days: your login, personal details and photos are removed. If you own an organisation, it is closed and its listings are taken down; only its business name is kept for tax records. Apple subscriptions are managed by Apple, so cancel yours in your Apple ID settings to stop future charges.")
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(PCCTheme.text)
                                 .lineSpacing(2)
