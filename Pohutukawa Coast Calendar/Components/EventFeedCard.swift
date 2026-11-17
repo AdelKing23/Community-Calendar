@@ -398,7 +398,7 @@ struct PollInlineResponseView: View {
                                 .focused($isCustomFieldFocused)
                                 .submitLabel(.done)
                                 .onSubmit { isCustomFieldFocused = false }
-                                .onChange(of: customAnswer) { _, newValue in
+                                .pccOnChange(of: customAnswer) { _, newValue in
                                     if newValue.count > PollDetails.customAnswerLimit {
                                         let limitedAnswer = newValue.prefix(PollDetails.customAnswerLimit)
                                         customAnswer = String(limitedAnswer)

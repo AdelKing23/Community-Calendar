@@ -90,7 +90,7 @@ struct RootTabView: View {
         .task(id: userSessionStore.session?.userID) {
             await decideWelcome()
         }
-        .onChange(of: otherRootSheetIsUp) { _, isUp in
+        .pccOnChange(of: otherRootSheetIsUp) { _, isUp in
             // t224: a sheet can't open while another root sheet is up; show the queued welcome once they close.
             guard !isUp else { return }
             Task {
@@ -98,7 +98,7 @@ struct RootTabView: View {
                 presentPendingWelcome()
             }
         }
-        .onChange(of: purchaseService.state) { _, newState in
+        .pccOnChange(of: purchaseService.state) { _, newState in
             guard case .activated = newState else { return }
             showMembershipApplication = false
         }
@@ -137,7 +137,7 @@ struct RootTabView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
-            .onChange(of: locationPreferenceStore.locationMessage) { _, message in
+            .pccOnChange(of: locationPreferenceStore.locationMessage) { _, message in
                 guard let message, message.hasPrefix("We’ll start with") else { return }
                 showBelongingOnboarding = false
             }

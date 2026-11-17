@@ -173,7 +173,7 @@ struct CreateListingScreen: View {
         .pccKeyboardDoneToolbar {
             focusedField = nil
         }
-        .onChange(of: photoPickerItems) { _, newItems in
+        .pccOnChange(of: photoPickerItems) { _, newItems in
             Task { await loadPhotos(from: newItems) }
         }
         .task {
@@ -185,14 +185,14 @@ struct CreateListingScreen: View {
         .refreshable {
             await loadBusinessAccount()
         }
-        .onChange(of: selectedLocationScopeID) { _, _ in
+        .pccOnChange(of: selectedLocationScopeID) { _, _ in
             applySelectedLocationIfUseful()
         }
-        .onChange(of: userSessionStore.session?.userID) { _, _ in
+        .pccOnChange(of: userSessionStore.session?.userID) { _, _ in
             Task { await loadBusinessAccount() }
             applyAccountProfileIfUseful()
         }
-        .onChange(of: purchaseService.state) { _, newState in
+        .pccOnChange(of: purchaseService.state) { _, newState in
             guard case .activated = newState else { return }
             Task { await loadBusinessAccount() }
         }
@@ -1249,7 +1249,7 @@ struct UserListingDetailSheet: View {
             .navigationTitle("Your Listing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -1976,7 +1976,7 @@ struct ListingEditRequestSheet: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -2070,7 +2070,7 @@ struct ListingRemovalRequestSheet: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -2425,7 +2425,7 @@ struct ListingVenueAutocompleteField: View {
             )
             .focused($focusedField, equals: .venue)
             .textContentType(.fullStreetAddress)
-            .onChange(of: draft.venue) { _, newValue in
+            .pccOnChange(of: draft.venue) { _, newValue in
                 autocomplete.update(query: newValue)
             }
 

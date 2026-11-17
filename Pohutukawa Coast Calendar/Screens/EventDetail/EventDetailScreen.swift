@@ -100,7 +100,7 @@ struct EventDetailScreen: View {
         }
 
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
-        .onChange(of: photoItem) { _, item in
+        .pccOnChange(of: photoItem) { _, item in
             Task { await handlePickedPhoto(item) }
         }
     }
@@ -619,7 +619,7 @@ struct OrganiserIdentitySheet: View {
             .navigationTitle("Organiser")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -938,7 +938,7 @@ struct OrganiserEventsScreen: View {
         .task(id: userSessionStore.session?.userID) {
             await loadOwnedProfile()
         }
-        .onChange(of: showNotices) { _, open in
+        .pccOnChange(of: showNotices) { _, open in
             if !open { Task { await loadUnreadNotices() } }
         }
         .sheet(isPresented: $showNotices) {
@@ -1538,7 +1538,7 @@ struct MemberNoticesScreen: View {
             .navigationTitle("Notices")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(.headline.weight(.bold))
                 }
@@ -1735,7 +1735,7 @@ struct MemberNoticeDetailScreen: View {
             .navigationTitle("Notice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(.headline.weight(.bold))
                 }
@@ -1819,7 +1819,7 @@ struct MemberNoticeComposerScreen: View {
             .navigationTitle("Create Notice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .pccTopBarLeading) {
                     Button("Cancel") { dismiss() }
                         .font(.headline.weight(.bold))
                 }
@@ -2259,7 +2259,7 @@ struct ReportListingSheet: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button(didSubmit ? "Done" : "Cancel") {
                         dismiss()
                     }
@@ -2386,7 +2386,7 @@ struct OrgCalendarSheet: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(.headline.weight(.bold))
                         .foregroundStyle(PCCTheme.leafGreen)
@@ -2396,7 +2396,7 @@ struct OrgCalendarSheet: View {
             .fullScreenCover(isPresented: $showCreateOnThisDay) {
                 OrgCreateOnThisDaySheet(day: selectedDay, profileID: profileID)
             }
-            .onChange(of: showCreateOnThisDay) { _, open in
+            .pccOnChange(of: showCreateOnThisDay) { _, open in
                 if !open { Task { await loadCalendar() } }
             }
         }
@@ -2785,7 +2785,7 @@ struct MyCalendarSheet: View {
             .navigationTitle("My Calendar")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(.headline.weight(.bold))
                         .foregroundStyle(PCCTheme.leafGreen)

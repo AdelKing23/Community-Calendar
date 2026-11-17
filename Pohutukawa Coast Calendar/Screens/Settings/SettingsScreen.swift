@@ -894,7 +894,7 @@ struct MemberPageUnavailableSheet: View {
             .navigationTitle("Member Page")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -981,7 +981,7 @@ struct AccountAccessSheet: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -1240,7 +1240,7 @@ struct AccountDetailsScreen: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -1445,7 +1445,7 @@ struct AccountDeletionRequestScreen: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button(didSubmit ? "Done" : "Cancel") {
                         dismiss()
                     }
@@ -1694,7 +1694,7 @@ struct NotificationSettingsScreen: View {
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -2000,7 +2000,7 @@ struct SettingsDocumentScreen: View {
             .navigationTitle("Document")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -2100,7 +2100,7 @@ struct WallpaperPickerScreen: View {
             .navigationTitle("Wallpaper")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -2305,7 +2305,7 @@ struct CardTintPickerScreen: View {
             .navigationTitle("Card Colour")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -2515,7 +2515,7 @@ struct ContactSupportScreen: View {
                 await loadMySupportRequests()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -2750,7 +2750,7 @@ struct BusinessPlansScreen: View {
                 UIApplication.pccDismissKeyboard()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(.headline.weight(.bold))
                         .foregroundStyle(PCCTheme.leafGreen)
@@ -2854,20 +2854,20 @@ struct BusinessPlansScreen: View {
                 await loadBusinessAccount()
                 await activatePurchasedSubscriptionIfReady()
             }
-            .onChange(of: userSessionStore.session?.userID) { _, _ in
+            .pccOnChange(of: userSessionStore.session?.userID) { _, _ in
                 clearAccountOwnedPresentationState()
             }
-            .onChange(of: purchaseService.state) { _, newState in
+            .pccOnChange(of: purchaseService.state) { _, newState in
                 guard case .awaitingBackendRetry(let productID) = newState else { return }
                 Task { await retryBackendActivationIfReady(productID: productID) }
             }
-            .onChange(of: purchaseService.purchasedProductIDs) { _, _ in
+            .pccOnChange(of: purchaseService.purchasedProductIDs) { _, _ in
                 Task { await activatePurchasedSubscriptionIfReady() }
             }
-            .onChange(of: heroPickerItem) { _, item in
+            .pccOnChange(of: heroPickerItem) { _, item in
                 Task { await loadMemberImage(from: item, kind: .hero) }
             }
-            .onChange(of: avatarPickerItem) { _, item in
+            .pccOnChange(of: avatarPickerItem) { _, item in
                 Task { await loadMemberImage(from: item, kind: .avatar) }
             }
         }
@@ -4847,7 +4847,7 @@ struct MemberHomePageEditorSheet: View {
         .navigationTitle(primaryButtonTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .pccTopBarLeading) {
                 Button("Close") {
                     if hasUnsavedChanges {
                         showDiscardConfirmation = true
@@ -5412,7 +5412,7 @@ struct SubscriptionPaymentSheet<Content: View>: View {
         .navigationTitle("Subscription")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .pccTopBarTrailing) {
                 Button("Done") { dismiss() }
                     .font(.headline.weight(.bold))
                     .foregroundStyle(PCCTheme.leafGreen)
@@ -5965,7 +5965,7 @@ struct ListingAnalyticsSettingsScreen: View {
                     .environmentObject(userSessionStore)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -6097,7 +6097,7 @@ struct MyListingsSettingsScreen: View {
             .navigationTitle("My Listings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -6488,7 +6488,7 @@ struct SavedRemindersScreen: View {
             .navigationTitle("My Activity")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -6668,7 +6668,7 @@ struct SettingsInfoSheet: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }

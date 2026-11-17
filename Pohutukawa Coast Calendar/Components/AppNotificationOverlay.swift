@@ -101,19 +101,19 @@ struct AppNotificationOverlay: View {
         .task(id: userSessionStore.session?.userID) {
             await refreshItems()
         }
-        .onChange(of: reminderStore.activeReminderCount) { _, _ in
+        .pccOnChange(of: reminderStore.activeReminderCount) { _, _ in
             Task { await refreshItems() }
         }
-        .onChange(of: engagementStore.savedEventIDs) { _, _ in
+        .pccOnChange(of: engagementStore.savedEventIDs) { _, _ in
             Task { await refreshItems() }
         }
-        .onChange(of: engagementStore.goingEventIDs) { _, _ in
+        .pccOnChange(of: engagementStore.goingEventIDs) { _, _ in
             Task { await refreshItems() }
         }
-        .onChange(of: engagementStore.interestedEventIDs) { _, _ in
+        .pccOnChange(of: engagementStore.interestedEventIDs) { _, _ in
             Task { await refreshItems() }
         }
-        .onChange(of: purchaseService.state) { _, _ in
+        .pccOnChange(of: purchaseService.state) { _, _ in
             Task { await refreshItems() }
         }
         .sheet(isPresented: $isShowingCenter) {
@@ -150,7 +150,7 @@ struct AppNotificationOverlay: View {
                 SupportAdminScreen()
                     .environmentObject(userSessionStore)
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        ToolbarItem(placement: .pccTopBarTrailing) {
                             Button("Done") { selectedDestination = nil }
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(PCCTheme.leafGreen)
@@ -527,7 +527,7 @@ private struct AppNotificationCenterSheet: View {
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .pccTopBarLeading) {
                     Button {
                         onRefresh()
                     } label: {
@@ -537,7 +537,7 @@ private struct AppNotificationCenterSheet: View {
                     .foregroundStyle(PCCTheme.leafGreen)
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }

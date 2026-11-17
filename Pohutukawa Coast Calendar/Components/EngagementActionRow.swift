@@ -245,7 +245,7 @@ struct EventPlanSheet: View {
             .navigationTitle("Going")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }

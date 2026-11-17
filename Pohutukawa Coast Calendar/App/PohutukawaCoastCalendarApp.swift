@@ -43,7 +43,7 @@ struct PohutukawaCoastCalendarApp: App {
                         context: userSessionStore.captureAccountContext()
                     )
                 }
-                .onChange(of: scenePhase) {
+                .pccOnChange(of: scenePhase) {
                     switch scenePhase {
                     case .active:
                         Task { await appOpenAnalyticsStore.recordOpenIfNeeded() }

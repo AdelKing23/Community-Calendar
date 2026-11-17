@@ -1126,7 +1126,7 @@ struct SupportRequestReplySheet: View {
             .pccScrollableKeyboardDismiss()
             .pccDismissesKeyboardOnTap()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -1511,7 +1511,7 @@ struct MemberProfileDecisionSheet: View {
             .pccScrollableKeyboardDismiss()
             .pccDismissesKeyboardOnTap()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -1918,7 +1918,7 @@ struct SupportReviewDecisionSheet: View {
             .pccScrollableKeyboardDismiss()
             .pccDismissesKeyboardOnTap()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .pccTopBarTrailing) {
                     Button("Cancel") {
                         dismiss()
                     }

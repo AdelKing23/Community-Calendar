@@ -49,9 +49,14 @@ extension View {
 
 private struct PCCLockedHorizontalScrollWidthModifier: ViewModifier {
     func body(content: Content) -> some View {
-        content
-            .containerRelativeFrame(.horizontal)
-            .clipped()
+        if #available(iOS 17.0, *) {
+            content
+                .containerRelativeFrame(.horizontal)
+                .clipped()
+        } else {
+            content
+                .clipped()
+        }
     }
 }
 

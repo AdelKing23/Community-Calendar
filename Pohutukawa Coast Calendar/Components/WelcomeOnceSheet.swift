@@ -153,7 +153,7 @@ struct WelcomeOnceSheet: View {
             .frame(maxWidth: maxContentWidth, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .scrollBounceBehavior(.basedOnSize)
+        .pccScrollBounceBasedOnSize()
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button(action: dismiss) {
                 Text(WelcomeCopy.button)
