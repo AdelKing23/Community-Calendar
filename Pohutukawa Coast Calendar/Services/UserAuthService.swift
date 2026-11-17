@@ -366,7 +366,16 @@ final class UserSessionStore: ObservableObject {
     }
 
     func signOut() {
+        let accessToken = session?.accessToken
         replaceSession(with: nil)
+        // Revoke this device's refresh token on the server too (scope=local keeps the user's other devices signed in).
+        if let accessToken, let url = SupabaseConfiguration.projectURL?.appendingPathComponent("auth/v1/logout") {
+            var request = URLRequest(url: url.appending(queryItems: [URLQueryItem(name: "scope", value: "local")]))
+            request.httpMethod = "POST"
+            request.setValue(SupabaseConfiguration.publishableKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            Task.detached { _ = try? await URLSession.shared.data(for: request) }
+        }
     }
 
     func updateFullName(_ raw: String) async throws {

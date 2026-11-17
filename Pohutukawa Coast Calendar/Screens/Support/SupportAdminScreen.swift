@@ -606,14 +606,14 @@ struct SupportDashboard: View {
             }
             try await supportService.supportCompleteAccountDeletion(
                 requestID: request.id,
-                supportNote: "Account deletion completed. Organisation and listings archived. Apple subscription unlinked.",
+                supportNote: "Account deletion completed. Personal details, photos and login removed; financial records kept de-identified.",
                 accessToken: token
             )
-            actionMessage = "Account deletion completed for this request. Remove the login in Authentication → Users if they must not sign in."
+            actionMessage = "Account deletion completed. Their login, personal details and photos have been removed."
             await loadOwnerEvents()
         } catch {
             print("[SupportHQ] complete deletion failed: \(error)")
-            actionMessage = "Could not complete account deletion. Check the RPC exists and this request has a submitted_by."
+            actionMessage = "Could not complete account deletion. It is safe to try again."
         }
         updatingSupportRequestID = nil
     }

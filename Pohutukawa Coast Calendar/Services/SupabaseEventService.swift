@@ -2300,12 +2300,14 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
     }
 
     func supportCompleteAccountDeletion(requestID: UUID, supportNote: String?, accessToken: String) async throws {
-        guard let url = rpcURL(functionName: "support_complete_account_deletion") else {
+        // Edge function (Support-only, server-side): scrubs personal data, keeps de-identified financial
+        // records, removes the person's photos and deletes their login with the Admin API.
+        guard let url = SupabaseConfiguration.functionsURL?.appendingPathComponent("complete-account-deletion") else {
             throw SupabaseServiceError.notConfigured
         }
         let request = try rpcRequest(
             url: url,
-            body: SupportCompleteAccountDeletionRequest(requestID: requestID, supportNote: supportNote),
+            body: CompleteAccountDeletionFunctionRequest(requestID: requestID, supportNote: supportNote),
             accessToken: accessToken
         )
         let (data, response) = try await session.data(for: request)
@@ -4279,5 +4281,21 @@ private extension String {
 private extension UUID {
     var redactedForLog: String {
         "\(uuidString.prefix(8))..."
+    }
+}
+
+struct CompleteAccountDeletionFunctionRequest: Encodable {
+    let requestID: UUID
+    let supportNote: String?
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "request_id"
+        case supportNote = "support_note"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(requestID.uuidString.lowercased(), forKey: .requestID)
+        try container.encodeIfPresent(supportNote, forKey: .supportNote)
     }
 }
