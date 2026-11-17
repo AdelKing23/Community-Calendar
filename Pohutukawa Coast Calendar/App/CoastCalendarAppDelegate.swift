@@ -26,6 +26,11 @@ final class CoastCalendarAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+/// Scene delegate named in the static Info.plist scene manifest (build 12) so the iOS 27
+/// launch-time UIScene check sees an explicit scene configuration. SwiftUI still owns the
+/// window and all content; this class adds no behaviour.
+final class CoastCalendarSceneDelegate: NSObject, UIWindowSceneDelegate {}
+
 enum CoastCalendarRemoteNotificationUserInfo {
     static let deviceToken = "deviceToken"
     static let error = "error"

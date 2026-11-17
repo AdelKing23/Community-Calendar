@@ -4,6 +4,7 @@ import SwiftUI
 import UIKit
 
 @main
+@MainActor
 struct PohutukawaCoastCalendarApp: App {
     @UIApplicationDelegateAdaptor(CoastCalendarAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
