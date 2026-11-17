@@ -439,13 +439,14 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(event.submittedBy, submitterID)
     }
 
-    func testListingImageStoragePathUsesEventOwnedNamespace() {
+    func testListingImageStoragePathUsesOwnerAndEventNamespace() {
+        let userID = UUID(uuidString: "70000000-0000-0000-0000-0000000000AA")!
         let eventID = UUID(uuidString: "70000000-0000-0000-0000-000000000001")!
         let imageID = UUID(uuidString: "70000000-0000-0000-0000-000000000002")!
 
         XCTAssertEqual(
-            ListingImageStoragePath.make(eventID: eventID, imageID: imageID),
-            "events/70000000-0000-0000-0000-000000000001/70000000-0000-0000-0000-000000000002.jpg"
+            ListingImageStoragePath.make(userID: userID, eventID: eventID, imageID: imageID),
+            "70000000-0000-0000-0000-0000000000aa/70000000-0000-0000-0000-000000000001/70000000-0000-0000-0000-000000000002.jpg"
         )
     }
 
@@ -839,6 +840,7 @@ private struct DelayedUserAuthService: UserAuthenticating {
             userID: isUserA ? userA : userB,
             email: email,
             isEmailVerified: true,
+            fullName: nil,
             expiresAt: Date().addingTimeInterval(3600)
         )
     }
@@ -847,9 +849,15 @@ private struct DelayedUserAuthService: UserAuthenticating {
         try await signIn(email: email, password: password)
     }
 
+    func signUp(email: String, password: String, fullName: String) async throws -> UserSession {
+        try await signIn(email: email, password: password)
+    }
+
     func refreshSession(refreshToken: String) async throws -> UserSession {
         try await signIn(email: refreshToken.contains("a") ? "a@example.test" : "b@example.test", password: "")
     }
+
+    func updateFullName(accessToken: String, fullName: String) async throws {}
 
     func resendVerificationEmail(email: String) async throws {}
     func sendPasswordResetEmail(email: String) async throws {}
