@@ -56,6 +56,13 @@ final class PushNotificationStore: ObservableObject {
     }
 
     func syncSignedInSession(_ session: UserSession?, context: UserAccountContext) async {
+        // t247: whenever the signed-in account changes (sign-out, session expiry, or a different
+        // account signing in on this device), detach this device's push token from the previous
+        // account first, so User A's alerts can never reach a device where User B is signed in.
+        if let previous = activeSession, previous.userID != session?.userID {
+            await detachCurrentToken(from: previous)
+        }
+
         activeSession = session
         activeContext = context
 
@@ -111,7 +118,15 @@ final class PushNotificationStore: ObservableObject {
     }
 
     func removeCurrentTokenBeforeSignOut() async {
-        guard let session = activeSession, let currentDeviceToken else { return }
+        guard let session = activeSession else { return }
+        await detachCurrentToken(from: session)
+    }
+
+    /// Deletes this device's token row for `session`'s account. Safe to call more than once.
+    /// The server-side push_token_single_owner trigger (fixes/003) also moves a token to the
+    /// newest account, so a failed delete here can no longer leak alerts across accounts.
+    private func detachCurrentToken(from session: UserSession) async {
+        guard let currentDeviceToken else { return }
 
         do {
             try await service.deletePushDeviceToken(
