@@ -92,7 +92,7 @@ fun AccountDeletionScreen(viewModel: AccountDeletionViewModel, session: UserSess
             PccCard {
                 Text("ACCOUNT CONTROL", style = MaterialTheme.typography.labelMedium, color = PccColors.PohutukawaRed, fontWeight = FontWeight.Black)
                 Text("Request account deletion", style = MaterialTheme.typography.headlineSmall)
-                Text("This starts deletion of your Coast Calendar account and personal account details. Support will confirm the request and complete deletion of data we are not legally required to keep.")
+                Text("This starts deletion of your Coast Calendar account. Support completes deletion within 30 days: your login, personal details and photos are removed. If you own an organisation, it is closed and its listings are taken down; only its business name is kept for tax records. Website subscriptions are cancelled when the account is deleted.")
             }
             if (session == null) {
                 PccCard {
