@@ -511,7 +511,7 @@ struct CreateListingScreen: View {
         case .pendingReview: return "Organisation pending review"
         case .approved: return "Subscription required"
         case .rejected: return "Organisation needs changes"
-        case .suspended: return "Publishing paused"
+        case .suspended: return "Organisation suspended"
         case .archived: return "Organisation archived"
         }
     }
@@ -529,7 +529,7 @@ struct CreateListingScreen: View {
         case .rejected:
             return profile.rejectionReason ?? profile.supportNote ?? "Support needs changes before this Organisation can list. Open Settings to review the next step."
         case .suspended:
-            return profile.suspensionReason ?? profile.supportNote ?? "Support has paused publishing for this Organisation. Open Settings or contact Support."
+            return [profile.suspensionReason ?? profile.supportNote, "Your organisation is suspended. Contact Support to have it reinstated."].compactMap { $0 }.joined(separator: " ")
         case .archived:
             return "This Organisation is archived. Open Settings to register again or contact Support."
         }

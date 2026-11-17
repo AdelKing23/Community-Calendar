@@ -178,6 +178,7 @@ struct SupportDashboard: View {
     @State private var supportRequests: [SupportRequestRecord] = []
     @State private var updatingSupportRequestID: UUID?
     @State private var selectedSupportRequest: SupportRequestRecord?
+    @State private var pendingAccountDeletion: SupportRequestRecord?
     @State private var eventReports: [EventReportRecord] = []
     @State private var updatingEventReportID: UUID?
     @State private var memberProfiles: [BusinessProfileRecord] = []
@@ -325,7 +326,7 @@ struct SupportDashboard: View {
                         }
                     },
                     onDeleteAccount: { request in
-                        Task { await completeAccountDeletion(request) }
+                        pendingAccountDeletion = request
                     }
                 )
 
@@ -409,6 +410,24 @@ struct SupportDashboard: View {
                     await reject(action.request, reason: reason, note: note)
                 }
             }
+        }
+        .alert(
+            "Complete account deletion?",
+            isPresented: Binding(
+                get: { pendingAccountDeletion != nil },
+                set: { if !$0 { pendingAccountDeletion = nil } }
+            ),
+            presenting: pendingAccountDeletion
+        ) { request in
+            Button("Delete account", role: .destructive) {
+                pendingAccountDeletion = nil
+                Task { await completeAccountDeletion(request) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingAccountDeletion = nil
+            }
+        } message: { _ in
+            Text("This permanently deletes their login, personal details and photos. Financial records are kept de-identified for tax. This can't be undone.")
         }
         .sheet(item: $selectedSupportRequest) { request in
             SupportRequestReplySheet(request: request) { status, note in
@@ -612,8 +631,20 @@ struct SupportDashboard: View {
             actionMessage = "Account deletion completed. Their login, personal details and photos have been removed."
             await loadOwnerEvents()
         } catch {
+            #if DEBUG
             print("[SupportHQ] complete deletion failed: \(error)")
-            actionMessage = "Could not complete account deletion. It is safe to try again."
+            #endif
+            if case SupabaseServiceError.requestFailed(let status, _) = error {
+                switch status {
+                case 401: actionMessage = "Support needs to sign in again."
+                case 403: actionMessage = "Support only."
+                case 409: actionMessage = "This request's account has already been deleted."
+                default: actionMessage = "Could not complete account deletion. It is safe to try again."
+                }
+            } else {
+                actionMessage = "Could not complete account deletion. It is safe to try again."
+            }
+            await loadOwnerEvents()
         }
         updatingSupportRequestID = nil
     }

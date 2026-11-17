@@ -3474,7 +3474,7 @@ struct BusinessPlansScreen: View {
             } else if let profile = accountState.profile, profile.memberStatus == .rejected {
                 SettingsInfoMessage(icon: "exclamationmark.triangle.fill", title: "Needs changes", message: profile.rejectionReason ?? profile.supportNote ?? "Support requested changes before this member profile can be approved.")
             } else if let profile = accountState.profile, profile.memberStatus == .suspended {
-                SettingsInfoMessage(icon: "pause.circle.fill", title: "Publishing suspended", message: profile.suspensionReason ?? profile.supportNote ?? "Support has paused publishing access for this member profile.")
+                SettingsInfoMessage(icon: "pause.circle.fill", title: "Your organisation is suspended", message: [profile.suspensionReason ?? profile.supportNote, "Nothing can be changed or published until Support reinstates it. Contact Support from Settings."].compactMap { $0 }.joined(separator: " "))
             } else if let localPlan = BusinessSubscriptionPlan.allCases.first(where: { purchaseService.purchasedProductIDs.contains($0.productID) }) {
                 SettingsInfoMessage(icon: "checkmark.circle.fill", title: "\(localPlan.title) purchased", message: "Apple reports this subscription active on this device. The app will verify it with the server and refresh publishing access.")
             } else {
@@ -4446,7 +4446,7 @@ struct BusinessPlansScreen: View {
         case .rejected:
             return profile.rejectionReason ?? profile.supportNote ?? "Support needs changes before this membership can be approved."
         case .suspended:
-            return profile.suspensionReason ?? profile.supportNote ?? "Support has paused this membership."
+            return [profile.suspensionReason ?? profile.supportNote, "Your organisation is suspended. Contact Support to have it reinstated."].compactMap { $0 }.joined(separator: " ")
         case .archived:
             return "This membership record is archived."
         }

@@ -73,6 +73,10 @@ enum SupabaseServiceError: LocalizedError {
         .joined(separator: " ")
         .lowercased()
 
+        if message.contains("organisation_suspended") {
+            return "Your organisation is suspended. Contact Support to have it reinstated."
+        }
+
         switch code {
         case "42501":
             if message.contains("row-level security") && message.contains("events") {
@@ -129,6 +133,9 @@ enum SupabaseServiceError: LocalizedError {
     private static func translatedRawMessage(_ message: String, statusCode: Int?) -> String? {
         let lowercased = message.lowercased()
 
+        if lowercased.contains("organisation_suspended") {
+            return "Your organisation is suspended. Contact Support to have it reinstated."
+        }
         if lowercased.contains("invalid login credentials") || lowercased.contains("invalid_grant") {
             return "Sign in failed. Check your email and password, then try again."
         }
@@ -336,6 +343,7 @@ protocol EventReportSubmitting {
 protocol UserNotificationFetching {
     func fetchUserNotifications(userID: UUID, accessToken: String) async throws -> [UserNotificationRecord]
     func markUserNotificationRead(id: UUID, accessToken: String) async throws
+    func markAllUserNotificationsRead(accessToken: String) async throws
 }
 
 protocol OwnerAuthenticating {
@@ -1674,6 +1682,26 @@ struct SupabaseEventService: EventListingSubmitting, UserListingFetching, Busine
         let (data, response) = try await session.data(for: request(url: url, accessToken: accessToken))
         try validate(response)
         return await changeRequests(from: try decoder.decode([SupabaseEventChangeRequestRecord].self, from: data), accessToken: accessToken)
+    }
+
+    /// Marks every unread notification for the signed-in account as read (RLS limits the update to the caller's
+    /// own rows), so the server-side unread count used for the app icon badge matches what the user has seen.
+    func markAllUserNotificationsRead(accessToken: String) async throws {
+        guard var components = userNotificationsURLComponents else {
+            throw SupabaseServiceError.notConfigured
+        }
+        components.queryItems = [URLQueryItem(name: "read_at", value: "is.null")]
+        guard let url = components.url else {
+            throw SupabaseServiceError.notConfigured
+        }
+        var request = request(url: url, accessToken: accessToken)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        struct ReadStamp: Encodable { let read_at: String }
+        request.httpBody = try encoder.encode(ReadStamp(read_at: ISO8601DateFormatter().string(from: Date())))
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data)
     }
 
     func markUserNotificationRead(id: UUID, accessToken: String) async throws {

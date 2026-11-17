@@ -81,6 +81,10 @@ struct AppNotificationOverlay: View {
         seenIDs = Set(items.map(\.id))
         NotificationSeenStore.setSeenIDs(seenIDs, account: seenAccountKey)
         NotificationSeenStore.clearAppIconBadge()
+        // Keep the server's unread count (used for the push badge) in step with what this account has seen.
+        if let token = userSessionStore.session?.accessToken {
+            Task { try? await service.markAllUserNotificationsRead(accessToken: token) }
+        }
     }
 
     @State private var isLoading = false
