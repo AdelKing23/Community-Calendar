@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Combine
 
 enum UserAuthError: LocalizedError {
@@ -427,6 +428,9 @@ final class UserSessionStore: ObservableObject {
                 replaceSession(with: saved, updateKeychain: false)
                 Task { await refreshIfNeeded() }
             }
+        } catch SessionKeychainError.unexpectedStatus(errSecInteractionNotAllowed) {
+            // Keychain is unavailable while the device is locked (e.g. a prewarmed launch
+            // before first unlock). Keep the saved session instead of deleting it.
         } catch {
             keychain.delete(account: keychainAccount)
         }

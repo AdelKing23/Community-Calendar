@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Combine
 
 @MainActor
@@ -58,6 +59,9 @@ final class OwnerSessionStore: ObservableObject {
                 session = saved
                 Task { await refreshIfNeeded() }
             }
+        } catch SessionKeychainError.unexpectedStatus(errSecInteractionNotAllowed) {
+            // Keychain is unavailable while the device is locked (e.g. a prewarmed launch
+            // before first unlock). Keep the saved session instead of deleting it.
         } catch {
             keychain.delete(account: keychainAccount)
         }
