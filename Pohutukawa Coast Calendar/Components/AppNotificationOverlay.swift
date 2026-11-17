@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import UserNotifications
 
 enum NotificationMuteCategory: String, CaseIterable, Identifiable {
     case membership
@@ -62,10 +64,23 @@ struct AppNotificationOverlay: View {
     @State private var isShowingCenter = false
     @State private var selectedDestination: AppNotificationDestination?
     @State private var items: [AppNotificationItem] = []
+    @State private var seenIDs: Set<String> = []
 
+    /// Only items the user has not seen yet count toward the badge (t245).
     private var badgeCount: Int {
         let muted = NotificationMuteStore.mutedCategories
-        return items.filter { !muted.contains($0.category) }.count
+        return items.filter { !muted.contains($0.category) && !seenIDs.contains($0.id) }.count
+    }
+
+    private var seenAccountKey: String {
+        userSessionStore.session?.userID.uuidString.lowercased() ?? "signed-out"
+    }
+
+    /// Opening the notification centre marks everything in it as seen and clears the app icon badge.
+    private func markAllSeen() {
+        seenIDs = Set(items.map(\.id))
+        NotificationSeenStore.setSeenIDs(seenIDs, account: seenAccountKey)
+        NotificationSeenStore.clearAppIconBadge()
     }
 
     @State private var isLoading = false
@@ -75,6 +90,7 @@ struct AppNotificationOverlay: View {
 
     var body: some View {
         Button {
+            markAllSeen()
             isShowingCenter = true
         } label: {
             ZStack(alignment: .topTrailing) {
@@ -97,7 +113,7 @@ struct AppNotificationOverlay: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(items.isEmpty ? "Notifications" : "\(items.count) notifications")
+        .accessibilityLabel(badgeCount == 0 ? "Notifications" : "\(badgeCount) new notifications")
         .task(id: userSessionStore.session?.userID) {
             await refreshItems()
         }
@@ -215,6 +231,7 @@ struct AppNotificationOverlay: View {
         guard userSessionStore.isCurrent(requestContext) else { return }
 
         nextItems = nextItems.filter { !NotificationDismissStore.isDismissed($0.id) }
+        seenIDs = NotificationSeenStore.seenIDs(account: seenAccountKey)
 
         items = Array(nextItems.sorted { lhs, rhs in
             if lhs.priority != rhs.priority {
@@ -595,6 +612,30 @@ enum NotificationDismissStore {
         var next = dismissedIDs
         next.insert(id)
         UserDefaults.standard.set(Array(next), forKey: key)
+    }
+}
+
+/// Per-account set of notification item IDs already shown in the notification centre (t245).
+/// Replaced with the current item IDs each time the centre opens, so it stays small and an
+/// item that goes away and later comes back counts as new again.
+enum NotificationSeenStore {
+    private static let keyPrefix = "pcc.notification.seen.ids."
+
+    static func seenIDs(account: String) -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: keyPrefix + account) ?? [])
+    }
+
+    static func setSeenIDs(_ ids: Set<String>, account: String) {
+        UserDefaults.standard.set(Array(ids), forKey: keyPrefix + account)
+    }
+
+    @MainActor
+    static func clearAppIconBadge() {
+        if #available(iOS 17.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(0) { _ in }
+        } else {
+            UIApplication.shared.applicationIconBadgeNumber = 0
+        }
     }
 }
 
