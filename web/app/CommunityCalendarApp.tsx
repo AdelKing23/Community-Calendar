@@ -422,6 +422,10 @@ function userFacingServiceMessage(raw: string, status?: number) {
 
   const message = combined.toLowerCase();
 
+  if (message.includes("organisation_suspended") || message.includes("organisation is suspended")) {
+    return "Your organisation is suspended. Contact Support to have it reinstated.";
+  }
+
   if (code === "42501" || message.includes("row-level security") || message.includes("permission denied") || message.includes("not authorized")) {
     if (message.includes("events")) {
       return "We couldn’t confirm your publishing access. Refresh your member status and try again. Your listing is still here.";
@@ -3477,7 +3481,8 @@ export default function CommunityCalendarApp() {
   async function submitMemberApplication(draft: MemberDraft) {
     if (!session) return false;
     const payload = {
-      owner_user_id: session.user.id,
+      // owner is set once on create; the server pins it on update (ownership transfer is not offered)
+      ...(memberProfile ? {} : { owner_user_id: session.user.id }),
       business_name: draft.business_name.trim(),
       contact_name: draft.contact_name.trim() || null,
       contact_email: draft.contact_email.trim() || session.user.email,
@@ -4979,8 +4984,8 @@ function GetSetUpGuide({ session, profile, subscriptions, busy, onBack, onSignIn
             <p className="panel-note">{(profile as HostRecord & { rejection_reason?: string | null }).rejection_reason || profile?.support_note || "Support requested changes before this member profile can be approved."}</p>
             <button type="button" className="button button--primary" onClick={() => setEditing(true)}>Update application</button>
           </>) : status === "suspended" ? (<>
-            <h3>⏸ Publishing suspended</h3>
-            <p className="panel-note">{(profile as HostRecord & { suspension_reason?: string | null }).suspension_reason || profile?.support_note || "Support has paused publishing access for this member profile."}</p>
+            <h3>⏸ Your organisation is suspended</h3>
+            <p className="panel-note">{[(profile as HostRecord & { suspension_reason?: string | null }).suspension_reason || profile?.support_note, "Nothing can be changed or published until Support reinstates it. Contact Support."].filter(Boolean).join(" ")}</p>
           </>) : status === "approved" && !active ? (<>
             <h3>✓ Approved - finish your page</h3>
             <p className="panel-note">{profile?.support_note || "Add or check your profile image, hero image, bio and contact details, then complete the selected monthly subscription to activate publishing access."}</p>
