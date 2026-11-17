@@ -70,6 +70,8 @@ fun SupportDashboardScreen(viewModel: SupportDashboardViewModel, session: UserSe
     var replying by remember { mutableStateOf<SupportRequestRecord?>(null) }
     var rejecting by remember { mutableStateOf<EventChangeRequestRecord?>(null) }
     var memberAction by remember { mutableStateOf<Pair<BusinessProfileRecord, BusinessProfileStatus>?>(null) }
+    // t253: completing a deletion now removes the login and photos server-side and cannot be undone, so confirm first.
+    var confirmDeletion by remember { mutableStateOf<SupportRequestRecord?>(null) }
 
     PushedScaffold("Support", onBack, actions = { TextButton(onClick = viewModel::load) { Text("Refresh") } }) { padding ->
         Column(
@@ -109,7 +111,7 @@ fun SupportDashboardScreen(viewModel: SupportDashboardViewModel, session: UserSe
                         ActionRow {
                             ActionChip(if (r.supportNote.isNullOrBlank()) "Reply" else "Edit Reply", PccColors.LeafGreen, state.updatingId == r.id) { replying = r }
                             if (r.topic.contains("deletion", ignoreCase = true)) {
-                                ActionChip("Complete deletion", PccColors.PohutukawaRed, state.updatingId == r.id) { viewModel.completeDeletion(r) }
+                                ActionChip("Complete deletion", PccColors.PohutukawaRed, state.updatingId == r.id) { confirmDeletion = r }
                             }
                             ActionChip("Close", PccColors.Text, state.updatingId == r.id) { viewModel.updateRequest(r, SupportRequestStatus.Closed, r.supportNote) }
                         }
@@ -215,6 +217,17 @@ fun SupportDashboardScreen(viewModel: SupportDashboardViewModel, session: UserSe
 
     replying?.let { r -> ReplySheet(r, onDismiss = { replying = null }) { status, note -> viewModel.updateRequest(r, status, note); replying = null } }
     rejecting?.let { c -> RejectSheet(onDismiss = { rejecting = null }) { reason, note -> viewModel.rejectChange(c, reason, note); rejecting = null } }
+    confirmDeletion?.let { r ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeletion = null },
+            title = { Text("Complete account deletion?") },
+            text = { Text("This removes their login, personal details and photos. Financial records are kept de-identified. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.completeDeletion(r); confirmDeletion = null }) { Text("Delete account", color = PccColors.PohutukawaRed) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeletion = null }) { Text("Cancel") } },
+        )
+    }
     memberAction?.let { (p, status) ->
         MemberSheet(p, status, onDismiss = { memberAction = null }) { reason, note -> viewModel.updateMember(p, status, reason, note); memberAction = null }
     }

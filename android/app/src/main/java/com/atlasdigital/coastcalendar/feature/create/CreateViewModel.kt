@@ -55,7 +55,7 @@ object CreateGate {
             BusinessProfileStatus.PendingReview -> "Organisation pending review"
             BusinessProfileStatus.Approved -> "Member access not active"
             BusinessProfileStatus.Rejected -> "Organisation needs changes"
-            BusinessProfileStatus.Suspended -> "Publishing paused"
+            BusinessProfileStatus.Suspended -> com.atlasdigital.coastcalendar.data.model.OrganisationSuspended.TITLE
             BusinessProfileStatus.Archived -> "Organisation archived"
         }
     }
@@ -68,7 +68,7 @@ object CreateGate {
             // Android has no plan purchase yet (Play Billing not integrated), so there is no plan-choice prompt here.
             BusinessProfileStatus.Approved -> "Your Organisation is approved. Member access must be active before you can create listings or polls."
             BusinessProfileStatus.Rejected -> profile.rejectionReason ?: profile.supportNote ?: "Support needs changes before this Organisation can list. Contact Support for the next step."
-            BusinessProfileStatus.Suspended -> profile.suspensionReason ?: profile.supportNote ?: "Support has paused publishing for this Organisation. Contact Support."
+            BusinessProfileStatus.Suspended -> com.atlasdigital.coastcalendar.data.model.OrganisationSuspended.message(profile.suspensionReason ?: profile.supportNote)
             BusinessProfileStatus.Archived -> "This Organisation is archived. Contact Support to register again."
         }
     }

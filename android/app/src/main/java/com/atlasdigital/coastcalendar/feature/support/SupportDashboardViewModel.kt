@@ -15,6 +15,7 @@ import com.atlasdigital.coastcalendar.data.model.SupportRequestRecord
 import com.atlasdigital.coastcalendar.data.model.SupportRequestStatus
 import com.atlasdigital.coastcalendar.data.model.supportLabel
 import com.atlasdigital.coastcalendar.data.model.supportSortPriority
+import com.atlasdigital.coastcalendar.data.repository.CompleteAccountDeletion
 import com.atlasdigital.coastcalendar.data.repository.UserSession
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -120,11 +121,22 @@ class SupportDashboardViewModel(private val container: AppContainer) : ViewModel
             repo.updateSupportRequest(request.id, status, note); "Support request ${request.id.take(8).uppercase()} updated."
         }
 
-    fun completeDeletion(request: SupportRequestRecord) =
-        act(request.id, "Could not complete account deletion. Check the RPC exists and this request has a submitted_by.") {
-            repo.completeAccountDeletion(request.id, "Account deletion completed. Organisation and listings archived.")
-            "Account deletion completed for this request. Remove the login in Authentication → Users if they must not sign in."
+    /** iOS 5a067ca: edge function `complete-account-deletion` (login + photos removed server-side). */
+    fun completeDeletion(request: SupportRequestRecord) {
+        if (_state.value.updatingId != null) return
+        _state.update { it.copy(updatingId = request.id, actionMessage = null, error = null) }
+        viewModelScope.launch {
+            try {
+                repo.completeAccountDeletion(request.id, CompleteAccountDeletion.SUPPORT_NOTE)
+                _state.update { it.copy(updatingId = null, actionMessage = CompleteAccountDeletion.SUCCESS) }
+            } catch (e: Exception) {
+                val status = (e as? io.github.jan.supabase.exceptions.RestException)?.statusCode
+                android.util.Log.w("SupportHQ", "complete deletion failed (status ${status ?: "none"})")
+                _state.update { it.copy(updatingId = null, error = CompleteAccountDeletion.failureMessage(status)) }
+            }
+            load()
         }
+    }
 
     fun updateReport(report: EventReportRecord, status: EventReportStatus) =
         act(report.id, "Could not update this listing report. If your session expired, sign out and sign in again.") {

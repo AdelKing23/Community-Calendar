@@ -238,12 +238,18 @@ fun OrganisationScreen(viewModel: OrganisationViewModel, session: UserSession?, 
             PlanChoiceCard(d.selectedPlanId) { id -> viewModel.edit { it.copy(selectedPlanId = id) } }
             state.message?.let { Text(it, color = PccColors.LeafGreen, fontWeight = FontWeight.Bold) }
             state.error?.let { Text(it, color = PccColors.PohutukawaRed) }
-            PrimaryButton(
-                if (state.saving) "Saving" else if (state.account.profile == null) "Send Application" else "Save Details",
-                viewModel::save,
-                enabled = !state.saving,
-            )
-            if (state.account.profile != null) PublicPageCard(viewModel, state)
+            // t253: a suspended Organisation can't change anything until Support unsuspends it (the server refuses too).
+            val suspended = state.account.profile?.memberStatus == BusinessProfileStatus.Suspended
+            if (suspended) {
+                Text(com.atlasdigital.coastcalendar.data.model.OrganisationSuspended.MESSAGE, color = PccColors.PohutukawaRed, fontWeight = FontWeight.Bold)
+            } else {
+                PrimaryButton(
+                    if (state.saving) "Saving" else if (state.account.profile == null) "Send Application" else "Save Details",
+                    viewModel::save,
+                    enabled = !state.saving,
+                )
+                if (state.account.profile != null) PublicPageCard(viewModel, state)
+            }
         }
     }
 }

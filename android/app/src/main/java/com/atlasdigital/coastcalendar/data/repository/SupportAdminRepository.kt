@@ -15,6 +15,7 @@ import com.atlasdigital.coastcalendar.data.model.PublicEventRecord
 import com.atlasdigital.coastcalendar.data.model.SupportRequestRecord
 import com.atlasdigital.coastcalendar.data.model.SupportRequestStatus
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
@@ -94,11 +95,19 @@ class SupportAdminRepository(private val client: SupabaseClient, private val ima
         }) { filter { eq("id", id.lowercase()) } }
     }
 
+    /**
+     * iOS 5a067ca: Support's "complete deletion" calls the `complete-account-deletion` edge function
+     * (verify_jwt = true) with the Support user's own token. The function checks the caller is active Support,
+     * runs `support_complete_account_deletion` as the caller (scrub + de-identify), removes the person's photos
+     * and then deletes their login with the Admin API (service role stays server-side).
+     * Non-2xx replies surface as [RestException] with the HTTP status (401 sign in, 403 Support only,
+     * 409 already deleted, 400/404 bad request, 500 partial - safe to retry).
+     */
     suspend fun completeAccountDeletion(requestId: String, note: String?) {
-        client.postgrest.rpc("support_complete_account_deletion", buildJsonObject {
-            put("p_request_id", requestId.lowercase())
-            put("p_support_note", note.orNull())
-        })
+        client.functions.invoke(
+            function = CompleteAccountDeletion.FUNCTION_NAME,
+            body = CompleteAccountDeletion.body(requestId, note),
+        )
     }
 
     suspend fun updateEventReport(id: String, status: EventReportStatus) {
@@ -135,5 +144,30 @@ class SupportAdminRepository(private val client: SupabaseClient, private val ima
             put("reviewed_at", now)
             if (applied) put("applied_at", now)
         }) { filter { eq("id", id.lowercase()) } }
+    }
+}
+
+/** Request body + Support-facing wording for the `complete-account-deletion` edge function (iOS 5a067ca). */
+object CompleteAccountDeletion {
+    const val FUNCTION_NAME = "complete-account-deletion"
+    const val SUPPORT_NOTE = "Account deletion completed. Personal details, photos and login removed; financial records kept de-identified."
+    const val SUCCESS = "Account deletion completed. Their login, personal details and photos have been removed."
+    const val FAILURE = "Could not complete account deletion. It is safe to try again."
+
+    /** iOS `CompleteAccountDeletionFunctionRequest`: lowercased `request_id`; `support_note` left out when null. */
+    fun body(requestId: String, note: String?) = buildJsonObject {
+        put("request_id", requestId.lowercase())
+        note?.let { put("support_note", it) }
+    }
+
+    /**
+     * iOS shows [FAILURE] for every error. Android keeps that sentence and, for the statuses the function
+     * documents as "not a retry problem", adds the function's own reason so Support knows retrying won't help.
+     */
+    fun failureMessage(status: Int?): String = when (status) {
+        401 -> "Could not complete account deletion. Sign in first. Your Support session may have expired."
+        403 -> "Could not complete account deletion. Support only."
+        409 -> "This request's account has already been deleted."
+        else -> FAILURE
     }
 }

@@ -99,6 +99,17 @@ data class OrganisationDraft(
     }
 }
 
+/**
+ * Suspended Organisation (t253): the server refuses every Organisation action until Support unsuspends it,
+ * so the app says so plainly and points to Support. The Support reason, when set, is shown after it.
+ */
+object OrganisationSuspended {
+    const val TITLE = "Your organisation is suspended"
+    const val MESSAGE = "Your organisation is suspended - contact Support."
+
+    fun message(reason: String?): String = reason?.trim()?.takeIf { it.isNotEmpty() }?.let { "$MESSAGE\n\nReason: $it" } ?: MESSAGE
+}
+
 /** Neutral status copy for the owner's Organisation (no payment wording on Android). */
 object OrganisationStatusCopy {
     fun title(state: BusinessAccountState): String = when (state.profile?.memberStatus) {
@@ -106,7 +117,7 @@ object OrganisationStatusCopy {
         BusinessProfileStatus.PendingReview -> "Application with Support"
         BusinessProfileStatus.Approved -> if (state.canSubmitAsOrganisation) "Organisation active" else "Approved"
         BusinessProfileStatus.Rejected -> "Changes needed"
-        BusinessProfileStatus.Suspended -> "Organisation paused"
+        BusinessProfileStatus.Suspended -> OrganisationSuspended.TITLE
         BusinessProfileStatus.Archived -> "Organisation archived"
     }
 
@@ -117,7 +128,7 @@ object OrganisationStatusCopy {
             BusinessProfileStatus.Approved -> if (state.canSubmitAsOrganisation) "${p.businessName} can publish listings and Notices."
                 else "${p.businessName} is approved. Listings go public once your Organisation’s member access is active."
             BusinessProfileStatus.Rejected -> p.rejectionReason?.takeIf { it.isNotBlank() } ?: "Support asked for changes. Update the details and send again."
-            BusinessProfileStatus.Suspended -> p.suspensionReason?.takeIf { it.isNotBlank() } ?: "Contact Support about this Organisation."
+            BusinessProfileStatus.Suspended -> OrganisationSuspended.message(p.suspensionReason)
             BusinessProfileStatus.Archived -> "Contact Support to restore this Organisation."
         }
     }

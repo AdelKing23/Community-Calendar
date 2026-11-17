@@ -2,6 +2,7 @@ package com.atlasdigital.coastcalendar.data.repository
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.OtpType
+import io.github.jan.supabase.auth.SignOutScope
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -67,7 +68,21 @@ class AuthRepository(private val client: SupabaseClient) {
         client.auth.currentUserOrNull()?.toSession()
     }.getOrNull()
 
-    suspend fun signOut() = client.auth.signOut()
+    /**
+     * iOS 5a067ca: signing out also revokes this device's refresh token on the server with scope=local
+     * (`POST /auth/v1/logout?scope=local`), so the user's other devices stay signed in.
+     * supabase-kt makes that call before clearing the saved session, and already treats 401/403/404 (user
+     * deleted / token expired) as done. Like iOS, sign-out must never leave the person signed in on this device,
+     * so any other failure (offline, 5xx) still clears the local session.
+     */
+    suspend fun signOut() {
+        try {
+            client.auth.signOut(SignOutScope.LOCAL)
+        } catch (e: Exception) {
+            if (e is kotlin.coroutines.cancellation.CancellationException) throw e
+            client.auth.clearSession()
+        }
+    }
 
     private fun UserInfo.toSession() = UserSession(
         userId = id,
