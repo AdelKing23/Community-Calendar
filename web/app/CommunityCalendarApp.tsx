@@ -1815,14 +1815,10 @@ function SettingsHub({
             </div>
 
             <div className="danger-zone">
-              <button type="button" className="button button--danger" onClick={() => (memberProfile ? setDeleteBlocked(true) : onRequestDelete())}>Request account deletion</button>
-              {deleteBlocked && memberProfile ? (
-                <div className="status-card" role="alert">
-                  <strong>Transfer ownership or delete your organisation first</strong>
-                  <p>You own {memberProfile.business_name}. Support can transfer it to someone else or close it and archive its listings.</p>
-                  <button type="button" className="button button--primary" onClick={onSupport}>Contact Support</button>
-                </div>
+              {memberProfile ? (
+                <p className="panel-note">You own {memberProfile.business_name}. Deleting your account also closes it: its public page, listings and notices are taken down, website billing is cancelled, and only its business name is kept for tax records. If you pay through Apple, cancel in your Apple ID subscription settings.</p>
               ) : null}
+              <button type="button" className="button button--danger" onClick={() => onRequestDelete()}>Request account deletion</button>
             </div>
           </>
         )}
@@ -3733,8 +3729,8 @@ export default function CommunityCalendarApp() {
     setBusy(true);
     try {
       await rpc("submit_support_request", {
-        p_topic: "Account",
-        p_message: "Please delete this Coast Calendar account.",
+        p_topic: "Account deletion",
+        p_message: "Account deletion requested from the website. Please delete this Coast Calendar account and its personal details.",
         p_listing_reference: null,
       }, session.access_token);
       await loadSignedInData();
