@@ -41,8 +41,22 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    return withSecurityHeaders(await handler.fetch(request, env, ctx));
   },
 };
+
+// t247: baseline security headers. The web app keeps the Supabase session in localStorage,
+// so clickjacking/sniffing protections matter. A full script CSP is a follow-up (needs a nonce
+// audit of inline scripts); frame-ancestors is safe to ship now.
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+  headers.set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+  headers.set("X-Frame-Options", "DENY");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
 
 export default worker;
