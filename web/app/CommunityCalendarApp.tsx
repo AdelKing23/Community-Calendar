@@ -3939,7 +3939,7 @@ export default function CommunityCalendarApp() {
 
             <p className="eyebrow" style={{ color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.45)", marginBottom: 8 }}>Search</p>
           <div className="home-header-row">
-          <button type="button" className="area-pill" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
+          <button type="button" className="area-pill area-pill--current" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
               {locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "Choose area"}
               {"  "}⌕
             </button>
@@ -3961,7 +3961,7 @@ export default function CommunityCalendarApp() {
                 />
                 <div className="area-row" style={{ marginTop: 8 }}>
                   {searchScopes(finderQuery, locationScopes).map((scope) => (
-                    <button type="button" className="area-pill" key={`find-${scope.slug}`} onClick={() => { setHomeScope(scope.slug); setShowFinder(false); setFinderQuery(""); }}>
+                    <button type="button" className="area-pill area-pill--neutral" key={`find-${scope.slug}`} onClick={() => { setHomeScope(scope.slug); setShowFinder(false); setFinderQuery(""); }}>
                       {scope.name}
                     </button>
                   ))}
@@ -3970,22 +3970,22 @@ export default function CommunityCalendarApp() {
             ) : null}
             <div className="area-row" style={{ marginTop: 10 }}>
               {primaryChipsOf(homeScope, locationScopes, locationEdges).map((scope) => (
-                <button type="button" className="area-pill" key={`sib-${scope.slug}`} onClick={() => setHomeScope(scope.slug)}>
+                <button type="button" className="area-pill area-pill--child" key={`sib-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} aria-label={`${scope.name} (nearby area)`}>
                   {scope.name}
                 </button>
               ))}
             </div>
             <div className="area-row" style={{ marginTop: 8 }}>
               {ancestorScopesOf(homeScope, locationScopes, locationEdges).map((scope) => (
-                <button type="button" className="area-pill" key={`anc-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} style={{ color: "var(--pcc-green)", background: "rgba(31,77,51,0.10)", borderColor: "transparent" }}>
+                <button type="button" className="area-pill area-pill--parent" key={`anc-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} aria-label={`${scope.name} (wider area)`}>
                   {scope.name}
                 </button>
               ))}
             </div>
             <p className="panel-note"></p>
             <div className="area-row" style={{ marginTop: 8 }}>
-              <span className="area-pill">{weeklyViews == null ? "—" : weeklyViews} views this week</span>
-              <span className="area-pill">{(homeEventIDs ?? []).length} listings</span>
+              <span className="area-pill area-pill--neutral">{weeklyViews == null ? "—" : weeklyViews} views this week</span>
+              <span className="area-pill area-pill--neutral">{(homeEventIDs ?? []).length} listings</span>
             </div>
             {homeViewMode === "calendar" ? (
               <HomeCalendar<EventRecord>
@@ -4031,7 +4031,7 @@ export default function CommunityCalendarApp() {
 
           {!selectedEvent && view === "whatsOn" && (
           <section className="section" id="whats-on">
-            <button type="button" className="area-pill" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
+            <button type="button" className="area-pill area-pill--current" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
               Showing {locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "your area"} ⌕
             </button>
             {showFinder ? (
@@ -4048,7 +4048,7 @@ export default function CommunityCalendarApp() {
                   {searchScopes(finderQuery, locationScopes).map((scope) => (
                     <button
                       type="button"
-                      className="area-pill"
+                      className="area-pill area-pill--neutral"
                       key={scope.slug}
                       onClick={() => { setHomeScope(scope.slug); setShowFinder(false); setFinderQuery(""); }}
                     >
@@ -4090,7 +4090,7 @@ export default function CommunityCalendarApp() {
                 <div className="widen-row">
                   <span className="widen-row__label">Widen to</span>
                   {ancestorScopesOf(homeScope, locationScopes, locationEdges).slice(0, 3).map((scope) => (
-                    <button type="button" className="area-pill" key={`widen-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} style={topicChipStyle(false)}>{scope.name}</button>
+                    <button type="button" className="area-pill area-pill--parent" key={`widen-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} style={topicChipStyle(false)} aria-label={`${scope.name} (wider area)`}>{scope.name}</button>
                   ))}
                 </div>
               ) : null}

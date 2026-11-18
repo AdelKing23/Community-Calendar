@@ -2021,3 +2021,93 @@ button.listing-detail__organiser em { display: block; font-style: normal; font-s
 }
 #hosts > .section__header h2,
 #hosts > .section__header p { color: var(--pcc-text) !important; text-shadow: none !important; }
+
+/* t258: location pills + readable text over photo wallpapers (dark grey on light, matches iOS PCCTheme.text).
+   Ratios (WCAG 2.x): white on #C2410C = 5.18:1, white on #1F4D33 = 9.69:1, #1A211F on #FFFDF8 = 16:1,
+   #3A403E on #FFFDF8 = 10.42:1, #C2410C on #FFFDF8 = 5.08:1. */
+/* Home location pills: child / more specific areas = orange, parent / wider areas = green, both solid. */
+.area-pill.area-pill--child {
+  background: #c2410c !important;
+  color: #fff !important;
+  border: 1px solid #c2410c !important;
+}
+.area-pill.area-pill--parent {
+  background: #1f4d33 !important;
+  color: #fff !important;
+  border: 1px solid #1f4d33 !important;
+}
+/* the current-area selector and non-interactive counts are neutral so they never read as a child/parent pill */
+.area-pill.area-pill--current {
+  background: #fffdf8 !important;
+  color: #1a211f !important;
+  border: 2px solid #1a211f !important;
+}
+.area-pill.area-pill--neutral {
+  background: #fffdf8 !important;
+  color: #3a403e !important;
+  border: 1px solid rgba(58, 64, 62, 0.28) !important;
+}
+/* primary buttons inside action rows were overridden to white by `.action-row button` (white text on white) */
+.action-row .button--primary,
+.action-row .button--primary:hover {
+  background: var(--pcc-green);
+  border-color: var(--pcc-green);
+  color: #fff;
+}
+/* faded 62% ink (~4.5:1, borderline) -> the one body grey */
+.empty-state p { color: var(--pcc-text, #3a403e); }
+/* Photo wallpapers: text never sits directly on the photo. Hero copy and the Home / What's On content
+   sit on a solid light surface with ink headings and dark grey body text. */
+/* hero keeps its photo; only the copy block gets the light card, anchored to the bottom like before */
+html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero .hero__content {
+  min-height: 0;
+  width: auto;
+  max-width: 760px;
+  margin: 22vh 16px 28px;
+  padding: 20px 22px;
+  background: rgba(255, 253, 248, 0.96);
+  border-radius: 24px;
+  box-shadow: 0 8px 28px rgba(10, 16, 14, 0.16);
+}
+html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero.hero--page .hero__content { margin-top: 48px; }
+@media (min-width: 760px) {
+  html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero .hero__content { margin-left: 32px; margin-right: 32px; padding: 24px 28px; }
+}
+html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero .hero__content :is(h1, h2) {
+  color: var(--pcc-ink, #1a211f) !important;
+  text-shadow: none !important;
+}
+html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero .hero__content :is(p, .intro, .panel-note) {
+  color: var(--pcc-text, #3a403e) !important;
+  text-shadow: none !important;
+}
+html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero .hero__content .eyebrow {
+  color: #c2410c !important;
+  text-shadow: none !important;
+}
+html[data-wallpaper]:not([data-wallpaper="ornament"]) :is(#home-feed, #whats-on) {
+  background: #fffdf8;
+  color: var(--pcc-text, #3a403e);
+  border: 1px solid rgba(26, 33, 31, 0.08);
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 8px 28px rgba(10, 16, 14, 0.12);
+}
+:is(#home-feed, #whats-on) :is(.home-search-label, .home-search-hint, .eyebrow, .panel-note, .widen-row__label),
+html[data-wallpaper]:not([data-wallpaper="ornament"]) :is(#home-feed, #whats-on) :is(.home-search-label, .home-search-hint, .eyebrow, .panel-note, .widen-row__label) {
+  color: var(--pcc-text, #3a403e) !important;
+  text-shadow: none !important;
+}
+/* t258: remaining faded 62-68% ink text (4.2-4.9:1 on white/cream, under or borderline AA) -> the one body grey
+   (#3A403E = 10.59:1 on white, 9.5:1 on cream). Disabled/busy/pending dims are states and stay as they are. */
+.mode-switch > span, .operator-header p:last-child, .event-card__footer, .event-card__body p, .host-card p,
+.action-card span, .payment-note span, .status-card p, .template-card span, .list-line, .ops-metric p,
+.review-detail-grid span, .notification-row p, .empty-state p, .event-card__footer span {
+  color: var(--pcc-text, #3a403e);
+  opacity: 1;
+}
