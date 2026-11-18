@@ -28,10 +28,10 @@ enum PCCTheme {
     /// Soft cream halo behind text that sits straight on the wallpaper, so it stays readable on photo wallpapers.
     static let wallpaperTextHalo = cream.opacity(0.9)
 
-    /// t258: location pills, same pairing as web and Android. Solid fills with white text.
-    /// Child / nearer areas: #C2410C (white text 5.18:1). Parent / wider areas: leafGreen #1F4D33 (white text 9.69:1).
+    /// t258/t259: location pills, same as web. Solid opaque fills with white text, readable on any wallpaper.
+    /// Child / nearer areas: #C2410C (white text 5.18:1). Parent / wider areas: dark grey #3A403E (white text 10.59:1).
     static let locationChildPill = Color(red: 194 / 255, green: 65 / 255, blue: 12 / 255)
-    static let locationParentPill = leafGreen
+    static let locationParentPill = text
 }
 
 enum PCCWallpaperStyle: String, CaseIterable, Identifiable {

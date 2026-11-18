@@ -720,14 +720,15 @@ struct LocationLadderPreview: View {
                         } label: {
                             Text(item.name)
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.leafGreen)
+                                .foregroundStyle(.white)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.82)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
-                                .background(.white.opacity(0.82), in: Capsule())
+                                .background(PCCTheme.locationParentPill, in: Capsule())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("\(item.name), wider area")
                     }
                 }
             }
@@ -900,9 +901,10 @@ struct EmptyScopedEventsCard: View {
                                     .lineLimit(1)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(PCCTheme.leafGreen, in: Capsule())
+                                    .background(PCCTheme.locationParentPill, in: Capsule())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(scope.name), wider area")
                         }
                     }
                     .padding(.horizontal, 4)

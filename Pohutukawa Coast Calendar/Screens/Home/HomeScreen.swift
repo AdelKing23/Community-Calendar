@@ -282,10 +282,12 @@ struct HomeHero: View {
                             .font(.caption.weight(.black))
                     }
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(PCCTheme.leafGreen)
+                    .foregroundStyle(PCCTheme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
-                    .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
+                    // t259: current-area pill is solid opaque like web (#1A211F on #FFFDF8 ~16:1), never translucent
+                    .background(Color(red: 1, green: 253 / 255, blue: 248 / 255), in: Capsule())
+                    .overlay(Capsule().stroke(PCCTheme.ink, lineWidth: 2))
                 }
                 .buttonStyle(.plain)
 
