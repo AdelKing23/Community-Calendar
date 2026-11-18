@@ -2023,19 +2023,36 @@ button.listing-detail__organiser em { display: block; font-style: normal; font-s
 #hosts > .section__header p { color: var(--pcc-text) !important; text-shadow: none !important; }
 
 /* t258: location pills + readable text over photo wallpapers (dark grey on light, matches iOS PCCTheme.text).
-   Ratios (WCAG 2.x): white on #C2410C = 5.18:1, white on #1F4D33 = 9.69:1, #1A211F on #FFFDF8 = 16:1,
+   Ratios (WCAG 2.x): white on #C2410C = 5.18:1, white on #3A403E = 10.59:1 (parent pills, t259), #1A211F on #FFFDF8 = 16:1,
    #3A403E on #FFFDF8 = 10.42:1, #C2410C on #FFFDF8 = 5.08:1. */
-/* Home location pills: child / more specific areas = orange, parent / wider areas = green, both solid. */
+/* Home location pills (t259): child / nearer areas = solid burnt orange #C2410C (white text 5.18:1),
+   parent / wider areas = solid dark grey #3A403E (white text 10.59:1, AAA). Fully opaque in every state. */
 .area-pill.area-pill--child {
   background: #c2410c !important;
   color: #fff !important;
   border: 1px solid #c2410c !important;
 }
 .area-pill.area-pill--parent {
-  background: #1f4d33 !important;
+  background: #3a403e !important;
   color: #fff !important;
-  border: 1px solid #1f4d33 !important;
+  border: 1px solid #3a403e !important;
 }
+/* every location-pill variant stays a solid opaque fill in hover / active / focus / selected / disabled states:
+   no opacity fade, filter, backdrop blur or translucent background, so text is readable on any wallpaper */
+.area-pill:is(.area-pill--child, .area-pill--parent, .area-pill--current, .area-pill--neutral),
+.area-pill:is(.area-pill--child, .area-pill--parent, .area-pill--current, .area-pill--neutral):is(:hover, :active, :focus, :focus-visible, [aria-pressed="true"], [aria-current], :disabled, [disabled]) {
+  opacity: 1 !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-image: none !important;
+  text-shadow: none !important;
+}
+.area-pill.area-pill--child:is(:hover, :active, :focus, :focus-visible, :disabled, [disabled]) { background: #c2410c !important; color: #fff !important; }
+.area-pill.area-pill--parent:is(:hover, :active, :focus, :focus-visible, :disabled, [disabled]) { background: #3a403e !important; color: #fff !important; }
+.area-pill.area-pill--current:is(:hover, :active, :focus, :focus-visible) { background: #fffdf8 !important; color: #1a211f !important; }
+.area-pill.area-pill--neutral:is(:hover, :active, :focus, :focus-visible) { background: #fffdf8 !important; color: #3a403e !important; }
+.area-pill:is(.area-pill--child, .area-pill--parent):focus-visible { outline: 3px solid #1a211f; outline-offset: 2px; }
 /* the current-area selector and non-interactive counts are neutral so they never read as a child/parent pill */
 .area-pill.area-pill--current {
   background: #fffdf8 !important;
