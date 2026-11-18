@@ -17,6 +17,9 @@ object ErrorMessages {
             raw.contains("suspended") -> com.atlasdigital.coastcalendar.data.model.OrganisationSuspended.MESSAGE
             raw.contains("allowance") || raw.contains("listing limit") ->
                 "Your plan’s listing allowance is used up for this period."
+            // t257: no grace period; server refuses creates from the subscription end date.
+            raw.contains("subscription_ended") -> "Your subscription has ended. Renew to keep creating."
+            raw.contains("subscription_required") -> "An active subscription is needed to create. Choose a plan to start creating."
             raw.contains("subscription") -> "Member access must be active before this Organisation can create listings."
             raw.contains("row-level security") -> "This account can’t do that yet. Refresh your Organisation status and try again."
             error is RestException -> "Something went wrong on our side. Please try again soon."

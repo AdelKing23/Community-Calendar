@@ -146,7 +146,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, session: UserSession?, contentP
                 Row(Icons.Filled.Email, "Contact Coast Calendar", "Send a private support request from this app.", nav.onContactSupport)
             }
 
-            Section("Documents") {
+            Section("Privacy, terms and policies") {
                 Row(Icons.Filled.Info, "Terms of Use", "Rules for using the Coast Calendar app and website.") { openUrl("https://coastcalendar.nz/terms") }
                 Row(Icons.Filled.Lock, "Privacy Policy", "How Coast Calendar handles personal information.") { openUrl("https://coastcalendar.nz/privacy") }
             }
