@@ -306,12 +306,13 @@ struct HomeHero: View {
                                 Text(scope.name)
                                     .lineLimit(1)
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.text)
+                                    .foregroundStyle(.white)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(PCCTheme.ink.opacity(0.06), in: Capsule())
+                                    .background(PCCTheme.locationChildPill, in: Capsule())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(scope.name), nearby area")
                         }
                     }
                 }
@@ -327,12 +328,13 @@ struct HomeHero: View {
                                 Text(scope.name)
                                     .lineLimit(1)
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(PCCTheme.leafGreen)
+                                    .foregroundStyle(.white)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(PCCTheme.leafGreen.opacity(0.10), in: Capsule())
+                                    .background(PCCTheme.locationParentPill, in: Capsule())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(scope.name), wider area")
                         }
                     }
                 }

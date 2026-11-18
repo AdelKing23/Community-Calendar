@@ -27,6 +27,11 @@ enum PCCTheme {
     static let cardMeta = text
     /// Soft cream halo behind text that sits straight on the wallpaper, so it stays readable on photo wallpapers.
     static let wallpaperTextHalo = cream.opacity(0.9)
+
+    /// t258: location pills, same pairing as web and Android. Solid fills with white text.
+    /// Child / nearer areas: #C2410C (white text 5.18:1). Parent / wider areas: leafGreen #1F4D33 (white text 9.69:1).
+    static let locationChildPill = Color(red: 194 / 255, green: 65 / 255, blue: 12 / 255)
+    static let locationParentPill = leafGreen
 }
 
 enum PCCWallpaperStyle: String, CaseIterable, Identifiable {
