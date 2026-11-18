@@ -66,10 +66,13 @@ struct AppNotificationOverlay: View {
     @State private var items: [AppNotificationItem] = []
     @State private var seenIDs: Set<String> = []
 
-    /// Only items the user has not seen yet count toward the badge (t245).
+    /// Only items the user has not seen yet count toward the badge (t245, t257).
     private var badgeCount: Int {
-        let muted = NotificationMuteStore.mutedCategories
-        return items.filter { !muted.contains($0.category) && !seenIDs.contains($0.id) }.count
+        NotificationBadgeLogic.badgeCount(
+            items: items.map { ($0.id, $0.category) },
+            seen: seenIDs,
+            muted: NotificationMuteStore.mutedCategories
+        )
     }
 
     private var seenAccountKey: String {
@@ -78,8 +81,9 @@ struct AppNotificationOverlay: View {
 
     /// Opening the notification centre marks everything in it as seen and clears the app icon badge.
     private func markAllSeen() {
-        seenIDs = Set(items.map(\.id))
-        NotificationSeenStore.setSeenIDs(seenIDs, account: seenAccountKey)
+        // t257: add to (never replace) the seen list, so an item that briefly drops out of a refresh
+        // and comes back is not counted again. Only genuinely new items ever badge.
+        seenIDs = NotificationSeenStore.markSeen(items.map(\.id), account: seenAccountKey)
         NotificationSeenStore.clearAppIconBadge()
         // Keep the server's unread count (used for the push badge) in step with what this account has seen.
         if let token = userSessionStore.session?.accessToken {
@@ -136,7 +140,7 @@ struct AppNotificationOverlay: View {
         .pccOnChange(of: purchaseService.state) { _, _ in
             Task { await refreshItems() }
         }
-        .sheet(isPresented: $isShowingCenter) {
+        .sheet(isPresented: $isShowingCenter, onDismiss: { markAllSeen() }) {
             AppNotificationCenterSheet(
                 items: items,
                 isLoading: isLoading,
@@ -243,6 +247,11 @@ struct AppNotificationOverlay: View {
             }
             return lhs.title < rhs.title
         }.prefix(12))
+
+        // t257: anything that loads while the centre is open is being seen right now.
+        if isShowingCenter {
+            markAllSeen()
+        }
     }
 
 
@@ -619,9 +628,43 @@ enum NotificationDismissStore {
     }
 }
 
-/// Per-account set of notification item IDs already shown in the notification centre (t245).
-/// Replaced with the current item IDs each time the centre opens, so it stays small and an
-/// item that goes away and later comes back counts as new again.
+/// Pure badge rules, unit-tested in CoreLogicTests (t257).
+enum NotificationBadgeLogic {
+    /// Most recent seen IDs kept per account.
+    static let seenCap = 400
+
+    /// Convenience items (the "next saved listing" reminder, load-failure notes) are shown in the
+    /// centre but never badge: they are not new notifications.
+    static func countsTowardBadge(_ id: String) -> Bool {
+        !id.hasPrefix("next-saved-") && !id.hasSuffix("-load-failed")
+    }
+
+    static func badgeCount(
+        items: [(id: String, category: NotificationMuteCategory)],
+        seen: Set<String>,
+        muted: Set<NotificationMuteCategory>
+    ) -> Int {
+        var counted = Set<String>()
+        for item in items where countsTowardBadge(item.id) && !muted.contains(item.category) && !seen.contains(item.id) {
+            counted.insert(item.id)
+        }
+        return counted.count
+    }
+
+    /// Adds `ids` to an ordered seen list (oldest first), de-duplicated, capped to the newest `cap`.
+    static func merging(_ ids: [String], into existing: [String], cap: Int = seenCap) -> [String] {
+        let incoming = Set(ids)
+        var next = existing.filter { !incoming.contains($0) }
+        var added = Set<String>()
+        for id in ids where added.insert(id).inserted {
+            next.append(id)
+        }
+        return next.count > cap ? Array(next.suffix(cap)) : next
+    }
+}
+
+/// Per-account list of notification item IDs already shown in the notification centre (t245, t257).
+/// IDs are only ever added (capped), so the badge counts genuinely new items and never accumulates.
 enum NotificationSeenStore {
     private static let keyPrefix = "pcc.notification.seen.ids."
 
@@ -629,8 +672,12 @@ enum NotificationSeenStore {
         Set(UserDefaults.standard.stringArray(forKey: keyPrefix + account) ?? [])
     }
 
-    static func setSeenIDs(_ ids: Set<String>, account: String) {
-        UserDefaults.standard.set(Array(ids), forKey: keyPrefix + account)
+    @discardableResult
+    static func markSeen(_ ids: [String], account: String) -> Set<String> {
+        let existing = UserDefaults.standard.stringArray(forKey: keyPrefix + account) ?? []
+        let next = NotificationBadgeLogic.merging(ids, into: existing)
+        UserDefaults.standard.set(next, forKey: keyPrefix + account)
+        return Set(next)
     }
 
     @MainActor

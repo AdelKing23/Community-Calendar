@@ -255,6 +255,9 @@ struct SettingsScreen: View {
                             .buttonStyle(.plain)
                         }
 
+                        // t257: Privacy Policy and Terms of Use were defined but never shown in Settings.
+                        SettingsDocumentsSection(selectedDocument: $selectedDocument)
+
                         if canOpenReviewQueue {
                             NavigationLink {
                                 SupportAdminScreen()
@@ -1784,7 +1787,7 @@ struct SettingsDocumentsSection: View {
     @Binding var selectedDocument: SettingsDocument?
 
     var body: some View {
-        SettingsActionSection(title: "Documents") {
+        SettingsActionSection(title: "Privacy, terms and policies") {
             VStack(spacing: 0) {
                 ForEach(SettingsDocument.allCases) { document in
                     Button {

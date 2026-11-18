@@ -76,6 +76,12 @@ enum SupabaseServiceError: LocalizedError {
         if message.contains("organisation_suspended") {
             return "Your organisation is suspended. Contact Support to have it reinstated."
         }
+        if message.contains("subscription_ended") {
+            return "Your subscription has ended. Renew to keep creating."
+        }
+        if message.contains("subscription_required") {
+            return "An active subscription is needed to create. Choose a plan to start creating."
+        }
 
         switch code {
         case "42501":
@@ -135,6 +141,12 @@ enum SupabaseServiceError: LocalizedError {
 
         if lowercased.contains("organisation_suspended") {
             return "Your organisation is suspended. Contact Support to have it reinstated."
+        }
+        if lowercased.contains("subscription_ended") {
+            return "Your subscription has ended. Renew to keep creating."
+        }
+        if lowercased.contains("subscription_required") {
+            return "An active subscription is needed to create. Choose a plan to start creating."
         }
         if lowercased.contains("invalid login credentials") || lowercased.contains("invalid_grant") {
             return "Sign in failed. Check your email and password, then try again."

@@ -2,6 +2,49 @@ import XCTest
 @testable import Pohutukawa_Coast_Calendar
 
 final class CoreLogicTests: XCTestCase {
+    // MARK: t257 bell badge
+
+    func testBellBadgeClearsAfterViewingAndDoesNotAccumulate() {
+        let items: [(id: String, category: NotificationMuteCategory)] = [
+            ("backend-A", .listings), ("backend-B", .membership)
+        ]
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: [], muted: []), 2)
+        // Open the centre: both seen.
+        let seen = Set(NotificationBadgeLogic.merging(items.map(\.id), into: []))
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: seen, muted: []), 0)
+        // Reopen / refresh with the same items: still 0, never accumulates.
+        let again = Set(NotificationBadgeLogic.merging(items.map(\.id), into: Array(seen)))
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: again, muted: []), 0)
+        // One genuinely new item: exactly 1.
+        let withNew = items + [("backend-C", .listings)]
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: withNew, seen: again, muted: []), 1)
+    }
+
+    func testBellBadgeItemThatDropsOutAndReturnsIsNotCountedAgain() {
+        var seen = NotificationBadgeLogic.merging(["backend-A", "support-review-queue"], into: [])
+        // A refresh where the Support queue item is briefly missing, then the centre is opened.
+        seen = NotificationBadgeLogic.merging(["backend-A"], into: seen)
+        let items: [(id: String, category: NotificationMuteCategory)] = [("backend-A", .listings), ("support-review-queue", .supportQueue)]
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: Set(seen), muted: []), 0)
+    }
+
+    func testBellBadgeIgnoresConvenienceMutedAndDuplicateItems() {
+        let items: [(id: String, category: NotificationMuteCategory)] = [
+            ("next-saved-123", .reminders), ("listing-load-failed", .listings),
+            ("backend-A", .subscription), ("backend-A", .subscription), ("sign-in", .membership)
+        ]
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: [], muted: [.subscription]), 1) // only sign-in
+        XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: ["sign-in"], muted: [.subscription]), 0)
+    }
+
+    func testBellSeenListIsCappedAndKeepsNewest() {
+        let ids = (0..<500).map { "backend-\($0)" }
+        let merged = NotificationBadgeLogic.merging(ids, into: [], cap: 400)
+        XCTAssertEqual(merged.count, 400)
+        XCTAssertEqual(merged.last, "backend-499")
+        XCTAssertFalse(merged.contains("backend-0"))
+    }
+
     func testMembershipContactEmailValidationUsesStandardApplicationBehaviour() {
         XCTAssertTrue(MembershipContactEmailValidator.isUsable("aylah@test.com"))
         XCTAssertTrue(MembershipContactEmailValidator.isUsable(" isaacwellis@hotmail.com "))
