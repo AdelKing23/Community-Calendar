@@ -30,6 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.atlasdigital.coastcalendar.data.model.LocationCatalog
@@ -54,7 +57,8 @@ fun AreaButton(scope: LocationScope, onClick: () -> Unit) {
     }
 }
 
-/** iOS sibling chips (grey) and ancestor chips (green). */
+/** Location pills, same pairing as iOS and web (t258): child / nearer areas solid orange #C2410C, parent / wider areas
+ *  solid green #1F4D33, white text on both (5.18:1 and 9.69:1, WCAG AA). */
 @Composable
 fun ScopeChipRow(scopes: List<LocationScope>, green: Boolean, onSelect: (LocationScope) -> Unit) {
     if (scopes.isEmpty()) return
@@ -63,11 +67,12 @@ fun ScopeChipRow(scopes: List<LocationScope>, green: Boolean, onSelect: (Locatio
             Text(
                 scope.name,
                 style = MaterialTheme.typography.labelMedium,
-                color = if (green) PccColors.LeafGreen else PccColors.Text,
+                color = Color.White,
                 maxLines = 1,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(if (green) PccColors.LeafGreen.copy(alpha = 0.10f) else PccColors.Ink.copy(alpha = 0.06f))
+                    .background(if (green) PccColors.LeafGreen else PccColors.LocationChildPill)
+                    .semantics { contentDescription = if (green) "${scope.name}, wider area" else "${scope.name}, nearby area" }
                     .clickable { onSelect(scope) }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             )

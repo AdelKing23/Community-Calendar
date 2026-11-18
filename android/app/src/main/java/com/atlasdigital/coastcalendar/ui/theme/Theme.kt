@@ -24,6 +24,8 @@ object PccColors {
     val PohutukawaRed = Color(0xFFC71A12)    // 0.78, 0.10, 0.07
     val PohutukawaOrange = Color(0xFFF05C1A) // 0.94, 0.36, 0.10
     val LeafGreen = Color(0xFF1F4D33)        // 0.12, 0.30, 0.20
+    /** t258: child / nearer location pill fill (white text 5.18:1). Parent pills use LeafGreen (9.69:1). */
+    val LocationChildPill = Color(0xFFC2410C)
     val DeepGreen = Color(0xFF0A1F1A)        // 0.04, 0.12, 0.10
     val Cream = Color(0xFFFAF2E0)            // 0.98, 0.95, 0.88
     val CreamDark = Color(0xFFF2E8D1)        // 0.95, 0.91, 0.82
