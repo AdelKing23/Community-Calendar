@@ -1,0 +1,10 @@
+[
+ {
+  "name": "listing_allowance_for",
+  "def": "CREATE OR REPLACE FUNCTION public.listing_allowance_for(p_business_id uuid)\n RETURNS TABLE(period_start timestamp with time zone, period_end timestamp with time zone, allowance integer)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select s.current_period_start,\n         s.current_period_end,\n         coalesce(s.active_listing_limit,\n                  case s.plan_id when 'local_business' then 1 when 'growth' then 4 when 'sponsor' then 8 else 0 end)\n  from public.business_subscriptions s\n  where s.business_profile_id = p_business_id\n    and s.status in ('active', 'trialing')   -- same set as live member_profile_has_active_subscription (read 15 Nov);\n                                              -- sync function also writes cancelled/expired/past_due/revoked\n    and (s.current_period_end is null or s.current_period_end > now())\n  order by coalesce(s.active_listing_limit, 0) desc, s.current_period_end desc nulls last\n  limit 1\n$function$\n"
+ },
+ {
+  "name": "member_profile_has_active_subscription",
+  "def": "CREATE OR REPLACE FUNCTION public.member_profile_has_active_subscription(p_business_profile_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.business_subscriptions bs\n    where bs.business_profile_id = p_business_profile_id\n      and bs.status in ('active', 'trialing')\n      and (\n        bs.current_period_end is null\n        or bs.current_period_end > now()\n      )\n  );\n$function$\n"
+ }
+]

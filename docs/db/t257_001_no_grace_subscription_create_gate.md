@@ -1,0 +1,21 @@
+# t257_001 - no grace period: an active, paid subscription is required to create
+
+- **Applied:** live project `fujngeynyosnplviyvbg`, migration version `20261117231117` (UTC), 18 Nov 2026 12:11 NZDT, via Supabase MCP `apply_migration`.
+- **Decision (Isaac, t257 / confirmed t259):** from the subscription end date (`current_period_end`) no organisation create can happen. Creating resumes as soon as payment is made. No grace period. This prevents spam and funds the product. Do not change it without Isaac.
+- **Files**
+  - `supabase/migrations/20261117231117_t257_001_no_grace_subscription_create_gate.sql` - exact SQL applied
+  - `supabase/rollbacks/20261117231117_t257_001_no_grace_subscription_create_gate_rollback.sql` - restores the previous functions and drops the gate
+  - `docs/db/t257_001_no_grace_subscription_create_gate_before_snapshot.json` - pre-change definitions
+  - `docs/db/t257_001_no_grace_subscription_create_gate_probe.sql` - verification probe (throwaway users, rolled back)
+- **What changed**
+  - `member_profile_has_active_subscription` and `listing_allowance_for` count a subscription only if status is `active`/`trialing` AND `current_period_end` is set AND in the future.
+  - New `require_active_subscription_for_create()` BEFORE INSERT trigger `ab_require_active_subscription` on `public.events` (listings, org calendar items, polls) and `public.member_notices`. It raises `subscription_ended` (had one before) or `subscription_required` (never had one). `past_due`, `unpaid`, `canceled`, `incomplete` and expired-period rows are all refused. Support is exempt.
+  - Apps map both errors to "Your subscription has ended. Renew to keep creating." (iOS has no Stripe wording.)
+- **Verification (18 Nov 2026 NZDT)**
+  - C1 no subscription ever: org calendar, listing, notice all DENIED (subscription_required)
+  - C2 active but period ended 1 min ago: all DENIED (subscription_ended)
+  - C3 past_due with future period end: all DENIED (subscription_ended)
+  - C4 active with no end date: all DENIED (subscription_ended)
+  - C5 renewed (active, ends in 30 days): all ALLOWED, can_publish=true
+  - C6 Support: notice ALLOWED (exempt); org calendar/listing refusals there are the pre-existing owner-only rules
+- **Convention note:** the repo had no SQL folder before this. This uses the Supabase CLI layout (`supabase/migrations/<version>_<name>.sql`, version matching the live migration history). Earlier t248/t251/t253 migrations live only in the database history and in `~/Projects/CoastCalendar-backups/`, not here.
