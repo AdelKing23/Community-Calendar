@@ -422,6 +422,13 @@ function userFacingServiceMessage(raw: string, status?: number) {
 
   const message = combined.toLowerCase();
 
+  if (message.includes("subscription_ended")) {
+    return "Your subscription has ended. Renew to keep creating.";
+  }
+  if (message.includes("subscription_required")) {
+    return "An active subscription is needed to create. Choose a plan to start creating.";
+  }
+
   if (message.includes("organisation_suspended") || message.includes("organisation is suspended")) {
     return "Your organisation is suspended. Contact Support to have it reinstated.";
   }
@@ -1918,6 +1925,7 @@ function SettingsHub({
         </div>
         <p className="panel-note">These choices are saved on this device. Push alerts come from the iPhone app.</p>
         <p className="eyebrow">Recent updates{unread.length ? ` · ${unread.length} unread` : ""}</p>
+        {onMarkNotificationRead ? <MarkAllReadOnView unread={unread.length} onMarkRead={onMarkNotificationRead} /> : null}
         {notifications.length ? (
           <ul className="interaction-list">
             {notifications.slice(0, 30).map((n) => (
@@ -2170,6 +2178,12 @@ function SettingsHub({
       <p className="eyebrow">Support</p>
       <div className="settings-group">
         <SettingsRow title="Contact Coast Calendar Support" detail="Send a private support request." action="Open" onClick={onSupport} />
+      </div>
+
+      <p className="eyebrow">Legal</p>
+      <div className="settings-group">
+        <SettingsRow title="Privacy Policy" detail="How Coast Calendar handles personal information." action="Open" onClick={() => { window.location.href = "/privacy"; }} />
+        <SettingsRow title="Terms of Use" detail="Rules for using the Coast Calendar app and website." action="Open" onClick={() => { window.location.href = "/terms"; }} />
       </div>
 
       {onReviewQueue ? (
@@ -3394,6 +3408,22 @@ export default function CommunityCalendarApp() {
 
   async function markNotificationRead(notificationID: string) {
     if (!session) return;
+    if (notificationID === "all") {
+      // t257: opening Notifications marks every unread item read on the server (same as iOS build 14),
+      // so the count only ever shows unseen items and never accumulates.
+      const readAt = new Date().toISOString();
+      setNotifications((current) => current.map((notification) => (notification.read_at ? notification : { ...notification, read_at: readAt })));
+      try {
+        await rest<void>(
+          `user_notifications?user_id=eq.${session.user.id}&read_at=is.null`,
+          { method: "PATCH", body: JSON.stringify({ read_at: readAt }) },
+          session.access_token,
+        );
+      } catch {
+        // Not fatal: the next load shows the true server state.
+      }
+      return;
+    }
     setBusy(true);
     try {
       await rest<void>(
@@ -5613,6 +5643,18 @@ function SavedEventsPanel({ events }: { events: EventRecord[] }) {
   );
 }
 
+// t257: viewing the notifications list clears the unread count (only unseen items ever count).
+function MarkAllReadOnView({ unread, onMarkRead }: { unread: number; onMarkRead: (notificationID: string) => void }) {
+  const done = useRef(false);
+  useEffect(() => {
+    if (!done.current && unread > 0) {
+      done.current = true;
+      onMarkRead("all");
+    }
+  }, [unread, onMarkRead]);
+  return null;
+}
+
 function NotificationsPanel({ notifications, busy, onMarkRead }: {
   notifications: UserNotification[];
   busy: boolean;
@@ -5622,6 +5664,7 @@ function NotificationsPanel({ notifications, busy, onMarkRead }: {
   return (
     <div className="panel">
       <h3>Notifications</h3>
+      <MarkAllReadOnView unread={unreadCount} onMarkRead={onMarkRead} />
       <p className="panel-note">{unreadCount ? `${unreadCount} unread update${unreadCount === 1 ? "" : "s"}.` : "Membership and Support decisions will appear here."}</p>
       {notifications.length === 0 ? <p className="panel-note">No notifications yet.</p> : (
         <div className="notification-list">

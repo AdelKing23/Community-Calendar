@@ -1991,3 +1991,33 @@ button.listing-detail__organiser em { display: block; font-style: normal; font-s
   color: var(--pcc-text);
 }
 .panel .eyebrow, .account-panel .eyebrow, .listing-detail__eyebrow, .panel-note { color: var(--pcc-text) !important; opacity: 1; }
+
+
+/* t257: organisation (host) page text must never sit on the wallpaper photo.
+   Solid light surface + dark grey body text (#3A403E on #FFFDF8 = ~10:1, same as iOS PCCTheme.text). */
+:root { --pcc-text: #3A403E; }
+#host-page {
+  background: #fffdf8;
+  color: var(--pcc-text);
+  border: 1px solid rgba(26, 33, 31, 0.08);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 6px 24px rgba(10, 16, 14, 0.08);
+}
+#host-page h2,
+#host-page p,
+#host-page .event-card__meta,
+#host-page .section__header {
+  color: var(--pcc-text) !important;
+  text-shadow: none !important;
+}
+#host-page .eyebrow { color: #2f5d45 !important; text-shadow: none !important; }
+#hosts > .section__header,
+#hosts > .host-search {
+  background: #fffdf8;
+  color: var(--pcc-text);
+  border-radius: 16px;
+  padding: 12px 16px;
+}
+#hosts > .section__header h2,
+#hosts > .section__header p { color: var(--pcc-text) !important; text-shadow: none !important; }
