@@ -2107,19 +2107,29 @@ html[data-wallpaper]:not([data-wallpaper="ornament"]) .hero .hero__content .eyeb
   color: #c2410c !important;
   text-shadow: none !important;
 }
-html[data-wallpaper]:not([data-wallpaper="ornament"]) :is(#home-feed, #whats-on) {
-  background: #fffdf8;
-  color: var(--pcc-text, #3a403e);
-  border: 1px solid rgba(26, 33, 31, 0.08);
-  border-radius: 24px;
-  padding: 18px;
-  box-shadow: 0 8px 28px rgba(10, 16, 14, 0.12);
-}
-:is(#home-feed, #whats-on) :is(.home-search-label, .home-search-hint, .eyebrow, .panel-note, .widen-row__label),
-html[data-wallpaper]:not([data-wallpaper="ornament"]) :is(#home-feed, #whats-on) :is(.home-search-label, .home-search-hint, .eyebrow, .panel-note, .widen-row__label) {
+/* t262: no long continuous background behind Home / What's On (it hid the wallpaper). Self-contained content
+   (listing cards, empty states, the calendar, the welcome message, the hero copy) keeps its own card, like Hosts.
+   Text inside those cards stays dark grey: */
+:is(#home-feed, #whats-on) :is(.empty-state, .event-card, .home-calendar) :is(.eyebrow, .panel-note, .widen-row__label) {
   color: var(--pcc-text, #3a403e) !important;
   text-shadow: none !important;
 }
+/* Text that sits directly on the wallpaper (Search label, "Tap here to search again") is off-white on its own
+   compact dark scrim, so it reads on any wallpaper: #FFFDF8 on rgba(26,33,31,0.84) is >= 9.5:1 even over pure
+   white and higher over darker photos. */
+html :is(#home-feed, #whats-on) > :is(.home-search-label, .home-search-hint),
+html[data-wallpaper] :is(#home-feed, #whats-on) > :is(.home-search-label, .home-search-hint) {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  color: #fffdf8 !important;
+  background: rgba(26, 33, 31, 0.84);
+  padding: 4px 12px;
+  border-radius: 999px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55) !important;
+  opacity: 1 !important;
+}
+:is(#home-feed, #whats-on) > .panel-note:empty { display: none; }
 /* t258: remaining faded 62-68% ink text (4.2-4.9:1 on white/cream, under or borderline AA) -> the one body grey
    (#3A403E = 10.59:1 on white, 9.5:1 on cream). Disabled/busy/pending dims are states and stay as they are. */
 .mode-switch > span, .operator-header p:last-child, .event-card__footer, .event-card__body p, .host-card p,

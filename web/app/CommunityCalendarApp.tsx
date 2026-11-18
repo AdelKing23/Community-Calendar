@@ -1117,7 +1117,9 @@ function emptyNoticeDraft(): NoticeDraft {
   };
 }
 
-type AppView = "home" | "whatsOn" | "hosts" | "create" | "account" | "support" | "privacy" | "terms" | "contact" | "settings";
+type AppView = "home" | "whatsOn" | "hosts" | "create" | "account" | "support" | "privacy" | "terms" | "contact" | "settings" | "legal";
+// t262: /privacy, /terms and /support render inside the app shell so the side navigator stays on every page.
+export type LegalPageInfo = { eyebrow: string; title: string; updated?: string };
 
 
 function SettingsRow({
@@ -2853,7 +2855,7 @@ function MyListingsPane({ session, onBack, onSignIn, onOpen }: { session: { acce
   );
 }
 
-export default function CommunityCalendarApp() {
+export default function CommunityCalendarApp({ legalPage, children }: { legalPage?: LegalPageInfo; children?: React.ReactNode } = {}) {
   useEffect(() => {
     applyThemeForUser(null);
   }, []);
@@ -2872,7 +2874,12 @@ export default function CommunityCalendarApp() {
   const [selectedHost, setSelectedHost] = useState<HostRecord | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
-  const [view, setView] = useState<AppView>("home");
+  const [view, setView] = useState<AppView>(legalPage ? "legal" : "home");
+  // t262: leaving a standalone legal page through the navigator returns the address bar to "/".
+  useEffect(() => {
+    if (!legalPage || view === "legal" || typeof window === "undefined") return;
+    if (window.location.pathname !== "/") window.history.replaceState(null, "", "/");
+  }, [view, legalPage]);
   const [hosts, setHosts] = useState<HostRecord[]>([]);
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -2937,7 +2944,8 @@ export default function CommunityCalendarApp() {
   }
   const topicChipStyle = (active: boolean): React.CSSProperties => active
     ? { background: "var(--pcc-orange)", color: "#fff", border: "1px solid var(--pcc-orange)" }
-    : { background: "var(--pcc-card)", color: "var(--pcc-green)", border: "1px solid var(--pcc-green)" };
+    // t262: inactive filter chips sit straight on the wallpaper now, so they are a solid cream fill (green on #FFFDF8 = 9.4:1)
+    : { background: "#fffdf8", color: "var(--pcc-green)", border: "1px solid var(--pcc-green)" };
 
 
   const eventHost = useMemo(() => new Map(hosts.map((host) => [host.id, host])), [hosts]);
@@ -3921,6 +3929,12 @@ export default function CommunityCalendarApp() {
                   <h1>Support</h1>
                   <p className="intro">We are here to help. Send a message if there is something we should know, or something we could improve. This is our community.</p>
                 </>
+              ) : view === "legal" && legalPage ? (
+                <>
+                  <p className="eyebrow">{legalPage.eyebrow}</p>
+                  <h1>{legalPage.title}</h1>
+                  {legalPage.updated ? <p className="intro">Last updated {legalPage.updated}</p> : null}
+                </>
               ) : view === "settings" ? (
                 <>
                   <p className="intro">Set yourself and your organisation up here. Settle in, and send feedback if something should work better.</p>
@@ -4340,6 +4354,13 @@ export default function CommunityCalendarApp() {
           </section>
           )}
 
+          {view === "legal" && legalPage && !selectedEvent && (
+          <section className="section" id="legal-page">
+            <div className="panel legal-page" style={{ display: "grid", gap: 14, lineHeight: 1.6 }}>
+              {children}
+            </div>
+          </section>
+          )}
           {view === "terms" && (
           <section className="section" id="terms">
             <div className="section__header">
