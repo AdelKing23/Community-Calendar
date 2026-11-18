@@ -2130,6 +2130,71 @@ html[data-wallpaper] :is(#home-feed, #whats-on) > :is(.home-search-label, .home-
   opacity: 1 !important;
 }
 :is(#home-feed, #whats-on) > .panel-note:empty { display: none; }
+/* t263: the location / filter controls get their own self-contained card over the wallpaper (Hosts style),
+   separate from the welcome and listing cards, with wallpaper showing in the gap between them. Solid cream so
+   every label reads (#3A403E on #FFFDF8 = 10.4:1); pills keep their own solid fills. */
+:is(#home-feed, #whats-on) > .location-card {
+  background: #fffdf8;
+  color: var(--pcc-text, #3a403e);
+  border: 1px solid rgba(26, 33, 31, 0.08);
+  border-radius: 24px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 28px rgba(10, 16, 14, 0.12);
+  margin-bottom: 18px;
+}
+html :is(#home-feed, #whats-on) > .location-card :is(.home-search-label, .home-search-hint, .panel-note),
+html[data-wallpaper] :is(#home-feed, #whats-on) > .location-card :is(.home-search-label, .home-search-hint, .panel-note) {
+  display: block;
+  width: auto;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: var(--pcc-text, #3a403e) !important;
+  text-shadow: none !important;
+}
+:is(#home-feed, #whats-on) > .location-card > .area-row:last-child { margin-bottom: 0; }
+:is(#home-feed, #whats-on) > .location-card .panel-note:empty { display: none; }
+#home-feed > .event-list, #whats-on > .event-grid { margin-top: 0 !important; }
+/* t264: the same card treatment on every page and every wallpaper (the ornament pattern included). Page titles and
+   intros (Home, What's On, Hosts, organisation pages, Settings, Account / Sign in, Support, Privacy, Terms) sit on
+   their own self-contained cream card, and the footer is its own card too; wallpaper shows around and between
+   them. Ink #1A211F / dark grey #3A403E on #FFFDF8 (10.4:1 to 15.9:1). */
+html[data-wallpaper="ornament"] .hero .hero__content,
+html:not([data-wallpaper]) .hero .hero__content {
+  min-height: 0;
+  width: auto;
+  max-width: 760px;
+  margin: 24px 16px 20px;
+  padding: 20px 22px;
+  background: #fffdf8;
+  border: 1px solid rgba(26, 33, 31, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 8px 28px rgba(10, 16, 14, 0.12);
+}
+@media (min-width: 760px) {
+  html[data-wallpaper="ornament"] .hero .hero__content,
+  html:not([data-wallpaper]) .hero .hero__content { margin-left: 32px; margin-right: 32px; padding: 24px 28px; }
+}
+html[data-wallpaper="ornament"] .hero .hero__content :is(h1, h2),
+html:not([data-wallpaper]) .hero .hero__content :is(h1, h2) { color: var(--pcc-ink, #1a211f) !important; text-shadow: none !important; }
+html[data-wallpaper="ornament"] .hero .hero__content :is(p, .intro, .panel-note),
+html:not([data-wallpaper]) .hero .hero__content :is(p, .intro, .panel-note) { color: var(--pcc-text, #3a403e) !important; text-shadow: none !important; }
+html[data-wallpaper="ornament"] .hero .hero__content .eyebrow,
+html:not([data-wallpaper]) .hero .hero__content .eyebrow { color: #c2410c !important; }
+/* the photo hero card goes fully solid (was 96%) */
+html[data-wallpaper] .hero .hero__content { background: #fffdf8; }
+/* footer: one self-contained card on every wallpaper, wallpaper visible around it */
+html .footer {
+  width: min(1040px, calc(100% - 32px));
+  margin: 24px auto 20px;
+  padding: 18px 20px;
+  background: #fffdf8;
+  color: var(--pcc-text, #3a403e);
+  border: 1px solid rgba(26, 33, 31, 0.08);
+  border-radius: 22px;
+  box-shadow: 0 8px 28px rgba(10, 16, 14, 0.12);
+}
+html .footer .footer__links :is(a, button) { color: #1f4d33; }
 /* t258: remaining faded 62-68% ink text (4.2-4.9:1 on white/cream, under or borderline AA) -> the one body grey
    (#3A403E = 10.59:1 on white, 9.5:1 on cream). Disabled/busy/pending dims are states and stay as they are. */
 .mode-switch > span, .operator-header p:last-child, .event-card__footer, .event-card__body p, .host-card p,

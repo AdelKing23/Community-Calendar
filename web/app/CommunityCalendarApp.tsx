@@ -3950,8 +3950,9 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
 
           {!selectedEvent && view === "home" && (
           <section className="section section--tight" id="home-feed">
-
-            <p className="eyebrow" style={{ color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.45)", marginBottom: 8 }}>Search</p>
+            {/* t263: location controls on their own self-contained card (Hosts style); listings stay separate cards */}
+            <div className="location-card" role="group" aria-label="Choose your area">
+            <p className="eyebrow home-search-label" style={{ marginBottom: 8 }}>Search</p>
           <div className="home-header-row">
           <button type="button" className="area-pill area-pill--current" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
               {locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "Choose area"}
@@ -4001,6 +4002,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
               <span className="area-pill area-pill--neutral">{weeklyViews == null ? "—" : weeklyViews} views this week</span>
               <span className="area-pill area-pill--neutral">{(homeEventIDs ?? []).length} listings</span>
             </div>
+            </div>
             {homeViewMode === "calendar" ? (
               <HomeCalendar<EventRecord>
                 homeScope={homeScope}
@@ -4045,6 +4047,8 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
 
           {!selectedEvent && view === "whatsOn" && (
           <section className="section" id="whats-on">
+            {/* t263: area, date and topic filters on their own self-contained card (Hosts style) */}
+            <div className="location-card" role="group" aria-label="Filter listings">
             <button type="button" className="area-pill area-pill--current" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
               Showing {locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "your area"} ⌕
             </button>
@@ -4098,6 +4102,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                   {topic.label}
                 </button>
               ))}
+            </div>
             </div>
             {visibleEvents.length === 0 ? <EmptyState title={dateScope === "today" ? "Nothing scheduled here today" : dateScope === "week" ? "It’s a quiet time right now" : dateScope === "month" ? "No listings match this month" : "Nothing coming up in this area"} text={dateScope === "week" ? "List something to be the first thing this week." : `Try a wider area or another topic to discover more around ${homeAreaName}.`}>
               {ancestorScopesOf(homeScope, locationScopes, locationEdges).length ? (
