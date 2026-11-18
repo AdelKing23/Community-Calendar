@@ -828,7 +828,7 @@ struct SupportRequestsInboxPanel: View {
     let onDeleteAccount: (SupportRequestRecord) -> Void
 
     var body: some View {
-        SupportPanel(title: "Support Inbox", icon: "envelope.open.fill", count: requests.count, defaultExpanded: false) {
+        SupportPanel(title: "Support Inbox", icon: "envelope.open.fill", count: requests.count, itemIDs: requests.map { "\($0.id)" }, seenSection: "inbox", defaultExpanded: false) {
             if requests.isEmpty {
                 Text("No support messages yet.")
                     .font(.body.weight(.medium))
@@ -957,7 +957,7 @@ struct EventReportsInboxPanel: View {
     let onDismiss: (EventReportRecord) -> Void
 
     var body: some View {
-        SupportPanel(title: "Listing Reports", icon: "flag.fill", count: reports.count, defaultExpanded: false) {
+        SupportPanel(title: "Listing Reports", icon: "flag.fill", count: reports.count, itemIDs: reports.map { "\($0.id)" }, seenSection: "reports", defaultExpanded: false) {
             if reports.isEmpty {
                 Text("No listing reports yet.")
                     .font(.body.weight(.medium))
@@ -1178,7 +1178,7 @@ struct MemberApplicationsPanel: View {
     let onSuspend: (BusinessProfileRecord) -> Void
 
     var body: some View {
-        SupportPanel(title: "Member Applications", icon: "checkmark.seal.fill", count: profiles.count, defaultExpanded: false) {
+        SupportPanel(title: "Member Applications", icon: "checkmark.seal.fill", count: profiles.count, itemIDs: profiles.map { "\($0.id)" }, seenSection: "applications", defaultExpanded: false) {
             if profiles.isEmpty {
                 Text("No member applications have been submitted yet.")
                     .font(.body.weight(.medium))
@@ -1560,7 +1560,7 @@ struct PendingListingsReviewPanel: View {
     let onSetStatus: (LocalEvent, ListingStatus) -> Void
 
     var body: some View {
-        SupportPanel(title: "Pending Listings", icon: "tray.full", count: events.count, defaultExpanded: false) {
+        SupportPanel(title: "Pending Listings", icon: "tray.full", count: events.count, itemIDs: events.map { "\($0.id)" }, seenSection: "pending-listings", defaultExpanded: false) {
             if events.isEmpty {
                 Text("No pending listings are waiting for review.")
                     .font(.body.weight(.medium))
@@ -1749,7 +1749,7 @@ struct ChangeRequestsReviewPanel: View {
     let onReject: (EventChangeRequest) -> Void
 
     var body: some View {
-        SupportPanel(title: "Change Requests", icon: "square.and.pencil", count: requests.count, defaultExpanded: false) {
+        SupportPanel(title: "Change Requests", icon: "square.and.pencil", count: requests.count, itemIDs: requests.map { "\($0.id)" }, seenSection: "change-requests", defaultExpanded: false) {
             if requests.isEmpty {
                 Text("No edit or removal requests are waiting for review.")
                     .font(.body.weight(.medium))
@@ -2132,7 +2132,7 @@ struct SupportEventListPanel: View {
     var defaultExpanded = true
 
     var body: some View {
-        SupportPanel(title: title, icon: icon, count: events.count, defaultExpanded: defaultExpanded) {
+        SupportPanel(title: title, icon: icon, count: events.count, itemIDs: events.map { "\($0.id)" }, seenSection: "events-" + title.lowercased().replacingOccurrences(of: " ", with: "-"), defaultExpanded: defaultExpanded) {
             if events.isEmpty {
                 Text("No listings in this section.")
                     .font(.body.weight(.medium))
@@ -2218,19 +2218,71 @@ struct SupportStatusButton: View {
     }
 }
 
+/// Support section badges (t262). Two different numbers used to share one orange "unread" badge:
+/// inventory totals (Published Events, Ended, Rejected, Archived) and queue sizes. A total never goes
+/// down when you look at it, so the badge could never clear. Now:
+///  - the orange badge counts only items in this section you have not seen yet, and opening the
+///    section marks every item in it as seen (persisted per section, survives relaunch);
+///  - the plain total is shown as a neutral grey number that is information, not an alert.
+enum SupportSeenLogic {
+    static let seenCap = 2000
+
+    static func unseenCount(ids: [String], seen: Set<String>) -> Int {
+        Set(ids).subtracting(seen).count
+    }
+
+    static func merging(_ ids: [String], into existing: [String], cap: Int = seenCap) -> [String] {
+        NotificationBadgeLogic.merging(ids, into: existing, cap: cap)
+    }
+}
+
+enum SupportSeenStore {
+    private static let keyPrefix = "pcc.support.section.seen."
+
+    static func seenIDs(section: String, defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: keyPrefix + section) ?? [])
+    }
+
+    @discardableResult
+    static func markSeen(_ ids: [String], section: String, defaults: UserDefaults = .standard) -> Set<String> {
+        let existing = defaults.stringArray(forKey: keyPrefix + section) ?? []
+        let next = SupportSeenLogic.merging(ids, into: existing)
+        defaults.set(next, forKey: keyPrefix + section)
+        return Set(next)
+    }
+}
+
 struct SupportPanel<Content: View>: View {
     let title: String
     let icon: String
     let count: Int
+    let itemIDs: [String]?
+    let seenSection: String?
     let content: Content
     @State private var isExpanded: Bool
+    @State private var seenIDs: Set<String> = []
 
-    init(title: String, icon: String, count: Int = 0, defaultExpanded: Bool = true, @ViewBuilder content: () -> Content) {
+    init(title: String, icon: String, count: Int = 0, itemIDs: [String]? = nil, seenSection: String? = nil, defaultExpanded: Bool = true, @ViewBuilder content: () -> Content) {
         self.title = title
         self.icon = icon
         self.count = count
+        self.itemIDs = itemIDs
+        self.seenSection = seenSection
         self.content = content()
         _isExpanded = State(initialValue: defaultExpanded)
+        if let seenSection {
+            _seenIDs = State(initialValue: SupportSeenStore.seenIDs(section: seenSection))
+        }
+    }
+
+    private var unseenCount: Int {
+        guard let itemIDs, seenSection != nil else { return 0 }
+        return SupportSeenLogic.unseenCount(ids: itemIDs, seen: seenIDs)
+    }
+
+    private func markSectionSeen() {
+        guard isExpanded, let itemIDs, let seenSection, !itemIDs.isEmpty else { return }
+        seenIDs = SupportSeenStore.markSeen(itemIDs, section: seenSection)
     }
 
     var body: some View {
@@ -2239,6 +2291,7 @@ struct SupportPanel<Content: View>: View {
                 withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
                     isExpanded.toggle()
                 }
+                markSectionSeen()
             } label: {
                 HStack(spacing: 10) {
                     Label(title, systemImage: icon)
@@ -2249,11 +2302,19 @@ struct SupportPanel<Content: View>: View {
 
                     if count > 0 {
                         Text("\(count)")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(PCCTheme.text)
+                            .accessibilityLabel("\(count) in this section")
+                    }
+
+                    if unseenCount > 0 {
+                        Text("\(unseenCount) new")
                             .font(.caption.weight(.black))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .background(PCCTheme.pohutukawaOrange, in: Capsule())
+                            .accessibilityLabel("\(unseenCount) new since you last opened this section")
                     }
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -2270,6 +2331,8 @@ struct SupportPanel<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .pccCardStyle()
+        .onAppear { markSectionSeen() }
+        .pccOnChange(of: itemIDs ?? []) { _, _ in markSectionSeen() }
     }
 }
 

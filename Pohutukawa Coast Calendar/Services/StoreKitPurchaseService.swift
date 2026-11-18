@@ -263,6 +263,20 @@ final class StoreKitPurchaseService: ObservableObject {
         )
     }
 
+    /// t262: "Restore purchases" (App Store Review 3.1.1). Syncs this Apple ID's transactions, then re-reads
+    /// current entitlements so an existing subscription shows "Activate subscription" on this device.
+    @discardableResult
+    func restorePurchases() async -> Bool {
+        do {
+            try await AppStore.sync()
+        } catch {
+            await refreshCurrentEntitlements()
+            return false
+        }
+        await refreshCurrentEntitlements()
+        return true
+    }
+
     func refreshCurrentEntitlements() async {
         var activeProductIDs: Set<String> = []
 

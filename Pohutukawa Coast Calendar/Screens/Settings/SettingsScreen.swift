@@ -1886,9 +1886,10 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
                 "6. Moderation and removal",
                 "Support may review, change the status of, or remove listings, polls, notices, photos or accounts that break these Terms or that we reasonably consider harmful to the community or the Service. We do not promise to review all content.",
                 "7. Subscriptions and payments",
-                "Paid organisation plans are monthly subscriptions that renew automatically until cancelled. You can cancel anytime in your Apple ID subscription settings.",
+                "Paid organisation plans are monthly subscriptions that renew automatically until cancelled. You can cancel anytime in your iPhone Settings > your name > Subscriptions. To stop the next renewal, cancel at least 24 hours before the end of the current period.",
                 "Cancelling stops future renewals. Your plan stays active until the end of the current paid period.",
-                "In the iOS app, payment is charged to your Apple ID and Apple’s standard terms apply. We do not see or store your full card details.",
+                "In the iOS app, payment is charged to your Apple ID and Apple’s standard terms apply. Refund requests for App Store purchases are made to Apple at reportaproblem.apple.com. We do not see or store your full card details.",
+                "When a subscription ends or a renewal is not paid, creating new listings, polls and notices stops until the subscription is renewed.",
                 "8. Intellectual property",
                 "The Coast Calendar name, branding, app, and website are owned by Atlas Digital. You may not copy or reuse them without permission, except for normal personal use of the Service.",
                 "9. Disclaimer and limitation of liability",
@@ -1922,7 +1923,7 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
                 "• notifications we send you, and whether you have read them",
                 "• a push notification token for your device, if you allow notifications, so alerts reach only your signed-in account",
                 "• messages you send to Support and reports you make about listings",
-                "• your subscription or purchase status, including Apple or Stripe reference numbers",
+                "• your subscription or purchase status, including purchase reference numbers",
                 "• basic in-app usage such as listing views and saves (used for app features and simple analytics)",
                 "Location is used only while you are using the app or site to pick an area. It is not stored and you are not tracked.",
                 "3. Public content",
@@ -1930,9 +1931,9 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
                 "4. What we do not do",
                 "We do not show ads. We do not sell your data. We do not track you across other apps or websites.",
                 "5. Payments",
-                "Payments are handled by Apple in the iPhone app and by Stripe on the website. We do not see or store your full card details. We keep a record of each subscription and payment so we can provide your plan and meet our tax obligations.",
+                "Payments in the iPhone app are handled by Apple. We do not see or store your full card details. We keep a record of each subscription and payment so we can provide your plan and meet our tax obligations.",
                 "6. Service providers and where your data is stored",
-                "We use trusted providers who process information only to run the Service: Supabase (database, sign-in and photo storage, hosted in Sydney, Australia), Cloudflare (website hosting), Apple (iPhone purchases and push notifications) and Stripe (website payments). Australia has privacy protections comparable to New Zealand’s. We require our providers to handle data securely.",
+                "We use trusted providers who process information only to run the Service: Supabase (database, sign-in and photo storage, hosted in Sydney, Australia), Cloudflare (website hosting) and Apple (iPhone purchases and push notifications). The full list of providers is in the policy at coastcalendar.nz/privacy. Australia has privacy protections comparable to New Zealand’s. We require our providers to handle data securely.",
                 "7. How we protect your information",
                 "Information is encrypted in transit. Each account can see and change only its own information, and only an organisation’s own account can change what that organisation publishes. Support staff can access information only to run and moderate the Service. If a privacy breach is likely to cause serious harm, we will tell you and the Privacy Commissioner as the Privacy Act requires.",
                 "8. How long we keep information",
@@ -1944,7 +1945,7 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
                 "9. Your rights",
                 "Under the New Zealand Privacy Act 2020 you can ask for a copy of the personal information we hold about you, and ask us to correct it. Email support@coastcalendar.nz from your account email address. We will respond within 20 working days, and we can provide your information as a file you can keep. You can also make a complaint to the Privacy Commissioner (privacy.org.nz).",
                 "10. Deleting your account",
-                "You can request account deletion from Settings in the app, or by emailing support@coastcalendar.nz. We aim to complete deletion within 30 days. Deleting your account cancels any website (Stripe) subscription. If you subscribed in the iPhone app, cancel the subscription in your Apple ID subscription settings, because only you can cancel an Apple subscription.",
+                "You can request account deletion from Settings in the app, or by emailing support@coastcalendar.nz. We aim to complete deletion within 30 days. If you subscribed in the iPhone app, cancel the subscription in your iPhone Settings > your name > Subscriptions, because only you can cancel an Apple subscription. Deleting your account does not cancel Apple billing.",
                 "11. Children’s privacy",
                 "The Service is not directed at children under 13. We do not knowingly collect personal information from children under 13.",
                 "12. Changes to this policy",
@@ -1964,9 +1965,14 @@ enum SettingsDocument: String, CaseIterable, Identifiable {
         case .paymentRefunds:
             return [
                 "Approved member accounts must keep an active subscription to publish or run polls.",
+                "Plans are monthly subscriptions that renew automatically at the price shown when you subscribe, unless cancelled at least 24 hours before the end of the current period. Payment is charged to your Apple ID when you confirm, and each renewal is charged within the 24 hours before the period ends.",
+                "To cancel, open your iPhone Settings > your name > Subscriptions. Cancelling stops future renewals; your plan stays active until the end of the period you have paid for.",
+                "When a subscription ends or a renewal is not paid, creating new listings, polls and notices stops until the subscription is renewed.",
                 "Payments in the app are handled securely by Apple. Coast Calendar does not store card details.",
+                "Refund requests for App Store purchases are handled by Apple at reportaproblem.apple.com, unless New Zealand law requires otherwise.",
+                "Deleting your Coast Calendar account does not cancel Apple billing. Cancel the subscription in your iPhone Settings first.",
                 "Subscription access does not guarantee attendance, sales, bookings or enquiries.",
-                "Refund requests for completed Apple purchases are handled through Apple unless required otherwise by law."
+                "Questions? Email support@coastcalendar.nz."
             ]
         case .communityStandards:
             return [
@@ -1998,7 +2004,7 @@ struct SettingsDocumentScreen: View {
                             ForEach(Array(document.paragraphs.enumerated()), id: \.offset) { _, paragraph in
                                 Text(paragraph)
                                     .font(Self.isSectionHeading(paragraph) ? .headline.weight(.bold) : .body.weight(.medium))
-                                    .foregroundStyle(PCCTheme.ink.opacity(Self.isSectionHeading(paragraph) ? 0.9 : 0.72))
+                                    .foregroundStyle(Self.isSectionHeading(paragraph) ? PCCTheme.ink : PCCTheme.text)
                                     .lineSpacing(4)
                             }
                         }
@@ -3467,7 +3473,42 @@ struct BusinessPlansScreen: View {
                         .stroke(draft.selectedPlan == plan ? PCCTheme.leafGreen.opacity(0.45) : .clear, lineWidth: 1.5)
                 }
             }
+
+            subscriptionDisclosure
         }
+    }
+
+    /// t262: auto-renew disclosure, Terms/Privacy links and Restore purchases next to the plans (App Store Review 3.1.2).
+    private var subscriptionDisclosure: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Plans are monthly subscriptions that renew automatically at the price shown unless cancelled at least 24 hours before the end of the current period. Payment is charged to your Apple ID when you confirm the purchase, and each renewal is charged within the 24 hours before the period ends. Cancel any time in your iPhone Settings > your name > Subscriptions. Refunds are handled by Apple at reportaproblem.apple.com.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(PCCTheme.text)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 18) {
+                if let termsURL = URL(string: "https://coastcalendar.nz/terms") {
+                    Link("Terms of Use", destination: termsURL)
+                }
+                if let privacyURL = URL(string: "https://coastcalendar.nz/privacy") {
+                    Link("Privacy Policy", destination: privacyURL)
+                }
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(PCCTheme.leafGreen)
+
+            Button {
+                Task { await purchaseService.restorePurchases() }
+            } label: {
+                Label("Restore purchases", systemImage: "arrow.clockwise")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(PCCTheme.leafGreen)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Checks your Apple ID for an existing Coast Calendar subscription")
+        }
+        .padding(.top, 4)
     }
 
     private var statusCard: some View {

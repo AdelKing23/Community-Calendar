@@ -37,6 +37,39 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(NotificationBadgeLogic.badgeCount(items: items, seen: ["sign-in"], muted: [.subscription]), 0)
     }
 
+    // t262: Support section badges count only unseen items; opening a section clears its badge, persistently.
+    func testSupportSectionBadgeCountsOnlyUnseenItems() {
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["e1"], seen: []), 1)
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["e1"], seen: ["e1"]), 0)
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["e1", "e1", "e2"], seen: ["e1"]), 1)
+    }
+
+    func testSupportSectionOpeningClearsBadgeAndPersistsAcrossRelaunch() {
+        let suite = "t262.support.seen.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        // Published Events = 1, Ended = 1 before opening (the TestFlight build 14 report).
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["pub-1"], seen: SupportSeenStore.seenIDs(section: "events-published-events", defaults: defaults)), 1)
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["end-1"], seen: SupportSeenStore.seenIDs(section: "events-ended", defaults: defaults)), 1)
+        SupportSeenStore.markSeen(["pub-1"], section: "events-published-events", defaults: defaults)
+        SupportSeenStore.markSeen(["end-1"], section: "events-ended", defaults: defaults)
+        // "Relaunch": read back from storage.
+        let relaunched = UserDefaults(suiteName: suite)!
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["pub-1"], seen: SupportSeenStore.seenIDs(section: "events-published-events", defaults: relaunched)), 0)
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["end-1"], seen: SupportSeenStore.seenIDs(section: "events-ended", defaults: relaunched)), 0)
+        // A genuinely new item badges again; the old one stays cleared.
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["pub-1", "pub-2"], seen: SupportSeenStore.seenIDs(section: "events-published-events", defaults: relaunched)), 1)
+    }
+
+    func testSupportSectionSeenIsPerSection() {
+        let suite = "t262.support.section.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        SupportSeenStore.markSeen(["e1"], section: "events-published-events", defaults: defaults)
+        // The same listing moving to Ended is new to the Ended section.
+        XCTAssertEqual(SupportSeenLogic.unseenCount(ids: ["e1"], seen: SupportSeenStore.seenIDs(section: "events-ended", defaults: defaults)), 1)
+    }
+
     func testBellSeenListIsCappedAndKeepsNewest() {
         let ids = (0..<500).map { "backend-\($0)" }
         let merged = NotificationBadgeLogic.merging(ids, into: [], cap: 400)
