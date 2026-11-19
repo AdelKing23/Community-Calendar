@@ -89,52 +89,29 @@ struct SettingsScreen: View {
                             .buttonStyle(.plain)
                         }
 
-                        // t270: one "Organisation" card; each row goes straight to its screen (layout only,
-                        // ownership and permission rules are unchanged).
+                        // t273: the Settings Organisation card is the organisation's dashboard. Only an approved owner
+                        // sees the full list; everyone else sees one "Create an Organisation" row (with their
+                        // application status). Ownership and permission rules are unchanged.
                         SettingsActionSection(title: "Organisation") {
-                            if userSessionStore.isSignedIn {
+                            if userSessionStore.isSignedIn && organisationIsApproved {
                                 organisationRow(
                                     id: "org-page",
                                     icon: "person.text.rectangle",
-                                    title: "Organisation page",
-                                    subtitle: organisationIsApproved ? "Edit your public page." : "Register your organisation for Support approval.",
-                                    detail: organisationIsApproved ? "Edit" : memberPageDetail,
-                                    entry: organisationIsApproved ? .homePage : .dashboard
+                                    title: "Set up Org Homepage",
+                                    subtitle: "Add images and details for your organisation's home page.",
+                                    detail: "Edit",
+                                    entry: .homePage
                                 )
                                 organisationDivider
                                 organisationRow(
                                     id: "org-subscriptions",
                                     icon: "creditcard",
-                                    title: "Subscriptions",
-                                    subtitle: "Choose or change your monthly plan.",
+                                    title: "Org's Subscriptions",
+                                    subtitle: "Your current plan and details. Choose or change a plan.",
                                     detail: overviewBusinessState.activeSubscription != nil ? "Active" : "Plans",
                                     entry: .plans
                                 )
                                 organisationDivider
-                                organisationRow(
-                                    id: "org-dashboard",
-                                    icon: "rectangle.grid.1x2",
-                                    title: "Organisation dashboard",
-                                    subtitle: "Status, next steps and creating listings.",
-                                    detail: "Open",
-                                    entry: .dashboard
-                                )
-                            } else {
-                                organisationRow(
-                                    id: "listed-member-application",
-                                    icon: "checkmark.seal",
-                                    title: "Register your Organisation",
-                                    subtitle: "Register, get Support approval, then subscribe to release listings to the public board.",
-                                    detail: "Apply",
-                                    entry: .dashboard
-                                )
-                            }
-
-                            if userSessionStore.isSignedIn {
-                                Divider()
-                                    .overlay(PCCTheme.ink.opacity(0.08))
-                                    .padding(.leading, 48)
-
                                 Button {
                                     showMyListings = true
                                 } label: {
@@ -142,7 +119,7 @@ struct SettingsScreen: View {
                                         content: SettingsRowContent(
                                             id: "previous-listings",
                                             icon: "rectangle.stack",
-                                            title: "My listings",
+                                            title: "Org's Listings",
                                             subtitle: "Review, edit, remove, and follow Support feedback.",
                                             detail: "Open",
                                             style: .disclosure,
@@ -151,31 +128,34 @@ struct SettingsScreen: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
-
-                                if overviewBusinessState.profile?.memberStatus == .approved {
-                                    Divider()
-                                        .overlay(PCCTheme.ink.opacity(0.08))
-                                        .padding(.leading, 48)
-
-                                    Button {
-                                        orgCalendarProfileID = overviewBusinessState.profile?.id
-                                        orgCalendarName = overviewBusinessState.profile?.businessName ?? "Organisation"
-                                        showOrgCalendar = true
-                                    } label: {
-                                        SettingsRow(
-                                            content: SettingsRowContent(
-                                                id: "org-calendar-settings",
-                                                icon: "calendar.badge.plus",
-                                                title: "Org Calendar",
-                                                subtitle: "Add and manage dates for your organisation.",
-                                                detail: "Open",
-                                                style: .disclosure,
-                                                isEnabled: true
-                                            )
+                                organisationDivider
+                                Button {
+                                    orgCalendarProfileID = overviewBusinessState.profile?.id
+                                    orgCalendarName = overviewBusinessState.profile?.businessName ?? "Organisation"
+                                    showOrgCalendar = true
+                                } label: {
+                                    SettingsRow(
+                                        content: SettingsRowContent(
+                                            id: "org-calendar-settings",
+                                            icon: "calendar.badge.plus",
+                                            title: "Org Calendar",
+                                            subtitle: "Add and manage dates for your organisation.",
+                                            detail: "Open",
+                                            style: .disclosure,
+                                            isEnabled: true
                                         )
-                                    }
-                                    .buttonStyle(.plain)
+                                    )
                                 }
+                                .buttonStyle(.plain)
+                            } else {
+                                organisationRow(
+                                    id: "listed-member-application",
+                                    icon: "checkmark.seal",
+                                    title: "Create an Organisation",
+                                    subtitle: createOrganisationSubtitle,
+                                    detail: userSessionStore.isSignedIn ? memberPageDetail : "Apply",
+                                    entry: .dashboard
+                                )
                             }
                         } footer: {
                             Text("Register your Organisation with a free account. Support approves it; subscription is only needed to release listings publicly.")
@@ -489,6 +469,18 @@ struct SettingsScreen: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private var createOrganisationSubtitle: String {
+        guard userSessionStore.isSignedIn, let profile = overviewBusinessState.profile else {
+            return "Register, get Support approval, then subscribe to release listings to the public board."
+        }
+        switch profile.memberStatus {
+        case .approved:
+            return "Register, get Support approval, then subscribe to release listings to the public board."
+        default:
+            return "Application status: \(profile.memberStatus.displayTitle)."
+        }
     }
 
     private var memberPageDetail: String {
@@ -2759,8 +2751,8 @@ enum BusinessPlansEntry: String, Identifiable {
     var navigationTitle: String {
         switch self {
         case .dashboard: return "Organisation"
-        case .homePage: return "Organisation page"
-        case .plans: return "Subscriptions"
+        case .homePage: return "Set up Org Homepage"
+        case .plans: return "Org's Subscriptions"
         }
     }
 }
@@ -3045,8 +3037,12 @@ struct BusinessPlansScreen: View {
     }
 
     private var headerTitle: String {
-        if accountState.profile == nil { return "Register your Organisation" }
-        return "Organisation Dashboard"
+        if accountState.profile == nil { return "Create an Organisation" }
+        switch entry {
+        case .homePage: return "Set up Org Homepage"
+        case .plans: return "Org's Subscriptions"
+        case .dashboard: return "Your Organisation"
+        }
     }
 
     private var headerSubtitle: String {
@@ -3088,7 +3084,7 @@ struct BusinessPlansScreen: View {
                 MembershipStepRow(number: "1", title: "Sign in normally", message: "Use a regular app account first. Browsing, saving and reminders stay separate from membership.")
                 MembershipStepRow(number: "2", title: "Register your Organisation", message: "Tell us who you represent and who is authorised to manage the membership. Public homepage details are set up separately.")
                 MembershipStepRow(number: "3", title: "Wait for admin approval", message: "Your application shows as pending until Support approves it.")
-                MembershipStepRow(number: "4", title: "Use your dashboard", message: "After approval, finish your page, activate the subscription, publish listings and post Notices for followers.")
+                MembershipStepRow(number: "4", title: "Use Settings > Organisation", message: "After approval, finish your page, activate the subscription, publish listings and post Notices for followers.")
             }
         }
         .padding(18)
@@ -3477,8 +3473,8 @@ struct BusinessPlansScreen: View {
 
             SettingsInfoMessage(
                 icon: "checkmark.seal.fill",
-                title: "Use the web dashboard for Notices",
-                message: "Create weekly letters and member updates from the web dashboard with fixed templates and image slots so they stay clean for people who Belong to your page."
+                title: "Use the website for Notices",
+                message: "Create weekly letters and member updates on coastcalendar.nz with fixed templates and image slots so they stay clean for people who Belong to your page."
             )
         }
         .padding(18)
@@ -4560,7 +4556,7 @@ struct BusinessPlansScreen: View {
 
     private var memberDashboardTitle: String {
         if accountState.profile?.memberStatus == .approved {
-            return "Organisation dashboard"
+            return "Your Organisation"
         }
         return "Complete your membership"
     }
