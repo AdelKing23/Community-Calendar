@@ -906,6 +906,40 @@ function ToggleRow({ title, detail, on, onChange }: { title: string; detail?: st
   );
 }
 
+// t274: the three monthly plans on Org's Subscriptions. No plan: pick one and pay (same checkout as before).
+// With a plan: the tiers are shown with the current one marked; changing happens after the current plan ends.
+function PlanTiers({ session, profileId, current }: { session: AuthSession; profileId: string; current: SubscriptionRecord | null }) {
+  const [plan, setPlan] = useState<string>(current?.plan_id ?? "local_business");
+  const [paying, setPaying] = useState(false);
+  const [payNote, setPayNote] = useState("");
+  return (
+    <div className="pcc-card setup-card">
+      <h3>Monthly plans</h3>
+      <div className="plan-grid">
+        {iosPlans.map((p) => {
+          const isCurrent = current?.plan_id === p.id;
+          const on = current ? isCurrent : plan === p.id;
+          return (
+            <button type="button" key={p.id} className={on ? "plan-card is-on" : "plan-card"} aria-pressed={on} disabled={Boolean(current)} onClick={() => setPlan(p.id)}>
+              <strong>{p.title}{isCurrent ? " · Current" : ""}</strong><span className="plan-card__price">{p.price}</span><small>{p.allowance}</small><small>{p.blurb}</small>
+            </button>
+          );
+        })}
+      </div>
+      {current ? (
+        <p className="panel-note">{current.provider === "stripe" ? "To change plan, cancel below. Your plan keeps working until it ends, then choose a new plan here." : "This plan is billed by Apple. Change or cancel it in your iPhone Settings > your name > Subscriptions."}</p>
+      ) : (
+        <>
+          <button type="button" className="button button--primary" disabled={!STRIPE_ENABLED || paying} aria-busy={paying} onClick={() => { if (paying) return; setPaying(true); setPayNote("Opening secure checkout…"); startCheckout(plan, profileId, session.access_token).catch((e) => { setPaying(false); setPayNote(e instanceof Error ? e.message : "Checkout failed."); }); }}>
+            {paying ? "Opening checkout…" : STRIPE_ENABLED ? `Pay ${iosPlans.find((p) => p.id === plan)?.price ?? ""}` : "Pay by card"}
+          </button>
+          <p className="panel-note">{STRIPE_ENABLED ? payNote : "Card payments on web coming soon. Activate in the iPhone app for now."}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // launch1: clear, easy cancel. Stripe → Billing Portal (create-portal-session); Apple → App Store subscriptions.
 function CancelPlanControl({ subscriptions, session, profileId }: { subscriptions: SubscriptionRecord[]; session: AuthSession | null; profileId: string | null | undefined }) {
   const [busy, setBusy] = useState(false);
@@ -2009,32 +2043,20 @@ function SettingsHub({
         <h2>Org&apos;s Subscriptions</h2>
         {!session || !memberProfile ? (
           <button type="button" className="button button--primary" onClick={() => setPane("setup")}>Get set up</button>
-        ) : !current ? (
-          <>
-            <SubscriptionEndLine subscriptions={subscriptions} />
-            <button type="button" className="button button--primary" onClick={() => setPane("setup")}>Choose a plan</button>
-          </>
         ) : (
           <>
-            <p className="status-pill">{title}</p>
+            {/* t274: only the current status, when it renews, and the three monthly plans */}
+            <p className="status-pill">{title ? `${title} · ${current?.status === "trialing" ? "Trial" : "Active"}` : "No active subscription"}</p>
             <SubscriptionEndLine subscriptions={subscriptions} />
-            <div className="settings-group settings-group--pad">
-              {allowance ? (
-                <InfoRow title="New listings this period" detail={`${allowance.used} of ${allowance.allowance}${allowance.resets_at ? ` · resets ${nzLongDate(allowance.resets_at)}` : ""}`} />
-              ) : (
-                <InfoRow title="Active listings and polls" detail={`${usedListings ?? "–"} used of ${current.active_listing_limit} · ${usedListings == null ? "" : Math.max(0, current.active_listing_limit - usedListings) + " remaining"}`} />
-              )}
-              <InfoRow title="Placement" detail="Placement follows your plan." />
-              <InfoRow title="Billed by" detail={current.provider === "stripe" ? "Card (Stripe)" : "Apple"} />
-            </div>
-            {current.provider === "stripe" ? (
+            <PlanTiers session={session} profileId={memberProfile.id} current={current} />
+            {current && current.provider === "stripe" ? (
               <>
                 <button type="button" className="button" disabled={billingBusy} onClick={() => void manageBilling()}>{billingBusy ? "Opening…" : "Billing details and invoice PDFs"}</button>
                 <p className="panel-note">Opens Stripe billing, where you can update your card and download invoices.</p>
                 {billingError ? <p className="panel-note" role="alert">{billingError}</p> : null}
               </>
             ) : null}
-            <div className="danger-zone"><CancelPlanControl subscriptions={subscriptions} session={session} profileId={memberProfile.id} /></div>
+            {current ? <div className="danger-zone"><CancelPlanControl subscriptions={subscriptions} session={session} profileId={memberProfile.id} /></div> : null}
           </>
         )}
       </section>
@@ -2167,7 +2189,7 @@ function SettingsHub({
             <SettingsRow title="My interactions" detail="Liked, Going, Belong, Reminders, Saved and Shared." action="Open" onClick={() => setPane("interactions")} />
             <SettingsRow title="Notifications" detail={notifications.some((n) => !n.read_at) ? `${notifications.filter((n) => !n.read_at).length} unread · choose what you hear about` : "Choose what you hear about."} action="Open" onClick={() => setPane("notifications")} />
             <SettingsRow title="Membership" detail="Organisations you own or Belong to." action="Open" onClick={() => setPane("membership")} />
-            <SettingsRow title="My Calendar" detail="Your Going dates and organisations you Belong to." action="Open" onClick={() => setPane("calendar")} />
+            <SettingsRow title="My Calendar" detail="Your Going dates, organisations you Belong to, and listings you have liked or added will appear here in your calendar so you stay up with your communities." action="Open" onClick={() => setPane("calendar")} />
           </>
         ) : (
           <SettingsRow title="Create account or sign in" detail="Create a free account to save listings, set reminders, and Belong to organisations." action="Open" onClick={onAccount} />
@@ -2197,6 +2219,9 @@ function SettingsHub({
             onClick={() => setPane("setup")}
           />
         )}
+        {session && !orgApproved ? (
+          <SettingsRow title="Org's Listings" detail="Review, edit, remove, and follow Support feedback." action="Open" onClick={() => setPane("listings")} />
+        ) : null}
       </div>
 
       <p className="eyebrow">Appearance</p>
@@ -2358,7 +2383,7 @@ function ListingEditForm({ listing, busy, onCancel, onSubmit }: {
   return (
     <section className="panel account-panel">
       <button type="button" className="text-link" onClick={onCancel}>Back</button>
-      <p className="eyebrow">My listings</p>
+      <p className="eyebrow">Org&apos;s Listings</p>
       <h2>Request an edit</h2>
       <p className="panel-note">Your public listing will not change until Support reviews this request.</p>
       <form className="form-grid" onSubmit={(event) => { event.preventDefault(); if (canSend) onSubmit(draft, note); }}>
@@ -2844,7 +2869,7 @@ function MyListingsPane({ session, onBack, onSignIn, onOpen }: { session: { acce
     <section className="panel account-panel">
       <button type="button" className="text-link" onClick={onBack}>← Back to Settings</button>
       <p className="eyebrow">Organisations</p>
-      <h2>My listings</h2>
+      <h2>Org&apos;s Listings</h2>
       {!session ? <EmptyState title="Sign in to see your listings" text="Sign in here to see submitted, pending, approved and archived listings."><button type="button" className="button button--primary" onClick={onSignIn}>Sign in</button></EmptyState> : null}
       {note ? <p className="panel-note">{note}</p> : null}
       {session && !note && rows.length === 0 ? <EmptyState title="No listings yet" text="Listings you can manage will appear here after they are sent for review." /> : null}
