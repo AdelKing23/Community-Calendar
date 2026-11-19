@@ -860,7 +860,7 @@ struct MyListingsPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("My Listings")
+                    Text("Org's Listings")
                         .font(.title3.weight(.black))
                         .foregroundStyle(PCCTheme.ink)
 
@@ -3280,7 +3280,7 @@ struct SubmissionReceivedCard: View {
 
             VStack(spacing: 10) {
                 Button(action: onViewListing) {
-                    Label("Open My Listings", systemImage: "rectangle.stack.fill")
+                    Label("Open Org's Listings", systemImage: "rectangle.stack.fill")
                         .font(.headline.weight(.black))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)

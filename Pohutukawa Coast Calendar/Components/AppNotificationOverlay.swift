@@ -15,7 +15,7 @@ enum NotificationMuteCategory: String, CaseIterable, Identifiable {
         switch self {
         case .membership: return "Membership"
         case .subscription: return "Subscription"
-        case .listings: return "My listings"
+        case .listings: return "Org's Listings"
         case .reminders: return "Reminders"
         case .supportQueue: return "Review queue"
         }
@@ -339,7 +339,7 @@ struct AppNotificationOverlay: View {
                             id: "rejected-\(listing.id)",
                             icon: "exclamationmark.circle.fill",
                             title: "Listing needs attention",
-                            message: "\(listing.title) was not approved. Open My Listings to read why and edit or remove it.",
+                            message: "\(listing.title) was not approved. Open Org's Listings to read why and edit or remove it.",
                             tint: PCCTheme.pohutukawaOrange,
                             destination: .event(listing),
                             priority: 95
@@ -351,7 +351,7 @@ struct AppNotificationOverlay: View {
                             id: "review-\(listing.id)",
                             icon: "clock.badge.exclamationmark",
                             title: "Waiting for review",
-                            message: "\(listing.title) is with Support. Open My Listings to review, edit or remove it while it is pending.",
+                            message: "\(listing.title) is with Support. Open Org's Listings to review, edit or remove it while it is pending.",
                             tint: PCCTheme.leafGreen,
                             destination: .event(listing),
                             priority: 45
@@ -387,7 +387,7 @@ struct AppNotificationOverlay: View {
                                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                                 .filter { !$0.isEmpty }
                             return parts.isEmpty
-                                ? "Support has feedback on your request. Open My Listings to review it."
+                                ? "Support has feedback on your request. Open Org's Listings to review it."
                                 : parts.joined(separator: " — ")
                         }(),
                         tint: PCCTheme.pohutukawaOrange,
@@ -404,7 +404,7 @@ struct AppNotificationOverlay: View {
                     id: "listing-load-failed",
                     icon: "wifi.exclamationmark",
                     title: "Couldn’t check listings",
-                    message: "Tap to open My Listings and try refreshing.",
+                    message: "Tap to open Org's Listings and try refreshing.",
                     tint: PCCTheme.pohutukawaOrange,
                     destination: .myListings,
                     priority: 55
@@ -488,7 +488,7 @@ struct AppNotificationOverlay: View {
                     id: "purchase-pending",
                     icon: "clock.badge.checkmark",
                     title: "Subscription pending",
-                    message: "Apple is still processing the purchase. Open My Listings for the latest publishing status.",
+                    message: "Apple is still processing the purchase. Open Org's Listings for the latest publishing status.",
                     tint: PCCTheme.leafGreen,
                     destination: .myListings,
                     priority: 65

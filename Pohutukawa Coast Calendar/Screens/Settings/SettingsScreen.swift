@@ -79,7 +79,7 @@ struct SettingsScreen: View {
                                         id: "my-calendar",
                                         icon: "calendar",
                                         title: "My Calendar",
-                                        subtitle: "Dates from organisations you belong to.",
+                                        subtitle: "Dates from organisations you belong to, and listings you have liked or added, will appear here in your calendar so you stay up with your communities.",
                                         detail: "Open",
                                         style: .disclosure,
                                         isEnabled: true
@@ -583,7 +583,7 @@ struct SettingsCommandCenterCard: View {
             return "Sign in once, then listings, review updates, subscriptions and saves stay attached to you."
         }
         if rejectedCount > 0 {
-            return "Support has feedback. Tap My Listings, open the card, and follow the next step."
+            return "Support has feedback. Tap Org's Listings, open the card, and follow the next step."
         }
         if reviewCount > 0 {
             return "Your listing is with Support. The bell will bring you back when action is needed."
@@ -628,7 +628,7 @@ struct SettingsCommandCenterCard: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 if isSignedIn {
                     SettingsHubButton(
-                        title: "My Listings",
+                        title: "Org's Listings",
                         detail: reviewStatusText,
                         icon: "rectangle.stack.fill",
                         tint: rejectedCount > 0 ? PCCTheme.pohutukawaOrange : PCCTheme.leafGreen,
@@ -2813,6 +2813,10 @@ struct BusinessPlansScreen: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                if entry == .homePage {
+                    // t274: "Set up Org Homepage" opens the editor as the one and only screen (no sheet on a sheet).
+                    homePageEditor
+                } else {
                 PCCScreenBackground()
 
                 ScrollViewReader { proxy in
@@ -2829,6 +2833,7 @@ struct BusinessPlansScreen: View {
                         withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
                     }
                 }
+                }
             }
             .navigationTitle(entry.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -2838,9 +2843,11 @@ struct BusinessPlansScreen: View {
             }
             .toolbar {
                 ToolbarItem(placement: .pccTopBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(PCCTheme.leafGreen)
+                    if entry != .homePage {
+                        Button("Done") { dismiss() }
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(PCCTheme.leafGreen)
+                    }
                 }
             }
             .sheet(isPresented: $showPublicMemberPage) {
@@ -2860,34 +2867,7 @@ struct BusinessPlansScreen: View {
             }
             .sheet(isPresented: $showHomePageEditor) {
                 NavigationStack {
-                    MemberHomePageEditorSheet(
-                        draft: $publicDraft,
-                        heroPickerItem: $heroPickerItem,
-                        avatarPickerItem: $avatarPickerItem,
-                        heroPreviewImage: heroPreviewImage,
-                        avatarPreviewImage: avatarPreviewImage,
-                        isLoadingHeroImage: isLoadingHeroImage,
-                        isLoadingAvatarImage: isLoadingAvatarImage,
-                        showValidation: showValidation,
-                        invalidMembershipFields: invalidMembershipFields,
-                        isSaving: isSaving,
-                        primaryButtonTitle: homePageActionTitle,
-                        heroImageRequest: memberImageRequest(path: publicDraft.heroImagePath),
-                        avatarImageRequest: memberImageRequest(path: publicDraft.avatarImagePath),
-                        hasUnsavedChanges: homePageHasUnsavedChanges,
-                        onDone: {
-                            Task { await finishHomePageSetup() }
-                        },
-                        onDiscard: {
-                            discardHomePageDraftChanges()
-                        },
-                        onRemoveHeroImage: {
-                            removeMemberImage(.hero)
-                        },
-                        onRemoveAvatarImage: {
-                            removeMemberImage(.avatar)
-                        }
-                    )
+                    homePageEditor
                 }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -2961,14 +2941,52 @@ struct BusinessPlansScreen: View {
         }
     }
 
+    private var homePageEditor: some View {
+        MemberHomePageEditorSheet(
+            draft: $publicDraft,
+            heroPickerItem: $heroPickerItem,
+            avatarPickerItem: $avatarPickerItem,
+            heroPreviewImage: heroPreviewImage,
+            avatarPreviewImage: avatarPreviewImage,
+            isLoadingHeroImage: isLoadingHeroImage,
+            isLoadingAvatarImage: isLoadingAvatarImage,
+            showValidation: showValidation,
+            invalidMembershipFields: invalidMembershipFields,
+            isSaving: isSaving,
+            primaryButtonTitle: homePageActionTitle,
+            heroImageRequest: memberImageRequest(path: publicDraft.heroImagePath),
+            avatarImageRequest: memberImageRequest(path: publicDraft.avatarImagePath),
+            hasUnsavedChanges: homePageHasUnsavedChanges,
+            onDone: {
+                Task { await finishHomePageSetup() }
+            },
+            onDiscard: {
+                discardHomePageDraftChanges()
+            },
+            onRemoveHeroImage: {
+                removeMemberImage(.hero)
+            },
+            onRemoveAvatarImage: {
+                removeMemberImage(.avatar)
+            }
+        )
+    }
+
     private var membershipScreenContent: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if entry == .plans && userSessionStore.isSignedIn {
+                // t274: Org's Subscriptions shows only the current status, when it renews, and the three
+                // monthly plans (with Apple's auto-renew wording, Terms/Privacy links and Restore purchases).
+                subscriptionPlanSummaryCard
+                monthlyPlansCard
+            } else {
             headerCard
             if shouldShowMemberProcessCard {
                 memberProcessCard
             }
 
             membershipStageContent
+            }
 
             if shouldShowStoreKitStatusCard {
                 StoreKitStatusCard(state: purchaseService.state) {
@@ -3496,13 +3514,9 @@ struct BusinessPlansScreen: View {
         switch entry {
         case .dashboard:
             break
-        case .homePage:
-            guard accountState.profile?.memberStatus == .approved else { return }
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            showHomePageEditor = true
-        case .plans:
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            scrollTarget = "pcc-plans"
+        case .homePage, .plans:
+            // t274: Set up Org Homepage is the editor itself; Org's Subscriptions shows the plans directly.
+            break
         }
     }
 
@@ -4695,6 +4709,7 @@ struct BusinessPlansScreen: View {
                 ? "Your public home page details are saved and confirmed. Publication remains server-controlled."
                 : "Your public home page details are saved."
             showHomePageEditor = false
+            if entry == .homePage { dismiss() }
         } catch {
             guard userSessionStore.isCurrent(requestContext) else { return }
             if let savedProfileBeforeConfirmation {
@@ -6193,7 +6208,7 @@ struct MyListingsSettingsScreen: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("My Listings")
+                            Text("Org's Listings")
                                 .font(.system(size: 36, weight: .black, design: .serif))
                                 .foregroundStyle(PCCTheme.ink)
 
@@ -6240,7 +6255,7 @@ struct MyListingsSettingsScreen: View {
                     .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
                 }
             }
-            .navigationTitle("My Listings")
+            .navigationTitle("Org's Listings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .pccTopBarTrailing) {
