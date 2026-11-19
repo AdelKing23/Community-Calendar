@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 enum MainTab: String, CaseIterable, Identifiable {
     case home = "Home"
@@ -83,6 +84,10 @@ struct RootTabView: View {
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: isKeyboardVisible)
         .pccTracksKeyboardVisibility($isKeyboardVisible)
+        .onReceive(NotificationCenter.default.publisher(for: CreateListingPrefill.openNotification)) { _ in
+            // t275: Org Calendar "Create on this day" lands on the normal Create tab.
+            selectedTab = .create
+        }
         .task {
             purchaseService.startTransactionListener()
             await purchaseService.loadProducts()

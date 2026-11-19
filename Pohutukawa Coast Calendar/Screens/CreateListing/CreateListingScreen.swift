@@ -59,6 +59,12 @@ struct CreateListingScreen: View {
     let onNavigateSettings: () -> Void
     let onApplyForMembership: () -> Void
 
+    /// t275: Org Calendar "Create on this day" fills in the tapped date; everything else is the normal Create flow.
+    private func applyPendingDate() {
+        guard let day = CreateListingPrefill.takePendingDate() else { return }
+        draft.date = day
+    }
+
     init(
         onNavigateHome: @escaping () -> Void = {},
         onNavigateWhatsOn: @escaping () -> Void = {},
@@ -78,6 +84,7 @@ struct CreateListingScreen: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
                     CreateListingHero()
+                        .onAppear(perform: applyPendingDate)
 
                     if !userSessionStore.isSignedIn {
                         MemberOnlyCreateGate(
@@ -3464,5 +3471,27 @@ private extension String {
     var nilIfEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+
+/// t275: hands the day tapped in Org Calendar to the Create tab, which then works exactly as normal.
+enum CreateListingPrefill {
+    static let openNotification = Notification.Name("pcc.createListing.openOnDay")
+    @MainActor private static var pendingDate: Date?
+
+    @MainActor
+    static func open(on day: Date) {
+        pendingDate = Calendar.current.startOfDay(for: day)
+        // Let the Org Calendar sheet close first, then switch to the Create tab.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            NotificationCenter.default.post(name: openNotification, object: nil)
+        }
+    }
+
+    @MainActor
+    static func takePendingDate() -> Date? {
+        defer { pendingDate = nil }
+        return pendingDate
     }
 }

@@ -16,7 +16,6 @@ struct EventDetailScreen: View {
     @State private var photoMessage: String?
     @State private var showPhotoPicker = false
     @State private var showRemoveConfirm = false
-    @State private var showEditSheet = false
 
     var body: some View {
         ZStack {
@@ -48,12 +47,6 @@ struct EventDetailScreen: View {
                             .pccCardStyle()
                         if canManageCalendarItem {
                             VStack(spacing: 10) {
-                                Button("Edit") { showEditSheet = true }
-                                    .font(.headline.weight(.black))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .foregroundStyle(.white)
-                                    .background(PCCTheme.leafGreen, in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
                                 Button("Remove from calendar") { showRemoveConfirm = true }
                                     .font(.headline.weight(.bold))
                                     .frame(maxWidth: .infinity)
@@ -93,10 +86,6 @@ struct EventDetailScreen: View {
             Button("Keep it", role: .cancel) {}
         } message: {
             Text("It leaves the org calendar. Support can still see the archive.")
-        }
-        .sheet(isPresented: $showEditSheet) {
-            OrgCreateOnThisDaySheet(day: event.startDate, profileID: event.businessProfileID, editing: event)
-                .environmentObject(userSessionStore)
         }
 
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
@@ -2311,7 +2300,6 @@ struct OrgCalendarSheet: View {
     @EnvironmentObject private var userSessionStore: UserSessionStore
     @State private var visibleMonth = Date()
     @State private var selectedDay = Date()
-    @State private var showCreateOnThisDay = false
     @State private var calendarEvents: [LocalEvent] = []
     private let calendarService = SupabaseEventService()
 
@@ -2338,7 +2326,6 @@ struct OrgCalendarSheet: View {
                     VStack(alignment: .leading, spacing: 16) {
                         OrgMonthGrid(month: $visibleMonth, selectedDay: $selectedDay, markedDays: Set(allCalendarItems.map { calendar.startOfDay(for: $0.startDate) }), onChooseDay: { day in
                             selectedDay = day
-                            if canWrite { showCreateOnThisDay = true }
                         })
 
                         Text(selectedDay.formatted(.dateTime.weekday(.wide).day().month(.wide)))
@@ -2362,7 +2349,9 @@ struct OrgCalendarSheet: View {
 
                         if canWrite {
                             Button {
-                                showCreateOnThisDay = true
+                                // t275: same Create tab screens and backend as every other listing, date pre-filled.
+                                CreateListingPrefill.open(on: selectedDay)
+                                dismiss()
                             } label: {
                                 Label("Create on this day", systemImage: "plus.circle.fill")
                                     .font(.headline.weight(.black))
@@ -2393,12 +2382,6 @@ struct OrgCalendarSheet: View {
                 }
             }
             .task(id: profileID) { await loadCalendar() }
-            .fullScreenCover(isPresented: $showCreateOnThisDay) {
-                OrgCreateOnThisDaySheet(day: selectedDay, profileID: profileID)
-            }
-            .pccOnChange(of: showCreateOnThisDay) { _, open in
-                if !open { Task { await loadCalendar() } }
-            }
         }
     }
 
@@ -2426,196 +2409,6 @@ struct OrgCalendarSheet: View {
         }
     }
 
-}
-
-private struct OrgCreateOnThisDaySheet: View {
-    let day: Date
-    let profileID: UUID?
-    var editing: LocalEvent? = nil
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var userSessionStore: UserSessionStore
-    @State private var words = ""
-    @State private var venue = ""
-    @State private var details = ""
-    @State private var startTime = Date()
-    @State private var isPublic = true
-    @State private var existing: [LocalEvent] = []
-    @State private var isSaving = false
-    @State private var saveError: String?
-    @FocusState private var fieldFocused: Bool
-    private let service = SupabaseEventService()
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                PCCScreenBackground()
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("Create on this day")
-                                .font(.headline.weight(.black))
-                                .foregroundStyle(PCCTheme.ink)
-                            Spacer()
-                            Button("Close") { dismiss() }
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(PCCTheme.leafGreen)
-                        }
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(day.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
-                                .font(.title3.weight(.black))
-                                .foregroundStyle(PCCTheme.ink)
-                            Text("Listing")
-                                .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.text)
-                            TextField("Title", text: $words)
-                                .textInputAutocapitalization(.sentences)
-                                .padding(14)
-                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
-                                .foregroundStyle(PCCTheme.ink)
-                            Text("Venue")
-                                .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.text)
-                            TextField("Beachlands Boat Club", text: $venue)
-                                .textInputAutocapitalization(.words)
-                                .padding(14)
-                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
-                                .foregroundStyle(PCCTheme.ink)
-                            Text("Time")
-                                .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.text)
-                            DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
-                                .labelsHidden()
-                                .tint(PCCTheme.leafGreen)
-                            Text("Details")
-                                .font(.caption.weight(.black))
-                                .foregroundStyle(PCCTheme.text)
-                            TextField("Julie is bringing lunch", text: $details, axis: .vertical)
-                                .lineLimit(2...4)
-                                .textInputAutocapitalization(.sentences)
-                                .submitLabel(.done)
-                                .padding(14)
-                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
-                                .foregroundStyle(PCCTheme.ink)
-                                .focused($fieldFocused)
-                                .onSubmit { fieldFocused = false }
-                            Toggle("Public listing", isOn: $isPublic)
-                                .tint(PCCTheme.leafGreen)
-                                .foregroundStyle(PCCTheme.ink)
-                            Text("People who Belong to this organisation can see this date. It is not on the public board.")
-                                .font(.footnote.weight(.medium))
-                                .foregroundStyle(PCCTheme.text)
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .pccCardStyle()
-                        Button { Task { await save() } } label: {
-                            Label(isSaving ? "Saving" : "Save", systemImage: "checkmark.circle.fill")
-                                .font(.headline.weight(.black))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 15)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.white)
-                        .background(canSave ? PCCTheme.leafGreen : PCCTheme.ink.opacity(0.28), in: RoundedRectangle(cornerRadius: PCCTheme.smallRadius, style: .continuous))
-                        .disabled(!canSave || isSaving)
-                        if let saveError {
-                            Text(saveError)
-                                .font(.footnote.weight(.bold))
-                                .foregroundStyle(PCCTheme.pohutukawaRed)
-                        }
-                        if !existing.isEmpty {
-                            Text("On this day")
-                                .font(.headline.weight(.black))
-                                .foregroundStyle(PCCTheme.ink)
-                            ForEach(existing) { item in
-                                NavigationLink {
-                                    EventDetailScreen(event: item)
-                                } label: {
-                                    OrgCalendarNoteCard(event: item)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
-                    .padding(.bottom, PCCKeyboardSpacing.formBottomPadding)
-                }
-                .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
-                .pccScrollableKeyboardDismiss()
-            }
-            .navigationBarHidden(true)
-            .pccKeyboardDoneToolbar {
-                fieldFocused = false
-                UIApplication.pccDismissKeyboard()
-            }
-            .task { await loadExisting() }
-        }
-    }
-
-    private var canSave: Bool {
-        words.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && profileID != nil
-    }
-
-    @MainActor
-    private func loadExisting() async {
-        guard let profileID else { return }
-        do {
-            let all = try await service.fetchOrgCalendarListings(profileID: profileID, accessToken: userSessionStore.session?.accessToken)
-            let dayStart = Calendar.current.startOfDay(for: day)
-            existing = all.filter { Calendar.current.startOfDay(for: $0.startDate) == dayStart }
-        } catch {
-            print("[OrgCalendar] load day failed \(error)")
-        }
-    }
-
-    @MainActor
-    private func save() async {
-        guard let profileID, let token = userSessionStore.session?.accessToken else {
-            saveError = "Sign in as the organisation owner to save."
-            return
-        }
-        let title = words.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard title.count >= 2 else { return }
-        let cal = Calendar.current
-        let hm = cal.dateComponents([.hour, .minute], from: startTime)
-        let combinedDay = cal.date(bySettingHour: hm.hour ?? 12, minute: hm.minute ?? 0, second: 0, of: cal.startOfDay(for: day)) ?? day
-        isSaving = true
-        saveError = nil
-        defer { isSaving = false }
-        do {
-            if let editing {
-                try await service.updateOrgCalendarListing(
-                    eventID: editing.id,
-                    title: title,
-                    venue: venue,
-                    details: details,
-                    day: combinedDay,
-                    isPublic: isPublic,
-                    accessToken: token
-                )
-            } else {
-                _ = try await service.insertOrgCalendarListing(
-                    profileID: profileID,
-                    title: title,
-                    venue: venue,
-                    details: details,
-                    day: combinedDay,
-                    isPublic: isPublic,
-                    accessToken: token
-                )
-            }
-            words = ""
-            venue = ""
-            details = ""
-            fieldFocused = false
-            await loadExisting()
-            if editing != nil { dismiss() }
-        } catch {
-            saveError = error.pccUserFacingMessage
-            print("[OrgCalendar] save failed \(error)")
-        }
-    }
 }
 
 struct OrgMonthGrid: View {
