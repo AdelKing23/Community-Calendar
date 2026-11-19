@@ -316,6 +316,8 @@ struct CreateListingScreen: View {
                     submittedListingID = listingID
                     submittedListingTitle = submittedTitle
                     didSubmit = true
+                    // t279: the "submitted" card is the visual; add the shared success haptic and toast.
+                    PCCFeedback.success("Listing submitted")
                     isSubmitting = false
                     submissionStatus = nil
                     draft = PendingListingDraft()
@@ -331,6 +333,7 @@ struct CreateListingScreen: View {
                     isSubmitting = false
                     submissionStatus = nil
                     submissionError = error.pccUserFacingMessage
+                    PCCFeedback.error("Not submitted. See the message on the form.")
                 }
             }
         }

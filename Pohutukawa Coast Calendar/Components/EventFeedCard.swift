@@ -530,9 +530,11 @@ struct PollInlineResponseView: View {
             customAnswer = ""
             isShowingCustomAnswer = false
             statusMessage = "Answer removed."
+            PCCFeedback.info("Answer removed")
             await loadPollState()
         } catch {
             statusMessage = "Your answer could not be updated. Please try again."
+            PCCFeedback.error("Your answer couldn't be updated.")
         }
         isSubmitting = false
     }
@@ -573,6 +575,7 @@ struct PollInlineResponseView: View {
                     self.isShowingCustomAnswer = false
                 }
                 self.statusMessage = nil
+                PCCFeedback.success("Vote saved")
                 try? await analyticsService.recordEventAnalytics(
                     eventID: event.id,
                     eventType: "poll_answer",
@@ -583,6 +586,7 @@ struct PollInlineResponseView: View {
                 await loadPollState()
             } catch {
                 self.statusMessage = error.pccUserFacingMessage
+                PCCFeedback.error("Your vote couldn't be saved.")
                 print("[Poll] submit failed: \(error)")
             }
 

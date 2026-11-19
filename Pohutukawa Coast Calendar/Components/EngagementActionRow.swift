@@ -16,6 +16,7 @@ struct EngagementActionRow: View {
             EngagementButton(title: "Interested", icon: "star", isSelected: engagementStore.isInterested(event)) {
                 engagementStore.toggleInterested(event)
                 recordAnalytics("interested")
+                if engagementStore.isInterested(event) { PCCFeedback.success("Marked Interested") } else { PCCFeedback.info("No longer Interested") }
             }
 
             EngagementButton(title: "Going", icon: "checkmark.circle", isSelected: engagementStore.isGoing(event)) {
@@ -25,6 +26,7 @@ struct EngagementActionRow: View {
             EngagementButton(title: "Save", icon: "bookmark", isSelected: engagementStore.isSaved(event)) {
                 engagementStore.toggleSaved(event)
                 recordAnalytics("save")
+                if engagementStore.isSaved(event) { PCCFeedback.success("Saved") } else { PCCFeedback.info("Removed from Saved") }
             }
 
             ShareLink(item: shareText) {
@@ -61,7 +63,11 @@ struct EngagementActionRow: View {
         reminderStore.syncReminder(for: event, isGoing: isGoing)
         recordAnalytics("going")
         if isGoing {
+            // t279: the Plan this sheet opening is the confirmation; add a light haptic only.
+            PCCFeedback.tap()
             showPlanSheet = true
+        } else {
+            PCCFeedback.info("Not going")
         }
     }
 
@@ -167,6 +173,7 @@ struct EventPlanSheet: View {
                                     reminderStore.cancelReminder(for: event)
                                     reminderMessage = "Reminder removed."
                                     reminderNeedsSettings = false
+                                    PCCFeedback.info("Reminder removed")
                                 } label: {
                                     Image(systemName: "bell.slash.fill")
                                         .frame(width: 44, height: 44)
@@ -226,6 +233,7 @@ struct EventPlanSheet: View {
                                 removeFromCalendar()
                             }
                             _ = engagementStore.toggleGoing(event)
+                            PCCFeedback.info("Not going")
                             dismiss()
                         } label: {
                             Text("Not going")
@@ -265,16 +273,29 @@ struct EventPlanSheet: View {
         }
     }
 
+    private var reminderIsSet: Bool {
+        !reminderNeedsSettings && !isSettingReminder && reminderStore.hasReminder(for: event)
+    }
+
     private var reminderButtonTitle: String {
         if isSettingReminder {
             return "Setting"
+        }
+        if reminderIsSet {
+            return "Reminder set ✓"
         }
 
         return reminderNeedsSettings ? "Open iPhone Settings" : "Set reminder"
     }
 
     private var reminderButtonIcon: String {
-        reminderNeedsSettings ? "gearshape.fill" : "bell.badge.fill"
+        if reminderIsSet { return "checkmark.circle.fill" }
+        return reminderNeedsSettings ? "gearshape.fill" : "bell.badge.fill"
+    }
+
+    /// t278: short toast and haptic through the shared helper.
+    private func showToast(_ text: String, success: Bool) {
+        if success { PCCFeedback.success(text) } else { PCCFeedback.error(text) }
     }
 
     private var calendarIcon: String {
@@ -297,16 +318,24 @@ struct EventPlanSheet: View {
         return "Add this listing to your iPhone Calendar with a \(selectedLeadTime.title.lowercased()) alert."
     }
 
+    private var calendarIsAdded: Bool {
+        !calendarAccessNeedsSettings && !isAddingToCalendar && deviceCalendarStore.hasAddedCalendarEvent(for: event)
+    }
+
     private var calendarButtonTitle: String {
         if isAddingToCalendar {
             return "Adding"
+        }
+        if calendarIsAdded {
+            return "Added ✓"
         }
 
         return calendarAccessNeedsSettings ? "Open iPhone Settings" : "Add to Calendar"
     }
 
     private var calendarButtonIcon: String {
-        calendarAccessNeedsSettings ? "gearshape.fill" : "calendar.badge.plus"
+        if calendarIsAdded { return "checkmark.circle.fill" }
+        return calendarAccessNeedsSettings ? "gearshape.fill" : "calendar.badge.plus"
     }
 
     private func addToCalendar() {
@@ -321,15 +350,20 @@ struct EventPlanSheet: View {
             switch result {
             case .added:
                 calendarMessage = "Added to your device calendar with a \(selectedLeadTime.title.lowercased()) alert."
+                showToast("Added to calendar", success: true)
             case .alreadyAdded:
                 calendarMessage = "Already on your device calendar."
+                showToast("Already in your calendar", success: true)
             case .denied:
                 calendarAccessNeedsSettings = true
                 calendarMessage = "Calendar access is off."
+                showToast("Calendar access is off. Open iPhone Settings to allow it.", success: false)
             case .unavailable:
                 calendarMessage = "This listing cannot be added to Calendar yet."
+                showToast("This listing can't be added to Calendar yet.", success: false)
             case .failed:
                 calendarMessage = "Could not add this event. Please try again."
+                showToast("Couldn't add to calendar. Please try again.", success: false)
             }
         }
     }
@@ -346,6 +380,7 @@ struct EventPlanSheet: View {
             switch result {
             case .removed:
                 calendarMessage = "Removed from your device calendar."
+                PCCFeedback.info("Removed from calendar")
             case .notFound:
                 calendarMessage = "That calendar entry was already gone."
             case .denied:
@@ -353,6 +388,7 @@ struct EventPlanSheet: View {
                 calendarMessage = "Calendar access is off."
             case .failed:
                 calendarMessage = "Could not remove this event. Please try again."
+                PCCFeedback.error("Couldn't remove from calendar. Please try again.")
             }
         }
     }
@@ -370,13 +406,17 @@ struct EventPlanSheet: View {
             switch result {
             case .scheduled:
                 reminderMessage = "Reminder set for \(selectedLeadTime.title.lowercased())."
+                showToast("Reminder set", success: true)
             case .denied:
                 reminderNeedsSettings = true
                 reminderMessage = "Notifications are off. Open iPhone Settings to allow reminder alerts."
+                showToast("Notifications are off. Open iPhone Settings to allow reminders.", success: false)
             case .unavailable:
                 reminderMessage = "This event is too close or has already passed."
+                showToast("Too close to the start, or already passed.", success: false)
             case .failed:
                 reminderMessage = "Could not set that reminder. Please try again."
+                showToast("Couldn't set the reminder. Please try again.", success: false)
             }
         }
     }

@@ -1076,9 +1076,11 @@ struct OrganiserEventsScreen: View {
             actionMessage = newValue
                 ? "You Belong with \(organiserName). Notices can appear in your updates."
                 : "Removed \(organiserName) from your Belonging."
+            if newValue { PCCFeedback.success("You Belong") } else { PCCFeedback.info("No longer Belonging") }
         } catch {
             guard userSessionStore.isCurrent(requestContext) else { return }
             actionMessage = "Belonging could not be saved: \(error.pccUserFacingMessage)"
+            PCCFeedback.error("Belonging couldn't be saved. Please try again.")
         }
     }
 
