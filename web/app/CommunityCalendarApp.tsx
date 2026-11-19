@@ -1712,6 +1712,7 @@ function SettingsHub({
   onInitialPaneUsed,
   onPreviewOrg,
   onRegisterOrg,
+  onCreateOnDay,
   userProfile = null,
   onSaveProfile,
   notifications = [],
@@ -1748,6 +1749,7 @@ function SettingsHub({
   onReviewQueue?: () => void;
   initialPane?: "org" | "setup" | null;
   onRegisterOrg?: (draft: OrgRegistrationDraft) => Promise<boolean>;
+  onCreateOnDay?: (day: string) => void;
   onInitialPaneUsed?: () => void;
   onPreviewOrg?: () => void;
 }) {
@@ -2065,7 +2067,7 @@ function SettingsHub({
   const orgApproved = Boolean(session && memberProfile && (TEMP_SUPPORT_OVERRIDE || memberProfile.status === "approved")); // TEMP_SUPPORT_OVERRIDE
 
   if (pane === "org-calendar" && session && memberProfile && orgApproved) {
-    return <OrgCalendarPane session={session} profile={memberProfile} onBack={() => setPane("hub")} onOpen={onOpenListing} />;
+    return <OrgCalendarPane session={session} profile={memberProfile} onBack={() => setPane("hub")} onOpen={onOpenListing} onCreateOnDay={onCreateOnDay} />;
   }
   const theme = readTheme(session?.user.id);
 
@@ -2618,21 +2620,18 @@ function OrgMonthGrid({ month, onMonth, selectedDay, onSelect, markedDays }: {
   );
 }
 
-type OrgCalendarDraft = { editingID: string | null; words: string; venue: string; time: string; details: string; isPublic: boolean };
-const emptyOrgDraft: OrgCalendarDraft = { editingID: null, words: "", venue: "", time: "12:00", details: "", isPublic: true };
-
-function OrgCalendarPane({ session, profile, onBack, onOpen }: {
+function OrgCalendarPane({ session, profile, onBack, onOpen, onCreateOnDay }: {
   session: AuthSession;
   profile: HostRecord;
   onBack: () => void;
   onOpen: (event: EventRecord) => void;
+  onCreateOnDay?: (day: string) => void;
 }) {
   const [items, setItems] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState("");
   const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const [selectedDay, setSelectedDay] = useState(() => localDayKey(new Date()));
-  const [draft, setDraft] = useState<OrgCalendarDraft>(emptyOrgDraft);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
@@ -2659,72 +2658,6 @@ function OrgCalendarPane({ session, profile, onBack, onOpen }: {
   const markedDays = new Set(items.map((item) => localDayKey(new Date(item.start_at))));
   const daysItems = items.filter((item) => localDayKey(new Date(item.start_at)) === selectedDay);
   const selectedDate = new Date(`${selectedDay}T00:00`);
-  const canSave = draft.words.trim().length >= 2 && !saving;
-
-  function startEdit(item: EventRecord) {
-    const start = new Date(item.start_at);
-    const visibility = (item as EventRecord & { visibility?: string | null }).visibility;
-    setSelectedDay(localDayKey(start));
-    setDraft({
-      editingID: item.id,
-      words: item.title ?? "",
-      venue: item.location_display_name ?? item.venue ?? "",
-      time: `${pad2(start.getHours())}:${pad2(start.getMinutes())}`,
-      details: item.long_description ?? item.short_description ?? "",
-      isPublic: visibility ? visibility === "public" : true,
-    });
-    setSaveError("");
-  }
-
-  async function save() {
-    const title = draft.words.trim();
-    if (title.length < 2) return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      if (draft.editingID) {
-        // iOS updateOrgCalendarListing: selected day + chosen time
-        const combined = new Date(`${selectedDay}T${draft.time || "12:00"}`);
-        await rest("rpc/owner_update_org_calendar_listing", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            p_event_id: draft.editingID,
-            p_title: title,
-            p_venue: draft.venue,
-            p_details: draft.details,
-            p_start_at: combined.toISOString(),
-            p_visibility: draft.isPublic ? "public" : "private",
-          }),
-        }, session.access_token);
-      } else {
-        // iOS insertOrgCalendarListing: noon on the selected day, 2h long, town Beachlands
-        const start = new Date(`${selectedDay}T12:00`);
-        await rest("rpc/owner_insert_org_calendar_listing", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            p_profile_id: profile.id,
-            p_title: title,
-            p_start_at: start.toISOString(),
-            p_end_at: new Date(start.getTime() + 7200 * 1000).toISOString(),
-            p_visibility: draft.isPublic ? "public" : "private",
-            p_town: "Beachlands",
-            p_location_scope_id: "",
-            p_location_display_name: draft.venue,
-            p_details: draft.details,
-          }),
-        }, session.access_token);
-      }
-      setDraft(emptyOrgDraft);
-      await load();
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Could not save. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <section className="panel account-panel">
       <button type="button" className="text-link" onClick={onBack}>← Back to Settings</button>
@@ -2734,26 +2667,13 @@ function OrgCalendarPane({ session, profile, onBack, onOpen }: {
       {note ? <p className="panel-note">{note}</p> : null}
       <OrgMonthGrid month={month} onMonth={setMonth} selectedDay={selectedDay} onSelect={setSelectedDay} markedDays={markedDays} />
       <h3>{selectedDate.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</h3>
-      <div className="settings-group" style={{ padding: 16, display: "grid", gap: 8 }}>
-        <strong>{draft.editingID ? "Edit date" : "Create on this day"}</strong>
-        <label>What&apos;s on<input value={draft.words} onChange={(e) => setDraft({ ...draft, words: e.target.value })} placeholder="Working bee" /></label>
-        <label className="typeahead-field">Where
-          <LocationTypeahead value={draft.venue} onChange={(venue) => setDraft((current) => ({ ...current, venue }))} placeholder="Clubrooms" />
-        </label>
-        {draft.editingID ? (
-          <label>Time<input type="time" value={draft.time} onChange={(e) => setDraft({ ...draft, time: e.target.value })} /></label>
-        ) : null}
-        <label>Details<textarea rows={3} value={draft.details} onChange={(e) => setDraft({ ...draft, details: e.target.value })} placeholder="Julie is bringing lunch" /></label>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input type="checkbox" checked={draft.isPublic} onChange={(e) => setDraft({ ...draft, isPublic: e.target.checked })} /> Public listing
-        </label>
-        <p className="panel-note">People who Belong to this organisation can see this date. It is not on the public board.</p>
+      {/* t275: the same Create screens and backend as every other listing, with this day filled in. */}
+      {onCreateOnDay ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--chip-gap)" }}>
-          <button type="button" className="button button--primary" disabled={!canSave} onClick={() => void save()}>{saving ? "Saving" : draft.editingID ? "Save" : "Create on this day"}</button>
-          {draft.editingID ? <button type="button" className="button" onClick={() => setDraft(emptyOrgDraft)}>Cancel edit</button> : null}
+          <button type="button" className="button button--primary" onClick={() => onCreateOnDay(selectedDay)}>Create on this day</button>
         </div>
-        {saveError ? <p className="panel-note" style={{ color: "var(--pcc-red, #b3261e)" }}>{saveError}</p> : null}
-      </div>
+      ) : null}
+      {saveError ? <p className="panel-note" style={{ color: "var(--pcc-red, #b3261e)" }}>{saveError}</p> : null}
       {loading ? (
         <p className="panel-note">Loading your calendar…</p>
       ) : daysItems.length === 0 ? (
@@ -2762,7 +2682,6 @@ function OrgCalendarPane({ session, profile, onBack, onOpen }: {
         daysItems.map((item) => (
           <div key={item.id}>
             <EventCard event={item} active={new Set()} busy={saving} onToggle={() => undefined} onOpen={onOpen} />
-            <button type="button" className="text-link" onClick={() => startEdit(item)}>Edit</button>
             <button type="button" className="text-link org-cal__remove" disabled={saving} onClick={() => {
               if (!window.confirm("Remove this date?\n\nIt leaves the org calendar. Support can still see the archive.")) return;
               setSaving(true); setSaveError("");
@@ -2929,6 +2848,9 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [view, setView] = useState<AppView>(legalPage ? "legal" : "home");
+  // t275: day picked in Org Calendar "Create on this day"; cleared when leaving Create.
+  const [createPrefillDate, setCreatePrefillDate] = useState("");
+  useEffect(() => { if (view !== "create") setCreatePrefillDate(""); }, [view]);
   // t269: the browser Back button steps back one screen at a time (e.g. Settings -> Privacy -> Back returns to
   // Settings, a listing -> Back returns to the list). Each screen gets its own history entry; "/?view=settings"
   // style addresses restore the screen when a full page (Privacy, Terms, Support) is left with Back.
@@ -4444,6 +4366,8 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
           {view === "create" && session && (
           <section className="section" id="create">
             <CreateListingPanel
+              key={createPrefillDate || "create"}
+              initialDate={createPrefillDate}
               memberProfile={memberProfile}
               subscriptions={subscriptions}
               isSupport={isSupportUser}
@@ -4598,6 +4522,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
             onReload={() => loadSignedInData()}
             onReviewQueue={isSupportUser ? () => setSupportView("operator") : undefined}
             onRegisterOrg={registerOrganisation}
+            onCreateOnDay={(day) => { setCreatePrefillDate(day); setView("create"); }}
             initialPane={settingsInitialPane}
             onInitialPaneUsed={() => setSettingsInitialPane(null)}
             onPreviewOrg={memberProfile ? () => {
@@ -5453,7 +5378,9 @@ function CreateListingPanel({
   onCreateListing,
   onOpenAccount,
   locationScopes,
+  initialDate = "",
 }: {
+  initialDate?: string;
   memberProfile: HostRecord | null;
   subscriptions: SubscriptionRecord[];
   isSupport?: boolean;
@@ -5481,7 +5408,7 @@ function CreateListingPanel({
   const paid = canPublish(memberProfile, subscriptions, isSupport);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState("12:00");
   const [hasTime, setHasTime] = useState(true);
   const [location, setLocation] = useState("");
