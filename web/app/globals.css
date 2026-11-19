@@ -2206,3 +2206,8 @@ html .footer .footer__links :is(a, button) { color: #1f4d33; }
 
 /* t269: listing and organisation pages get the same big title card; long names step down so they wrap cleanly */
 .hero .hero__content h1.hero__title--long { font-size: clamp(2rem, 7vw, 3.6rem); line-height: 1.05; overflow-wrap: anywhere; }
+/* t270: phones have no bottom bar on the website (the navigator slides in from the left), but keep the last card and
+   its buttons clear of the iPhone home indicator / browser toolbar. */
+@media (max-width: 899px) {
+  .app-shell__main { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)); }
+}

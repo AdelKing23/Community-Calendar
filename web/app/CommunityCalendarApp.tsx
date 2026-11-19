@@ -2142,19 +2142,20 @@ function SettingsHub({
         ) : (
           <SettingsRow title="Create account or sign in" detail="Create a free account to save listings, set reminders, and Belong to organisations." action="Open" onClick={onAccount} />
         )}
+        <SettingsRow title="Engagement and reminders" detail="Going, Plan this and calendar reminders." action="Open" onClick={() => setPane("reminders")} />
       </div>
 
-      <p className="eyebrow">Organisation management</p>
+      {/* t270: one Organisation card, each row goes straight to its screen (layout only; permissions unchanged) */}
+      <p className="eyebrow">Organisation</p>
       <div className="settings-group">
         <SettingsRow
-          title="Organisation home page"
-          detail={memberProfile ? "Your public organisation card. Edit it in place." : "Register your organisation to get a public page."}
+          title="Organisation page"
+          detail={memberProfile ? "Edit your public page." : "Register your organisation for Support approval."}
           action={memberPageDetail}
           onClick={() => (session && memberProfile && memberProfile.status === "approved" ? setPane("org") : setPane("setup"))}
         />
-        <SettingsRow title="Organisation subscription" detail={memberProfile ? "Plan, renewal, usage, billing and cancel." : "Choose a plan after approval."} action="Open" onClick={() => setPane(session && memberProfile ? "subscription" : "setup")} />
-        <SettingsRow title="Engagement and reminders" detail="Going, Plan this and calendar reminders." action="Open" onClick={() => setPane("reminders")} />
-        <SettingsRow title="Get set up" detail="Account, organisation, approval, plan and payment — step by step." action="Open" onClick={() => setPane("setup")} />
+        <SettingsRow title="Subscriptions" detail={memberProfile ? "Plan, renewal, billing and cancel." : "Choose a plan after approval."} action="Open" onClick={() => setPane(session && memberProfile ? "subscription" : "setup")} />
+        <SettingsRow title="Organisation dashboard" detail="Status, approval, plan and next steps." action="Open" onClick={() => setPane("setup")} />
         {session && memberProfile && onPreviewOrg ? (
           <SettingsRow title="Preview my public page" detail="See your organisation card and listings as the public sees them." action="Open" onClick={onPreviewOrg} />
         ) : null}
