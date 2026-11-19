@@ -18,7 +18,7 @@ struct SettingsScreen: View {
     @State private var showWallpaperPicker = false
     @State private var showCardTintPicker = false
     @State private var showContactSupport = false
-    @State private var showBusinessPlans = false
+    @State private var businessPlansEntry: BusinessPlansEntry?
     @State private var showMyMemberPage = false
     @State private var showMyCalendar = false
     @State private var showOrgCalendar = false
@@ -89,23 +89,46 @@ struct SettingsScreen: View {
                             .buttonStyle(.plain)
                         }
 
-                        SettingsActionSection(title: "Organisations") {
-                            Button {
-                                showBusinessPlans = true
-                            } label: {
-                                SettingsRow(
-                                    content: SettingsRowContent(
-                                        id: "listed-member-application",
-                                        icon: "checkmark.seal",
-                                        title: userSessionStore.isSignedIn ? "Manage my organisation" : "Register your Organisation",
-                                        subtitle: "Organisations list on Coast Calendar. Register, get Support approval, then subscribe to release listings to the public board.",
-                                        detail: userSessionStore.isSignedIn ? memberPageDetail : "Apply",
-                                        style: .disclosure,
-                                        isEnabled: true
-                                    )
+                        // t270: one "Organisation" card; each row goes straight to its screen (layout only,
+                        // ownership and permission rules are unchanged).
+                        SettingsActionSection(title: "Organisation") {
+                            if userSessionStore.isSignedIn {
+                                organisationRow(
+                                    id: "org-page",
+                                    icon: "person.text.rectangle",
+                                    title: "Organisation page",
+                                    subtitle: organisationIsApproved ? "Edit your public page." : "Register your organisation for Support approval.",
+                                    detail: organisationIsApproved ? "Edit" : memberPageDetail,
+                                    entry: organisationIsApproved ? .homePage : .dashboard
+                                )
+                                organisationDivider
+                                organisationRow(
+                                    id: "org-subscriptions",
+                                    icon: "creditcard",
+                                    title: "Subscriptions",
+                                    subtitle: "Choose or change your monthly plan.",
+                                    detail: overviewBusinessState.activeSubscription != nil ? "Active" : "Plans",
+                                    entry: .plans
+                                )
+                                organisationDivider
+                                organisationRow(
+                                    id: "org-dashboard",
+                                    icon: "rectangle.grid.1x2",
+                                    title: "Organisation dashboard",
+                                    subtitle: "Status, next steps and creating listings.",
+                                    detail: "Open",
+                                    entry: .dashboard
+                                )
+                            } else {
+                                organisationRow(
+                                    id: "listed-member-application",
+                                    icon: "checkmark.seal",
+                                    title: "Register your Organisation",
+                                    subtitle: "Register, get Support approval, then subscribe to release listings to the public board.",
+                                    detail: "Apply",
+                                    entry: .dashboard
                                 )
                             }
-                            .buttonStyle(.plain)
 
                             if userSessionStore.isSignedIn {
                                 Divider()
@@ -296,8 +319,8 @@ struct SettingsScreen: View {
                 ContactSupportScreen()
                     .environmentObject(userSessionStore)
             }
-            .sheet(isPresented: $showBusinessPlans) {
-                BusinessPlansScreen(onNavigateCreate: onNavigateCreate)
+            .sheet(item: $businessPlansEntry) { entry in
+                BusinessPlansScreen(entry: entry, onNavigateCreate: onNavigateCreate)
                     .environmentObject(userSessionStore)
                     .environmentObject(pushNotificationStore)
                     .environmentObject(purchaseService)
@@ -437,6 +460,35 @@ struct SettingsScreen: View {
         }
 
         return userSessionStore.email ?? "Signed-in account"
+    }
+
+    private var organisationIsApproved: Bool {
+        overviewBusinessState.profile?.memberStatus == .approved
+    }
+
+    private var organisationDivider: some View {
+        Divider()
+            .overlay(PCCTheme.ink.opacity(0.08))
+            .padding(.leading, 48)
+    }
+
+    private func organisationRow(id: String, icon: String, title: String, subtitle: String, detail: String, entry: BusinessPlansEntry) -> some View {
+        Button {
+            businessPlansEntry = entry
+        } label: {
+            SettingsRow(
+                content: SettingsRowContent(
+                    id: id,
+                    icon: icon,
+                    title: title,
+                    subtitle: subtitle,
+                    detail: detail,
+                    style: .disclosure,
+                    isEnabled: true
+                )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var memberPageDetail: String {
@@ -2696,6 +2748,23 @@ private extension SupportRequestStatus {
     }
 }
 
+/// t270: which part of the organisation screen a Settings row opens straight into.
+enum BusinessPlansEntry: String, Identifiable {
+    case dashboard
+    case homePage
+    case plans
+
+    var id: String { rawValue }
+
+    var navigationTitle: String {
+        switch self {
+        case .dashboard: return "Organisation"
+        case .homePage: return "Organisation page"
+        case .plans: return "Subscriptions"
+        }
+    }
+}
+
 struct BusinessPlansScreen: View {
     @EnvironmentObject private var userSessionStore: UserSessionStore
     @EnvironmentObject private var pushNotificationStore: PushNotificationStore
@@ -2737,11 +2806,15 @@ struct BusinessPlansScreen: View {
     @State private var showPlanChangeConfirmation = false
     @State private var pendingPlanSelection: BusinessSubscriptionPlan?
     @State private var showPlanSelectionConfirmation = false
+    @State private var didApplyEntry = false
+    @State private var scrollTarget: String?
+    let entry: BusinessPlansEntry
     let onNavigateCreate: () -> Void
     private let service: BusinessAccountManaging & MemberPublicProfileManaging = SupabaseEventService()
     private let subscriptionProcessor = SupabaseAppleBusinessSubscriptionService()
 
-    init(onNavigateCreate: @escaping () -> Void = {}) {
+    init(entry: BusinessPlansEntry = .dashboard, onNavigateCreate: @escaping () -> Void = {}) {
+        self.entry = entry
         self.onNavigateCreate = onNavigateCreate
     }
 
@@ -2750,16 +2823,22 @@ struct BusinessPlansScreen: View {
             ZStack {
                 PCCScreenBackground()
 
-                ScrollView(showsIndicators: false) {
-                    membershipScreenContent
-                    .padding(.horizontal, 16)
-                    .padding(.top, PCCKeyboardSpacing.standardTopPadding)
-                    .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        membershipScreenContent
+                        .padding(.horizontal, 16)
+                        .padding(.top, PCCKeyboardSpacing.standardTopPadding)
+                        .padding(.bottom, PCCKeyboardSpacing.standardBottomPadding)
+                    }
+                    .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
+                    .pccScrollableKeyboardDismiss()
+                    .pccOnChange(of: scrollTarget) { _, target in
+                        guard let target else { return }
+                        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
+                    }
                 }
-                .pccBottomKeyboardInset(PCCKeyboardSpacing.formBottomInset)
-                .pccScrollableKeyboardDismiss()
             }
-            .navigationTitle("Member")
+            .navigationTitle(entry.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .pccDismissesKeyboardOnTap()
             .pccKeyboardDoneToolbar {
@@ -2862,6 +2941,7 @@ struct BusinessPlansScreen: View {
             }
             .task {
                 await loadBusinessAccount()
+                await applyEntryIfNeeded()
                 await purchaseService.loadProducts()
                 await activatePurchasedSubscriptionIfReady()
             }
@@ -3409,6 +3489,25 @@ struct BusinessPlansScreen: View {
         monthlyPlansContent
             .padding(18)
             .pccCardStyle()
+            .id("pcc-plans")
+    }
+
+    /// t270: a Settings row lands directly on its part of this screen (page editor or plan cards).
+    @MainActor
+    private func applyEntryIfNeeded() async {
+        guard !didApplyEntry else { return }
+        didApplyEntry = true
+        switch entry {
+        case .dashboard:
+            break
+        case .homePage:
+            guard accountState.profile?.memberStatus == .approved else { return }
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            showHomePageEditor = true
+        case .plans:
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            scrollTarget = "pcc-plans"
+        }
     }
 
     private var monthlyPlansContent: some View {

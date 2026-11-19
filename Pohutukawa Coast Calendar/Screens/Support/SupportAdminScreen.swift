@@ -2300,12 +2300,7 @@ struct SupportPanel<Content: View>: View {
 
                     Spacer()
 
-                    if count > 0 {
-                        Text("\(count)")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(PCCTheme.text)
-                            .accessibilityLabel("\(count) in this section")
-                    }
+                    // t270: no plain total number; a number shows only as the orange "N new" unseen badge.
 
                     if unseenCount > 0 {
                         Text("\(unseenCount) new")

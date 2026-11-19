@@ -99,6 +99,7 @@ struct HomeScreen: View {
                         }
                     }
                 }
+                .pccTabBarClearance() // t270: last card and its buttons scroll fully above the tab bar
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)

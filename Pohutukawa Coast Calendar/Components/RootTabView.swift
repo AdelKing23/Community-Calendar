@@ -368,7 +368,23 @@ struct BelongingPromptButton: View {
     }
 }
 
+extension View {
+    /// t270: bottom room for the floating tab bar on every scrollable tab screen (and screens pushed inside a tab),
+    /// so the last card and its buttons scroll fully above the bar and can be tapped without holding.
+    /// Applied on the scroll view itself so the scroll content inset grows (a parent inset doesn't reach UIKit lists).
+    func pccTabBarClearance() -> some View {
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear
+                .frame(height: PCCBottomTabBar.contentClearance)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
 struct PCCBottomTabBar: View {
+    /// t270: bar height (48pt row + 18pt inner padding + 14pt bottom gap = 80) plus a 16pt margin above it.
+    static let contentClearance: CGFloat = 96
+
     @Binding var selectedTab: MainTab
 
     var body: some View {
