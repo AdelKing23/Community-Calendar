@@ -1754,6 +1754,7 @@ function SettingsHub({
   onPreviewOrg?: () => void;
 }) {
   const [pane, setPane] = useState<"hub" | "wallpaper" | "card" | "listings" | "activity" | "calendar" | "org-calendar" | "account" | "org" | "reminders" | "setup" | "interactions" | "notifications" | "membership" | "subscription">(initialPane ?? "hub");
+  const calendarFeedback = useAddToCalendarFeedback(); // t278
   const [interactionTab, setInteractionTab] = useState<"interested" | "going" | "belong" | "reminders" | "saved" | "shared">("interested");
   const [prefs, setPrefs] = useState<NotifyPrefs>(() => readNotifyPrefs(session?.user.id));
   const [billingBusy, setBillingBusy] = useState(false);
@@ -1943,7 +1944,7 @@ function SettingsHub({
                     {byType("going").map(({ row, event }) => (
                       <li key={row.id}>
                         <button type="button" className="interaction-list__title" onClick={() => onOpenListing(event)}>{event.title}<small><DateText value={event.start_at} allDay={event.is_all_day} /></small></button>
-                        <button type="button" className="button button--small" onClick={() => downloadEventIcs(event)}>Add to calendar</button>
+                        <button type="button" className={calendarFeedback.doneID === event.id ? "button button--small is-done" : "button button--small"} onClick={() => calendarFeedback.add(event)}>{calendarFeedback.doneID === event.id ? "Added ✓" : "Add to calendar"}</button>
                       </li>
                     ))}
                   </ul>
@@ -2848,6 +2849,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [view, setView] = useState<AppView>(legalPage ? "legal" : "home");
+  const calendarFeedback = useAddToCalendarFeedback(); // t278
   // t275: day picked in Org Calendar "Create on this day"; cleared when leaving Create.
   const [createPrefillDate, setCreatePrefillDate] = useState("");
   useEffect(() => { if (view !== "create") setCreatePrefillDate(""); }, [view]);
@@ -3881,6 +3883,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
     <main>
       <WelcomeAndTour session={session} />
       {notice ? <div className={`notice notice--${notice.kind}`}>{notice.text}</div> : null}
+      <ToastHost />
 
         <div className="app-shell">
           <div className="mobile-bar">
@@ -4275,8 +4278,8 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                     </button>
                   );
                 })}
-                <button type="button" className="chip" onClick={() => downloadEventIcs(selectedEvent)}>
-                  <span aria-hidden="true">📅</span> Add to calendar
+                <button type="button" className={calendarFeedback.doneID === selectedEvent.id ? "chip chip--active" : "chip"} onClick={() => calendarFeedback.add(selectedEvent)}>
+                  <span aria-hidden="true">{calendarFeedback.doneID === selectedEvent.id ? "✓" : "📅"}</span> {calendarFeedback.doneID === selectedEvent.id ? "Added" : "Add to calendar"}
                 </button>
               </div>
               {engagedByEvent.get(selectedEvent.id)?.has("going") && readNotifyPrefs(session?.user.id).planPanel ? (
@@ -4284,7 +4287,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                   <p className="plan-this__eyebrow">PLAN THIS</p>
                   <p className="plan-this__note">You're going. Add it to your phone's calendar — the file includes a reminder 1 hour before. The website doesn't send reminder emails.</p>
                   <div className="action-row">
-                    <button type="button" className="button button--primary" onClick={() => downloadEventIcs(selectedEvent)}>Add to calendar</button>
+                    <button type="button" className={calendarFeedback.doneID === selectedEvent.id ? "button button--primary is-done" : "button button--primary"} onClick={() => calendarFeedback.add(selectedEvent)}>{calendarFeedback.doneID === selectedEvent.id ? "Added ✓" : "Add to calendar"}</button>
                     <button type="button" className="button button--secondary" disabled={busy} aria-busy={busy} onClick={() => void toggleEngagement(selectedEvent.id, "going")}>Not going</button>
                   </div>
                 </div>
@@ -4760,7 +4763,7 @@ async function shareEvent(event: EventRecord) {
       return;
     }
     await navigator.clipboard.writeText(text);
-    window.alert("Listing details copied to clipboard.");
+    pccToast("Listing details copied");
   } catch {
     // user cancelled share sheet or clipboard blocked: nothing to do
   }
@@ -4860,7 +4863,7 @@ async function sharePoll(event: EventRecord) {
   try {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") { await navigator.share({ title: event.title, text }); return; }
     await navigator.clipboard.writeText(text);
-    window.alert("Poll details copied to clipboard.");
+    pccToast("Poll details copied");
   } catch {
     // share sheet cancelled or clipboard blocked
   }
@@ -6185,6 +6188,7 @@ function PollVoteCard({ event, session, isOwner, onSignIn, compact = false }: {
         body: JSON.stringify(body),
       }, session.access_token);
       setMine({ selected_option: body.selected_option, custom_answer: body.custom_answer });
+      pccToast("Vote saved");
       recordEventAnalytics(event.id, "poll_answer", compact ? "poll_card" : "event_detail", session.access_token);
       setShowOther(false);
       setCustom("");
@@ -6210,6 +6214,7 @@ function PollVoteCard({ event, session, isOwner, onSignIn, compact = false }: {
       const left = await rest<{ selected_option: string | null }[]>(`event_poll_responses?select=selected_option&event_id=eq.${event.id}&respondent_id=eq.${session.user.id}`, {}, session.access_token).catch(() => []);
       if (left && left.length) throw new Error(`${left.length} earlier answer${left.length === 1 ? "" : "s"} couldn't be removed (the database refused the delete). Ask Support to clear it.`);
       setMine(null);
+      pccToast("Answer removed");
       if (!isOwner) setCounts(null); else await loadCounts();
     } catch (err) {
       setError(messageFromError(err));
@@ -6362,6 +6367,57 @@ function downloadEventIcs(event: EventRecord) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// t278/t279: one shared toast for actions that change something (add, vote, copy).
+// Pure navigation keeps the normal button press; nothing else uses this.
+type ToastMessage = { id: number; text: string; kind: "good" | "warn" };
+const toastListeners = new Set<(message: ToastMessage) => void>();
+let toastSeq = 0;
+function pccToast(text: string, kind: "good" | "warn" = "good") {
+  const message = { id: ++toastSeq, text, kind };
+  toastListeners.forEach((listener) => listener(message));
+}
+
+function ToastHost() {
+  const [message, setMessage] = useState<ToastMessage | null>(null);
+  useEffect(() => {
+    const listener = (next: ToastMessage) => setMessage(next);
+    toastListeners.add(listener);
+    return () => { toastListeners.delete(listener); };
+  }, []);
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+  if (!message) return null;
+  return (
+    <div key={message.id} className={message.kind === "warn" ? "cc-toast cc-toast--error" : "cc-toast"} role="status" aria-live="polite">
+      {message.kind === "warn" ? "⚠ " : "✓ "}{message.text}
+    </div>
+  );
+}
+
+// t278: a short "Added" state on the button plus the shared toast.
+// The website hands over a calendar file; the phone or computer finishes the add.
+function useAddToCalendarFeedback() {
+  const [doneID, setDoneID] = useState<string | null>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  function add(event: EventRecord) {
+    try {
+      downloadEventIcs(event);
+      setDoneID(event.id);
+      pccToast("Added to calendar. Open the file if your device asks.");
+    } catch {
+      setDoneID(null);
+      pccToast("Couldn't make the calendar file. Please try again.", "warn");
+    }
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setDoneID(null), 2600);
+  }
+  return { doneID, add };
 }
 
 const eventReportCategories: { id: string; label: string }[] = [

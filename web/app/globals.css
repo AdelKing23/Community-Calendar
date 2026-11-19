@@ -2514,3 +2514,9 @@ html .footer .footer__links :is(a, button) { color: #1f4d33; }
 @media (max-width: 899px) {
   .app-shell__main { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* t278: Add to calendar confirmation */
+.cc-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 1000; max-width: min(92vw, 420px); padding: 12px 18px; border-radius: 999px; background: #1F2A26; color: #fff !important; font-weight: 700; font-size: 0.95rem; box-shadow: 0 10px 24px rgba(0,0,0,.22); animation: cc-toast-in .22s ease-out; }
+.cc-toast--error { background: #B3261E; }
+@keyframes cc-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.button.is-done { background: #2E7D50 !important; border-color: #2E7D50 !important; color: #fff !important; }
