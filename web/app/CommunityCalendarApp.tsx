@@ -2127,11 +2127,7 @@ function SettingsHub({
   const publicName = memberProfile?.contact_name || memberProfile?.business_name || "";
   return (
     <section className="account-panel settings-ios">
-      <div className="panel settings-header">
-        <p className="eyebrow">YOUR SPACE</p>
-        <h2>Settings</h2>
-        <p className="panel-note">Account, membership, saved activity and reminders.</p>
-      </div>
+      {/* t269: the big "Settings" title now lives in the page title card above, like every other screen */}
 
       <p className="eyebrow">Account</p>
       <div className="settings-group">
@@ -2875,11 +2871,41 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [view, setView] = useState<AppView>(legalPage ? "legal" : "home");
-  // t262: leaving a standalone legal page through the navigator returns the address bar to "/".
+  // t269: the browser Back button steps back one screen at a time (e.g. Settings -> Privacy -> Back returns to
+  // Settings, a listing -> Back returns to the list). Each screen gets its own history entry; "/?view=settings"
+  // style addresses restore the screen when a full page (Privacy, Terms, Support) is left with Back.
+  const historyFromPop = useRef(false);
+  const historyStarted = useRef(false);
   useEffect(() => {
-    if (!legalPage || view === "legal" || typeof window === "undefined") return;
-    if (window.location.pathname !== "/") window.history.replaceState(null, "", "/");
-  }, [view, legalPage]);
+    if (typeof window === "undefined") return;
+    const restorable: string[] = ["home", "whatsOn", "hosts", "settings", "account", "contact", "support", "create"];
+    const wanted = new URL(window.location.href).searchParams.get("view");
+    if (!legalPage && wanted && restorable.includes(wanted)) { historyFromPop.current = true; setView(wanted as AppView); }
+    const onPop = (event: PopStateEvent) => {
+      const state = event.state as { ccView?: AppView; ccEvent?: string | null; ccHost?: string | null } | null;
+      historyFromPop.current = true;
+      setView(state?.ccView ?? (legalPage && window.location.pathname !== "/" ? "legal" : "home"));
+      if (!state?.ccEvent) setSelectedEvent(null);
+      if (!state?.ccHost) setSelectedHost(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const state = { ccView: view, ccEvent: selectedEvent ? String(selectedEvent.id) : null, ccHost: selectedHost ? String(selectedHost.id) : null };
+    const url = view === "legal" ? window.location.pathname : view === "home" ? "/" : `/?view=${view}`;
+    if (!historyStarted.current) {
+      historyStarted.current = true;
+      window.history.replaceState(state, "", view === "legal" ? window.location.pathname : window.location.pathname + window.location.search + window.location.hash);
+      return;
+    }
+    if (historyFromPop.current) { historyFromPop.current = false; window.history.replaceState(state, "", url); return; }
+    const current = window.history.state as typeof state | null;
+    if (current && current.ccView === state.ccView && current.ccEvent === state.ccEvent && current.ccHost === state.ccHost) return;
+    window.history.pushState(state, "", url);
+  }, [view, selectedEvent, selectedHost, legalPage]);
   const [hosts, setHosts] = useState<HostRecord[]>([]);
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -3888,10 +3914,21 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
             </div>
           </nav>
           <div className="app-shell__main">
-          <section className={view === "home" ? "hero" : "hero hero--page"}>
+          <section className={view === "home" && !selectedEvent ? "hero" : "hero hero--page"}>
             <div className="hero__shade" />
             <div className="hero__content">
-              {view === "home" ? (
+              {selectedEvent ? (
+                <>
+                  <p className="eyebrow">Listing</p>
+                  <h1 className="hero__title--long">{selectedEvent.title}</h1>
+                  {selectedEvent.venue ? <p className="intro">{selectedEvent.venue}</p> : null}
+                </>
+              ) : view === "hosts" && selectedHost ? (
+                <>
+                  <p className="eyebrow">Organisation</p>
+                  <h1 className="hero__title--long">{selectedHost.business_name}</h1>
+                </>
+              ) : view === "home" ? (
                 <>
                   <p className="eyebrow">Coast Calendar</p>
                   <h1>Coast Calendar</h1>
@@ -3937,6 +3974,8 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                 </>
               ) : view === "settings" ? (
                 <>
+                  <p className="eyebrow">Settings</p>
+                  <h1>Settings</h1>
                   <p className="intro">Set yourself and your organisation up here. Settle in, and send feedback if something should work better.</p>
                 </>
               ) : (
@@ -4211,10 +4250,9 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
 
           {!selectedEvent && view === "hosts" && selectedHost && (
           <section className="section" id="host-page">
+            {/* t269: the organisation name is the big title card above; this card keeps the details */}
             <div className="section__header">
-              <p className="eyebrow">Host</p>
-              <h2>{selectedHost.business_name}</h2>
-              <button className="chip" type="button" onClick={() => setSelectedHost(null)}>Back to hosts</button>
+              <button className="chip" type="button" onClick={() => setSelectedHost(null)}>← Back to hosts</button>
             </div>
             <p className="event-card__meta">{selectedHost.public_location_text || areaLabel(selectedHost.area_scope_id)}</p>
             <p>{selectedHost.about ?? "A verified local member sharing listings with the community."}</p>
@@ -4362,6 +4400,13 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
           {view === "legal" && legalPage && !selectedEvent && (
           <section className="section" id="legal-page">
             <div className="panel legal-page" style={{ display: "grid", gap: 14, lineHeight: 1.6 }}>
+              <div>
+                <button type="button" className="text-link" onClick={() => {
+                  // t269: Back goes one step back (e.g. to Settings); only falls back to Home when there is no history.
+                  const cameFromSite = typeof document !== "undefined" && document.referrer.startsWith(window.location.origin);
+                  if (window.history.length > 1 && cameFromSite) window.history.back(); else window.location.href = "/";
+                }}>← Back</button>
+              </div>
               {children}
             </div>
           </section>
