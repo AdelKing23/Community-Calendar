@@ -398,8 +398,22 @@ function authHeaders(accessToken?: string) {
   };
 }
 
+// allow1: DB trigger events_listing_allowance raises 'listing_allowance_reached' (DETAIL carries resets_at=<ISO>).
+function nzLongDate(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-NZ", { day: "numeric", month: "long", year: "numeric", timeZone: "Pacific/Auckland" });
+}
+function listingAllowanceMessage(raw: string) {
+  const resets = nzLongDate(raw.match(/resets_at=([0-9T:.\-]+Z)/)?.[1]);
+  return resets
+    ? `You've used this period's listing allowance. It resets on ${resets} when your plan renews.`
+    : "You've used this period's listing allowance. It resets when your plan renews.";
+}
+
 function userFacingServiceMessage(raw: string, status?: number) {
   const trimmed = raw.trim();
+  if (trimmed.includes("listing_allowance_reached")) return listingAllowanceMessage(trimmed);
   let code = "";
   let combined = trimmed;
 
@@ -1709,13 +1723,25 @@ function SettingsHub({
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [usedListings, setUsedListings] = useState<number | null>(null);
+  // allow1: numbers from listing_allowance_status (same as the DB gate); null = function not installed yet -> old count.
+  const [allowance, setAllowance] = useState<{ used: number; allowance: number; remaining: number; resets_at: string | null } | null>(null);
   const [deleteBlocked, setDeleteBlocked] = useState(false);
   useEffect(() => { setPrefs(readNotifyPrefs(session?.user.id)); }, [session?.user.id]);
   const updatePrefs = (patch: Partial<NotifyPrefs>) => { const next = { ...prefs, ...patch }; setPrefs(next); writeNotifyPrefs(session?.user.id, next); };
   useEffect(() => {
     if (pane !== "subscription" || !session || !memberProfile) return;
-    rest<{ id: string }[]>(`events?select=id&business_profile_id=eq.${memberProfile.id}&status=eq.published`, {}, session.access_token)
-      .then((rows) => setUsedListings(rows.length)).catch(() => setUsedListings(null));
+    let cancelled = false;
+    const rpcCall = rpc<{ used: number; allowance: number; remaining: number; resets_at: string | null }[]>("listing_allowance_status", { p_business_id: memberProfile.id }, session.access_token);
+    const fallback = () => {
+      if (cancelled) return;
+      setAllowance(null);
+      rest<{ id: string }[]>(`events?select=id&business_profile_id=eq.${memberProfile.id}&status=eq.published`, {}, session.access_token)
+        .then((rows) => { if (!cancelled) setUsedListings(rows.length); }).catch(() => { if (!cancelled) setUsedListings(null); });
+    };
+    void rpcCall
+      .then((rows) => { if (cancelled) return; if (rows?.[0]) setAllowance(rows[0]); else fallback(); })
+      .catch(fallback);
+    return () => { cancelled = true; };
   }, [pane, session, memberProfile]);
   const back = <button type="button" className="text-link" onClick={() => setPane("hub")}>← Back to Settings</button>;
   async function manageBilling() {
@@ -1980,7 +2006,7 @@ function SettingsHub({
       <section className="panel account-panel">
         {back}
         <p className="eyebrow">Organisation management</p>
-        <h2>Organisation subscription</h2>
+        <h2>Org&apos;s Subscriptions</h2>
         {!session || !memberProfile ? (
           <button type="button" className="button button--primary" onClick={() => setPane("setup")}>Get set up</button>
         ) : !current ? (
@@ -1993,7 +2019,11 @@ function SettingsHub({
             <p className="status-pill">{title}</p>
             <SubscriptionEndLine subscriptions={subscriptions} />
             <div className="settings-group settings-group--pad">
-              <InfoRow title="Active listings and polls" detail={`${usedListings ?? "–"} used of ${current.active_listing_limit} · ${usedListings == null ? "" : Math.max(0, current.active_listing_limit - usedListings) + " remaining"}`} />
+              {allowance ? (
+                <InfoRow title="New listings this period" detail={`${allowance.used} of ${allowance.allowance}${allowance.resets_at ? ` · resets ${nzLongDate(allowance.resets_at)}` : ""}`} />
+              ) : (
+                <InfoRow title="Active listings and polls" detail={`${usedListings ?? "–"} used of ${current.active_listing_limit} · ${usedListings == null ? "" : Math.max(0, current.active_listing_limit - usedListings) + " remaining"}`} />
+              )}
               <InfoRow title="Placement" detail="Placement follows your plan." />
               <InfoRow title="Billed by" detail={current.provider === "stripe" ? "Card (Stripe)" : "Apple"} />
             </div>
@@ -2081,7 +2111,7 @@ function SettingsHub({
         <div className="settings-grid">
           {wallpapers.map((item) => (
             <button type="button" key={item.id} className="settings-swatch" onClick={() => { saveTheme({ wallpaper: item.id }, session?.user.id); setPane("hub"); }}>
-              <span className="settings-swatch__preview" style={item.file ? { backgroundImage: `url(${item.file})` } : { background: "var(--pcc-cream)" }} />
+              <span className="settings-swatch__preview" style={item.file ? { backgroundImage: `url(${item.file})` } : { background: "var(--pcc-cream) url(/wallpapers/original/cluster-tl.svg) center / 140% no-repeat" }} />
               <span>{item.title}</span>
             </button>
           ))}
@@ -2145,26 +2175,28 @@ function SettingsHub({
         <SettingsRow title="Engagement and reminders" detail="Going, Plan this and calendar reminders." action="Open" onClick={() => setPane("reminders")} />
       </div>
 
-      {/* t270: one Organisation card, each row goes straight to its screen (layout only; permissions unchanged) */}
+      {/* t273: the Settings Organisation card is the organisation's dashboard. Only an approved owner sees the
+          full list; everyone else sees one "Create an Organisation" row with their status (permissions unchanged). */}
       <p className="eyebrow">Organisation</p>
       <div className="settings-group">
-        <SettingsRow
-          title="Organisation page"
-          detail={memberProfile ? "Edit your public page." : "Register your organisation for Support approval."}
-          action={memberPageDetail}
-          onClick={() => (session && memberProfile && memberProfile.status === "approved" ? setPane("org") : setPane("setup"))}
-        />
-        <SettingsRow title="Subscriptions" detail={memberProfile ? "Plan, renewal, billing and cancel." : "Choose a plan after approval."} action="Open" onClick={() => setPane(session && memberProfile ? "subscription" : "setup")} />
-        <SettingsRow title="Organisation dashboard" detail="Status, approval, plan and next steps." action="Open" onClick={() => setPane("setup")} />
-        {session && memberProfile && onPreviewOrg ? (
-          <SettingsRow title="Preview my public page" detail="See your organisation card and listings as the public sees them." action="Open" onClick={onPreviewOrg} />
-        ) : null}
-        {session ? (
-          <SettingsRow title="My listings" detail="Review, edit, remove, and follow Support feedback." action="Open" onClick={() => setPane("listings")} />
-        ) : null}
         {orgApproved ? (
-          <SettingsRow title="Org Calendar" detail="Add and manage dates for your organisation." action="Open" onClick={() => setPane("org-calendar")} />
-        ) : null}
+          <>
+            <SettingsRow title="Set up Org Homepage" detail="Add images and details for your organisation's home page." action="Edit" onClick={() => setPane("org")} />
+            <SettingsRow title="Org's Subscriptions" detail="Your current plan and details. Choose or change a plan." action="Open" onClick={() => setPane("subscription")} />
+            {onPreviewOrg ? (
+              <SettingsRow title="Preview my public page" detail="See your organisation card and listings as the public sees them." action="Open" onClick={onPreviewOrg} />
+            ) : null}
+            <SettingsRow title="Org's Listings" detail="Review, edit, remove, and follow Support feedback." action="Open" onClick={() => setPane("listings")} />
+            <SettingsRow title="Org Calendar" detail="Add and manage dates for your organisation." action="Open" onClick={() => setPane("org-calendar")} />
+          </>
+        ) : (
+          <SettingsRow
+            title="Create an Organisation"
+            detail={session && memberProfile ? `Application status: ${memberStatusTitle[memberProfile.status] ?? memberProfile.status}.` : "Register, get Support approval, then subscribe to list."}
+            action={memberPageDetail}
+            onClick={() => setPane("setup")}
+          />
+        )}
       </div>
 
       <p className="eyebrow">Appearance</p>
@@ -2691,7 +2723,7 @@ function OrgCalendarPane({ session, profile, onBack, onOpen }: {
           <input type="checkbox" checked={draft.isPublic} onChange={(e) => setDraft({ ...draft, isPublic: e.target.checked })} /> Public listing
         </label>
         <p className="panel-note">People who Belong to this organisation can see this date. It is not on the public board.</p>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--chip-gap)" }}>
           <button type="button" className="button button--primary" disabled={!canSave} onClick={() => void save()}>{saving ? "Saving" : draft.editingID ? "Save" : "Create on this day"}</button>
           {draft.editingID ? <button type="button" className="button" onClick={() => setDraft(emptyOrgDraft)}>Cancel edit</button> : null}
         </div>
@@ -2907,6 +2939,42 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
     if (current && current.ccView === state.ccView && current.ccEvent === state.ccEvent && current.ccHost === state.ccHost) return;
     window.history.pushState(state, "", url);
   }, [view, selectedEvent, selectedHost, legalPage]);
+  // Phone (<900px) slide-out nav drawer. Always closed on SSR / first render (no hydration mismatch).
+  const [navOpen, setNavOpen] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
+  const navToggleRef = useRef<HTMLButtonElement | null>(null);
+  const navWasOpen = useRef(false);
+  useEffect(() => {
+    if (!navOpen) {
+      if (navWasOpen.current) { navWasOpen.current = false; navToggleRef.current?.focus(); }
+      return;
+    }
+    navWasOpen.current = true;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusables = () => Array.from(navRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href]") ?? []).filter((el) => el.offsetParent !== null);
+    window.requestAnimationFrame(() => { (navRef.current?.querySelector<HTMLElement>(".app-nav__item.is-active") ?? focusables()[0])?.focus(); });
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setNavOpen(false); return; }
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || !navRef.current?.contains(active))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (active === last || !navRef.current?.contains(active))) { event.preventDefault(); first.focus(); }
+    };
+    const wide = window.matchMedia("(min-width: 900px)");
+    const onWide = () => { if (wide.matches) setNavOpen(false); };
+    document.addEventListener("keydown", onKey);
+    wide.addEventListener("change", onWide);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      wide.removeEventListener("change", onWide);
+    };
+  }, [navOpen]);
   const [hosts, setHosts] = useState<HostRecord[]>([]);
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -2970,7 +3038,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
       : [...current, slug]);
   }
   const topicChipStyle = (active: boolean): React.CSSProperties => active
-    ? { background: "var(--pcc-orange)", color: "#fff", border: "1px solid var(--pcc-orange)" }
+    ? { background: "var(--pcc-orange-text)", color: "#fff", border: "1px solid var(--pcc-orange-text)" }
     // t262: inactive filter chips sit straight on the wallpaper now, so they are a solid cream fill (green on #FFFDF8 = 9.4:1)
     : { background: "#fffdf8", color: "var(--pcc-green)", border: "1px solid var(--pcc-green)" };
 
@@ -3303,7 +3371,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
       const isSupport = await rpc<boolean>("current_user_is_support", {}, token).catch(() => false);
       setIsSupportUser(Boolean(isSupport));
       if (isSupport) {
-        setSupportView("operator");
+        // Support lands on the public Home like everyone else; Dashboard opens only from the nav (or explicit buttons).
         await loadSupportData(token);
       }
     } catch (error) {
@@ -3867,39 +3935,51 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
       <WelcomeAndTour session={session} />
       {notice ? <div className={`notice notice--${notice.kind}`}>{notice.text}</div> : null}
 
-      {showOperatorWorkspace ? (
-        <section className="section operator-shell" id="operator">
-          <div className="dashboard-grid">
-            <SupportAdminPanel
-              onShowPublic={() => setSupportView("public")}
-              onSignOut={() => { revokeServerSession(session?.access_token); setSession(null); try { localStorage.removeItem("community_calendar_web_session"); } catch {}; setSupportView("public"); }}
-              profiles={supportProfiles}
-              subscriptions={supportSubscriptions}
-              listings={supportListings}
-              memberNotices={supportMemberNotices}
-              requests={supportInboxRequests}
-              changeRequests={changeRequests}
-              notifications={supportNotifications}
-              auditEvents={supportAuditEvents}
-              busy={busy}
-              onUpdate={supportUpdate}
-            />
-            <SupportRequestPanel requests={supportRequests} busy={busy} onSubmit={submitSupportRequest} />
-            {session ? <AccountPanel session={session} profile={profile} busy={busy} onLogout={logout} onSave={saveProfile} /> : null}
-          </div>
-        </section>
-      ) : (
         <div className="app-shell">
-          <nav className="app-nav" aria-label="Main navigation">
-            <button type="button" className={view === "home" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { setSelectedEvent(null); setView("home"); }}>Home</button>
-            <button type="button" className={view === "whatsOn" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { setSelectedEvent(null); setView("whatsOn"); }}>What&apos;s On</button>
+          <div className="mobile-bar">
+            <button
+              type="button"
+              ref={navToggleRef}
+              className="mobile-bar__menu"
+              aria-label="Open menu"
+              aria-expanded={navOpen}
+              aria-controls="app-nav-drawer"
+              onClick={() => setNavOpen(true)}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" fill="none" /></svg>
+            </button>
+            <span className="mobile-bar__brand">Coast Calendar</span>
+            {(() => {
+              const labels: Partial<Record<AppView, string>> = { home: "Home", whatsOn: "What\u2019s On", create: "Create", hosts: "Hosts", settings: "Settings", account: "Sign in", contact: "Support", support: "Support", privacy: "Privacy", terms: "Terms" };
+              const label = showOperatorWorkspace ? "Dashboard" : labels[view];
+              return label ? <span className="mobile-bar__tab">{label}</span> : null;
+            })()}
+          </div>
+          <div className={navOpen ? "nav-overlay is-open" : "nav-overlay"} aria-hidden="true" onClick={() => setNavOpen(false)} />
+          <nav
+            id="app-nav-drawer"
+            ref={navRef}
+            className={navOpen ? "app-nav is-open" : "app-nav"}
+            aria-label="Main navigation"
+            onClick={(event) => {
+              const item = (event.target as HTMLElement).closest<HTMLElement>(".app-nav__item");
+              if (!item) return;
+              setNavOpen(false);
+              if (item.dataset.nav !== "dashboard") setSupportView("public");
+            }}
+          >
+            <button type="button" className="app-nav__close" aria-label="Close menu" onClick={() => setNavOpen(false)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" fill="none" /></svg>
+            </button>
+            <button type="button" className={!showOperatorWorkspace && (view === "home") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { setSelectedEvent(null); setView("home"); }}>Home</button>
+            <button type="button" className={!showOperatorWorkspace && (view === "whatsOn") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { setSelectedEvent(null); setView("whatsOn"); }}>What&apos;s On</button>
             {mounted && session ? (
-              <button type="button" className={view === "create" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => setView("create")}>Create</button>
+              <button type="button" className={!showOperatorWorkspace && (view === "create") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => setView("create")}>Create</button>
             ) : null}
-            <button type="button" className={view === "hosts" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { setSelectedHost(null); setView("hosts"); }}>Hosts</button>
-            <button type="button" className={view === "settings" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { void syncFreshSession(); setView("settings"); }}>Settings</button>
+            <button type="button" className={!showOperatorWorkspace && (view === "hosts") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { setSelectedHost(null); setView("hosts"); }}>Hosts</button>
+            <button type="button" className={!showOperatorWorkspace && (view === "settings") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => { void syncFreshSession(); setView("settings"); }}>Settings</button>
             {session && isSupportUser ? (
-              <button type="button" className="app-nav__item" onClick={() => setSupportView("operator")}>Dashboard</button>
+              <button type="button" className={showOperatorWorkspace ? "app-nav__item is-active" : "app-nav__item"} data-nav="dashboard" onClick={() => setSupportView("operator")}>Dashboard</button>
             ) : null}
             <div className="app-nav__bottom">
             {session ? (
@@ -3907,14 +3987,32 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                 Sign out
               </button>
             ) : (
-              <button type="button" className={view === "account" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => setView("account")}>
+              <button type="button" className={!showOperatorWorkspace && (view === "account") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => setView("account")}>
                 Sign in
               </button>
             )}
-            <button type="button" className={view === "support" || view === "contact" ? "app-nav__item is-active" : "app-nav__item"} onClick={() => setView("contact")}>Support</button>
+            <button type="button" className={!showOperatorWorkspace && (view === "support" || view === "contact") ? "app-nav__item is-active" : "app-nav__item"} onClick={() => setView("contact")}>Support</button>
             </div>
           </nav>
           <div className="app-shell__main">
+          {showOperatorWorkspace ? (
+            <section className="section operator-shell" id="operator">
+              <SupportAdminPanel
+                profiles={supportProfiles}
+                subscriptions={supportSubscriptions}
+                listings={supportListings}
+                memberNotices={supportMemberNotices}
+                requests={supportInboxRequests}
+                changeRequests={changeRequests}
+                notifications={supportNotifications}
+                auditEvents={supportAuditEvents}
+                busy={busy}
+                onUpdate={supportUpdate}
+                onOpenListing={(listing) => { setSupportView("public"); setSelectedEvent(listing); setView("home"); }}
+              />
+              {/* Dashboard = Support work only. Account settings live in Settings; Sign out lives in the nav. */}
+            </section>
+          ) : (<>
           <section className={view === "home" && !selectedEvent ? "hero" : "hero hero--page"}>
             <div className="hero__shade" />
             <div className="hero__content">
@@ -3992,7 +4090,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
           <section className="section section--tight" id="home-feed">
             {/* t263: location controls on their own self-contained card (Hosts style); listings stay separate cards */}
             <div className="location-card" role="group" aria-label="Choose your area">
-            <p className="eyebrow home-search-label" style={{ marginBottom: 8 }}>Search</p>
+            <p className="eyebrow home-search-label">Search</p>
           <div className="home-header-row">
           <button type="button" className="area-pill area-pill--current" onClick={() => setShowFinder((open) => !open)} style={topicChipStyle(true)}>
               {locationScopes.find((scope) => scope.slug === homeScope)?.name ?? "Choose area"}
@@ -4001,10 +4099,10 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
             <HomeViewToggle mode={homeViewMode} onChange={setHomeViewMode} />
           </div>
             {!showFinder ? (
-              <p className="panel-note" style={{ marginTop: 8 }}>Tap here to search again</p>
+              <p className="panel-note home-search-hint">Tap here to search again</p>
             ) : null}
             {showFinder ? (
-              <div style={{ marginTop: 10 }}>
+              <div className="home-search-finder">
                 <input
                   value={finderQuery}
                   onChange={(event) => setFinderQuery(event.target.value)}
@@ -4014,7 +4112,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                   autoFocus
                   style={{ width: "100%", maxWidth: 360, padding: "10px 12px", borderRadius: 999, border: "1px solid rgba(16,33,31,0.16)" }}
                 />
-                <div className="area-row" style={{ marginTop: 8 }}>
+                <div className="area-row">
                   {searchScopes(finderQuery, locationScopes).map((scope) => (
                     <button type="button" className="area-pill area-pill--neutral" key={`find-${scope.slug}`} onClick={() => { setHomeScope(scope.slug); setShowFinder(false); setFinderQuery(""); }}>
                       {scope.name}
@@ -4023,14 +4121,14 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                 </div>
               </div>
             ) : null}
-            <div className="area-row" style={{ marginTop: 10 }}>
+            <div className="area-row">
               {primaryChipsOf(homeScope, locationScopes, locationEdges).map((scope) => (
                 <button type="button" className="area-pill area-pill--child" key={`sib-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} aria-label={`${scope.name} (nearby area)`}>
                   {scope.name}
                 </button>
               ))}
             </div>
-            <div className="area-row" style={{ marginTop: 8 }}>
+            <div className="area-row">
               {ancestorScopesOf(homeScope, locationScopes, locationEdges).map((scope) => (
                 <button type="button" className="area-pill area-pill--parent" key={`anc-${scope.slug}`} onClick={() => setHomeScope(scope.slug)} aria-label={`${scope.name} (wider area)`}>
                   {scope.name}
@@ -4038,7 +4136,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
               ))}
             </div>
             <p className="panel-note"></p>
-            <div className="area-row" style={{ marginTop: 8 }}>
+            <div className="area-row">
               <span className="area-pill area-pill--neutral">{weeklyViews == null ? "—" : weeklyViews} views this week</span>
               <span className="area-pill area-pill--neutral">{(homeEventIDs ?? []).length} listings</span>
             </div>
@@ -4102,7 +4200,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                   onChange={(e) => setFinderQuery(e.target.value)}
                   style={{ marginTop: 8, width: "100%" }}
                 />
-                <div className="area-row" style={{ marginTop: 8 }}>
+                <div className="area-row">
                   {searchScopes(finderQuery, locationScopes).map((scope) => (
                     <button
                       type="button"
@@ -4116,7 +4214,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                 </div>
               </>
             ) : null}
-            <div className="area-row" style={{ margin: "8px 0 10px" }}>
+            <div className="area-row">
               {(["today", "week", "month", "upcoming"] as const).map((scope) => (
                 <button
                   type="button"
@@ -4129,7 +4227,7 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
                 </button>
               ))}
             </div>
-            <div className="area-row" style={{ margin: "12px 0 18px" }}>
+            <div className="area-row">
               <button type="button" className="area-pill" onClick={() => setSelectedTopics([])} style={topicChipStyle(selectedTopics.length === 0)}>All</button>
               {topicFilters.map((topic) => (
                 <button
@@ -4497,9 +4595,9 @@ export default function CommunityCalendarApp({ legalPage, children }: { legalPag
             />
           </section>
           )}
+          </>)}
           </div>
         </div>
-      )}
 
       <footer className="footer">
         <strong>Coast Calendar</strong>
@@ -5041,7 +5139,7 @@ function GetSetUpGuide({ session, profile, subscriptions, busy, onBack, onSignIn
     ["Sign in normally", "Use a regular app account first. Browsing, saving and reminders stay separate from membership."],
     ["Register your Organisation", "Tell us who you represent and who is authorised to manage the membership. Public homepage details are set up separately."],
     ["Wait for admin approval", "Your application shows as pending until Support approves it."],
-    ["Use your dashboard", "After approval, finish your page, activate the subscription, publish listings and post Notices for followers."],
+    ["Use Settings › Organisation", "After approval, finish your page, activate the subscription, publish listings and post Notices for followers."],
   ];
   async function upload(file: File | undefined, kind: "hero" | "avatar") {
     if (!file || !onUploadImage) return;
@@ -6585,7 +6683,7 @@ function SupportRequestPanel({ requests, busy, onSubmit }: {
   );
 }
 
-function SupportAdminPanel({ profiles, subscriptions, listings, memberNotices, requests, changeRequests, notifications, auditEvents, busy, onUpdate, onShowPublic, onSignOut }: {
+function SupportAdminPanel({ profiles, subscriptions, listings, memberNotices, requests, changeRequests, notifications, auditEvents, busy, onUpdate, onOpenListing }: {
   profiles: HostRecord[];
   subscriptions: SubscriptionRecord[];
   listings: EventRecord[];
@@ -6596,8 +6694,7 @@ function SupportAdminPanel({ profiles, subscriptions, listings, memberNotices, r
   auditEvents: SupportAuditEvent[];
   busy: boolean;
   onUpdate: (table: "events" | "business_profiles" | "support_requests" | "event_change_requests" | "member_notices", id: string, patch: Record<string, unknown>) => void;
-  onShowPublic?: () => void;
-  onSignOut?: () => void;
+  onOpenListing?: (listing: EventRecord) => void;
 }) {
   const subscriptionsByProfile = useMemo(() => {
     const map = new Map<string, SubscriptionRecord[]>();
@@ -6617,7 +6714,8 @@ function SupportAdminPanel({ profiles, subscriptions, listings, memberNotices, r
   const queuedNotifications = notifications.filter((notification) => notification.push_status === "queued");
   const activeSubscriptions = subscriptions.filter((subscription) => ["active", "trialing"].includes(subscription.status));
   const [memberReviewNotes, setMemberReviewNotes] = useState<Record<string, string>>({});
-  const [hqTab, setHqTab] = useState<"apps" | "listings" | "notices" | "inbox" | "reports" | "edits" | "alerts" | "audit">("listings");
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, { status: SupportRequest["status"]; note: string }>>({});
+  const [replyOpen, setReplyOpen] = useState<string | null>(null);
   // TEMP_BRIDGE: listing reports arrive as support_requests with topic "Listing report".
   const isListingReport = (request: SupportRequest) => request.topic === "Listing report";
 
@@ -6667,183 +6765,353 @@ function SupportAdminPanel({ profiles, subscriptions, listings, memberNotices, r
     };
   }
 
-  return (
-    <div className="panel panel--wide">
-      <div className="hq-layout">
-      <nav className="hq-side" aria-label="Support queues">
-        <button type="button" aria-pressed={hqTab === "listings"} onClick={() => setHqTab("listings")}>Pending Listings <span>{pendingListings.length}</span></button>
-        <button type="button" aria-pressed={hqTab === "reports"} onClick={() => setHqTab("reports")}>Listing Reports <span>{openSupportRequests.filter(isListingReport).length}</span></button>
-        <button type="button" aria-pressed={hqTab === "edits"} onClick={() => setHqTab("edits")}>Change Requests <span>{pendingChangeRequests.length}</span></button>
-        <button type="button" aria-pressed={hqTab === "apps"} onClick={() => setHqTab("apps")}>Member Applications <span>{pendingProfiles.length}</span></button>
-        <button type="button" aria-pressed={hqTab === "inbox"} onClick={() => setHqTab("inbox")}>Support Inbox <span>{openSupportRequests.filter((r) => !isListingReport(r)).length}</span></button>
-        <button type="button" aria-pressed={hqTab === "notices"} onClick={() => setHqTab("notices")}>Notices <span>{publishedNotices.length}</span></button>
-        <button type="button" aria-pressed={hqTab === "alerts"} onClick={() => setHqTab("alerts")}>Alerts <span>{failedNotifications.length + queuedNotifications.length}</span></button>
-        <button type="button" aria-pressed={hqTab === "audit"} onClick={() => setHqTab("audit")}>Audit</button>
-        {onShowPublic ? <button type="button" className="hq-side__public" onClick={onShowPublic}>Public app</button> : null}
-        {onSignOut ? <button type="button" className="hq-side__public" onClick={onSignOut}>Sign out</button> : null}
-      </nav>
-      <div className="hq-main">
-      <details className="hq-panel" open hidden={hqTab !== "apps"}>
-      <summary>Member Applications <span>{pendingProfiles.length}</span></summary>
-      <p className="panel-note">Pending applications only.</p>
-      {pendingProfiles.length === 0 ? <p className="panel-note">No member applications have been submitted yet.</p> : null}
-      {pendingProfiles.map((profile) => (
-        <div className="review-card" key={profile.id}>
-          <strong>{profile.business_name}</strong>
-          <span>{profile.status}</span>
-          <p>{profile.about}</p>
-          <div className="review-detail-grid">
-            <p><strong>Contact</strong><span>{profile.contact_name ?? "Not supplied"}</span></p>
-            <p><strong>Email</strong><span>{profile.contact_email}</span></p>
-            <p><strong>Phone</strong><span>{profile.phone ?? "Not supplied"}</span></p>
-            <p><strong>Website</strong><span>{profile.website ?? "Not supplied"}</span></p>
-            <p><strong>Area</strong><span>{areaLabel(profile.area_scope_id)}</span></p>
-            <p><strong>Plan</strong><span>{profile.selected_plan_id ?? "local_business"}</span></p>
-          </div>
-          <p className="panel-note">
-            {subscriptionsByProfile.get(profile.id)?.[0]
-              ? `Payment: ${subscriptionsByProfile.get(profile.id)?.[0].plan_id} · ${subscriptionsByProfile.get(profile.id)?.[0].status}`
-              : "Payment: no subscription record yet"}
-          </p>
-          {profile.support_note ? <p className="panel-note">Last Support note: {profile.support_note}</p> : null}
-          <label className="full">
-            Support note
-            <textarea
-              value={memberReviewNote(profile)}
-              onChange={(event) => updateMemberReviewNote(profile.id, event.target.value)}
-              placeholder="Optional note for approval, or what needs changing before approval."
-            />
-          </label>
-          <div className="action-row">
-            <button disabled={busy} onClick={() => onUpdate("business_profiles", profile.id, reviewPatch(profile, "approved"))}>Approve</button>
-            <button disabled={busy} onClick={() => onUpdate("business_profiles", profile.id, reviewPatch(profile, "rejected"))}>Request changes</button>
-            <button disabled={busy} onClick={() => onUpdate("business_profiles", profile.id, reviewPatch(profile, "suspended"))}>Suspend</button>
-          </div>
-        </div>
-      ))}
-      </details>
-      <details className="hq-panel" open hidden={hqTab !== "listings"}>
-      <summary>Pending listings <span>{pendingListings.length}</span></summary>
-      {pendingListings.length === 0 ? <p className="panel-note">No listings waiting.</p> : null}
-      {pendingListings.map((listing) => (
-        <div className="review-card" key={listing.id}>
-          <strong>{listing.title}</strong>
-          <span>{listing.status}</span>
-          <p>{listing.short_description || listing.long_description || "No description supplied."}</p>
-          <p className="panel-note">{listing.category} · {listing.location_display_name ?? listing.venue ?? listing.town ?? "No place"}</p>
+  const now = Date.now();
+  const openRequests = requests.filter((r) => r.status !== "closed");
+  const closedRequests = requests.filter((r) => r.status === "closed");
+  const inboxOpen = openRequests.filter((r) => !isListingReport(r));
+  const inboxClosed = closedRequests.filter((r) => !isListingReport(r));
+  const reportsOpen = openRequests.filter(isListingReport);
+  const reportsClosed = closedRequests.filter(isListingReport);
+  const reviewedChangeRequests = changeRequests.filter((request) => request.status !== "pending");
+  const endTime = (listing: EventRecord) => new Date(listing.end_at || listing.start_at).getTime();
+  const publishedListings = listings.filter((l) => l.status === "published" && endTime(l) >= now);
+  const endedListings = listings.filter((l) => l.status === "published" && endTime(l) < now);
+  const rejectedListings = listings.filter((l) => l.status === "rejected");
+  const archivedListings = listings.filter((l) => l.status === "archived");
+  const listingByRef = (ref: string | null) => (ref ? listings.find((l) => l.id === ref || l.id.startsWith(ref)) : undefined);
+  const fromLabel = (request: SupportRequest) => {
+    const owner = request.submitted_by ? profiles.find((profile) => profile.owner_user_id === request.submitted_by) : undefined;
+    return owner?.contact_name || owner?.business_name || (request.submitted_by ? `user ${request.submitted_by.slice(0, 8)}` : "unknown user");
+  };
+  const ref8 = (id: string) => id.slice(0, 8).toUpperCase();
+  const statusText: Record<string, string> = { open: "Open", in_review: "In review", closed: "Closed" };
 
-          <div className="action-row">
-            <button disabled={busy} onClick={() => onUpdate("events", listing.id, { status: "published" })}>Publish</button>
-            <button disabled={busy} onClick={() => onUpdate("events", listing.id, { status: "rejected" })}>Reject</button>
-            <button disabled={busy} onClick={() => onUpdate("events", listing.id, { status: "archived" })}>Archive</button>
-          </div>
-        </div>
-      ))}
-      </details>
-      <details className="hq-panel" open hidden={hqTab !== "notices"}>
-      <summary>Member Notices <span>{publishedNotices.length}</span></summary>
-      <h4 className="sr-only">Member Notices</h4>
-      <p className="panel-note">Weekly letters and member updates. Archive anything that should not remain visible while you review it.</p>
-      {memberNotices.length === 0 ? <p className="panel-note">No member Notices yet.</p> : memberNotices.map((notice) => (
-        <div className="review-card" key={notice.id}>
-          <strong>{notice.title}</strong>
-          <span>{notice.status}</span>
-          <p>{notice.summary ?? notice.body ?? "No summary supplied."}</p>
-          <div className="review-detail-grid">
-            <p><strong>Template</strong><span>{notice.template_style.replaceAll("_", " ")}</span></p>
-            <p><strong>Created</strong><span>{formatDate(notice.created_at)}</span></p>
-            <p><strong>Published</strong><span>{notice.published_at ? formatDate(notice.published_at) : "Not published"}</span></p>
-            <p><strong>Member</strong><span>{profiles.find((profile) => profile.id === notice.business_profile_id)?.business_name ?? notice.business_profile_id}</span></p>
-          </div>
-          <div className="action-row">
-            <button disabled={busy || notice.status === "published"} onClick={() => onUpdate("member_notices", notice.id, { status: "published" })}>Publish</button>
-            <button disabled={busy || notice.status === "archived"} onClick={() => onUpdate("member_notices", notice.id, { status: "archived" })}>Archive</button>
-          </div>
-        </div>
-      ))}
-      </details>
-      <details className="hq-panel" open hidden={hqTab !== "inbox" && hqTab !== "reports"}>
-      <summary>{hqTab === "reports" ? "Listing Reports" : "Support Inbox"} <span>{openSupportRequests.filter((r) => (hqTab === "reports") === isListingReport(r)).length}</span></summary>
-      {requests.filter((r) => (hqTab === "reports") === isListingReport(r)).length === 0 ? <p className="panel-note">{hqTab === "reports" ? "No listing reports yet." : "No support messages yet."}</p> : null}
-      {requests.filter((r) => (hqTab === "reports") === isListingReport(r)).map((request) => (
-        <div className="review-card" key={request.id}>
+  function draftFor(request: SupportRequest) {
+    return replyDrafts[request.id] ?? { status: request.status === "open" ? "in_review" : request.status, note: request.support_note ?? "" };
+  }
+
+  function requestCard(request: SupportRequest, kind: "inbox" | "report") {
+    const draft = draftFor(request);
+    const listing = listingByRef(request.listing_reference);
+    const editing = replyOpen === request.id;
+    return (
+      <div className="review-card dash-item" key={request.id}>
+        <div className="dash-item__head">
           <strong>{request.topic}</strong>
-          <span>{request.status}</span>
-          <small className="support-inbox__author">
-            From {(request.submitted_by && profiles.find((profile) => profile.owner_user_id === request.submitted_by)?.contact_name) || (request.submitted_by && profiles.find((profile) => profile.owner_user_id === request.submitted_by)?.business_name) || (request.submitted_by ? `user ${request.submitted_by.slice(0, 8)}` : "unknown user")} · {supportStamp(request.created_at)}
-            {request.listing_reference ? ` · listing ${request.listing_reference}` : ""}
-          </small>
-          <p>{request.message}</p>
-          <div className="action-row">
-            <button disabled={busy} onClick={() => onUpdate("support_requests", request.id, { status: "in_review" })}>In review</button>
-            <button disabled={busy} onClick={() => onUpdate("support_requests", request.id, { status: "closed" })}>Close</button>
-          </div>
+          <span className={`dash-status dash-status--${request.status}`}>{statusText[request.status] ?? request.status}</span>
         </div>
-      ))}
-      </details>
-      <details className="hq-panel" open hidden={hqTab !== "edits"}>
-      <summary>Edit requests <span>{pendingChangeRequests.length}</span></summary>
-      {changeRequests.map((request) => (
-        <div className="review-card" key={request.id}>
-          <strong>{request.events?.title ?? request.change_type}</strong>
-          <span>{request.status}</span>
-          <p>{request.requester_note ?? "No requester note supplied."}</p>
+        <small className="support-inbox__author">
+          From {fromLabel(request)} · {kind === "report" ? "Report" : "Reference"} {ref8(request.id)} · {supportStamp(request.created_at)}
+          {request.listing_reference ? ` · Listing ${ref8(request.listing_reference)}` : ""}
+        </small>
+        {listing ? <p className="panel-note">{listing.title} · {formatDate(listing.start_at)} · {listing.venue}</p> : null}
+        <p>{request.message || "No extra details supplied."}</p>
+        {request.support_note && !editing ? <p className="dash-reply"><strong>Support reply</strong>{request.support_note}</p> : null}
+        {editing ? (
+          <div className="dash-reply-form">
+            <p className="dash-field-label">Status</p>
+            <div className="segmented" role="radiogroup" aria-label="Status">
+              {(["open", "in_review", "closed"] as const).map((status) => (
+                <button type="button" key={status} role="radio" aria-checked={draft.status === status} className={draft.status === status ? "chip chip--active" : "chip"} onClick={() => setReplyDrafts((d) => ({ ...d, [request.id]: { ...draft, status } }))}>{statusText[status]}</button>
+              ))}
+            </div>
+            <label className="dash-field-label">Reply shown to user
+              <textarea rows={4} value={draft.note} onChange={(e) => setReplyDrafts((d) => ({ ...d, [request.id]: { ...draft, note: e.target.value } }))} />
+            </label>
+            <div className="action-row">
+              <button type="button" className="dash-btn dash-btn--go" disabled={busy} onClick={() => { onUpdate("support_requests", request.id, { status: draft.status, support_note: draft.note.trim() || null }); setReplyOpen(null); }}>{busy ? "Saving" : "Save Reply"}</button>
+              <button type="button" className="dash-btn" onClick={() => setReplyOpen(null)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
           <div className="action-row">
-            <button disabled={busy} onClick={() => onUpdate("event_change_requests", request.id, {
+            <button type="button" className="dash-btn dash-btn--go" disabled={busy} onClick={() => setReplyOpen(request.id)}>{request.support_note ? "Edit Reply" : "Reply"}</button>
+            {listing && onOpenListing ? <button type="button" className="dash-btn" onClick={() => onOpenListing(listing)}>View listing</button> : null}
+            {request.status === "open" ? <button type="button" className="dash-btn" disabled={busy} onClick={() => onUpdate("support_requests", request.id, { status: "in_review" })}>In review</button> : null}
+            {request.status !== "closed" ? <button type="button" className="dash-btn dash-btn--neutral" disabled={busy} onClick={() => onUpdate("support_requests", request.id, { status: "closed" })}>Close</button> : null}
+            {kind === "report" && request.status !== "closed" ? <button type="button" className="dash-btn dash-btn--stop" disabled={busy} onClick={() => onUpdate("support_requests", request.id, { status: "closed", support_note: request.support_note || "Reviewed by Support. No change needed." })}>Dismiss</button> : null}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function listingRow(listing: EventRecord) {
+    return (
+      <div className="review-card dash-item" key={listing.id}>
+        <div className="dash-item__head"><strong>{listing.title}</strong><span className="dash-status">{listing.status.replaceAll("_", " ")}</span></div>
+        <p className="panel-note">{formatDate(listing.start_at)} · {listing.location_display_name ?? listing.venue ?? listing.town ?? "No place"}</p>
+        {onOpenListing ? <div className="action-row"><button type="button" className="dash-btn" onClick={() => onOpenListing(listing)}>View listing</button></div> : null}
+      </div>
+    );
+  }
+
+  function changeCard(request: ChangeRequest) {
+    const pending = request.status === "pending";
+    return (
+      <div className="review-card dash-item" key={request.id}>
+        <div className="dash-item__head"><strong>{request.events?.title ?? request.change_type}</strong><span className={`dash-status${pending ? " dash-status--open" : ""}`}>{request.status.replaceAll("_", " ")}</span></div>
+        <small className="support-inbox__author">{request.change_type.replaceAll("_", " ")}</small>
+        <p><strong>Requester Note</strong> {request.requester_note ?? "No requester note supplied."}</p>
+        {request.support_note ? <p className="dash-reply"><strong>Support note</strong>{request.support_note}</p> : null}
+        {pending ? (
+          <div className="action-row">
+            <button type="button" className="dash-btn dash-btn--go" disabled={busy} onClick={() => onUpdate("event_change_requests", request.id, {
               status: "applied",
               review_reason: "approved_applied",
               reviewed_at: new Date().toISOString(),
               applied_at: new Date().toISOString(),
               support_note: "Applied by Support.",
-            })}>Mark applied</button>
-            <button disabled={busy} onClick={() => onUpdate("event_change_requests", request.id, {
+            })}>{request.change_type === "removal_request" ? "Archive" : "Apply"}</button>
+            <button type="button" className="dash-btn dash-btn--stop" disabled={busy} onClick={() => onUpdate("event_change_requests", request.id, {
               status: "rejected",
               review_reason: "other",
               reviewed_at: new Date().toISOString(),
               support_note: "Not approved by Support.",
             })}>Reject</button>
           </div>
-        </div>
-      ))}
-      </details>
-      <details className="hq-panel" open hidden={hqTab !== "alerts"}>
-      <summary>Notifications</summary>
-      <h4 className="sr-only">Notifications</h4>
-      <p className="panel-note">In-app/web notifications and push state. Push retry controls should stay server-side in the future operator workstation so secrets never enter the browser.</p>
-      {notifications.length === 0 ? <p className="panel-note">No notifications yet.</p> : notifications.slice(0, 20).map((notification) => (
-        <div className="review-card" key={notification.id}>
-          <strong>{notification.title}</strong>
-          <span>{notification.push_status ?? "queued"}</span>
-          <p>{notification.body}</p>
-          <div className="review-detail-grid">
-            <p><strong>Type</strong><span>{notification.notification_type}</span></p>
-            <p><strong>Created</strong><span>{formatDate(notification.created_at)}</span></p>
-            <p><strong>Attempts</strong><span>{notification.push_attempts ?? 0}</span></p>
-            <p><strong>Sent</strong><span>{notification.push_sent_at ? formatDate(notification.push_sent_at) : "Not sent"}</span></p>
-          </div>
-          {notification.push_error ? <p className="panel-note">Push error: {notification.push_error}</p> : null}
-        </div>
-      ))}
-      </details>
-      <details className="hq-panel" open hidden={hqTab !== "audit"}>
-      <summary>Audit trail</summary>
-      <h4 className="sr-only">Audit trail</h4>
-      {auditEvents.length === 0 ? <p className="panel-note">No support audit events yet.</p> : auditEvents.slice(0, 24).map((event) => (
-        <div className="review-card" key={event.id}>
-          <strong>{event.action}</strong>
-          <span>{event.entity_table}</span>
-          <div className="review-detail-grid">
-            <p><strong>When</strong><span>{formatDate(event.created_at)}</span></p>
-            <p><strong>Entity</strong><span>{event.entity_id}</span></p>
-            <p><strong>Actor</strong><span>{event.actor_user_id ?? "System"}</span></p>
-            <p><strong>Reason</strong><span>{event.reason ?? "Not supplied"}</span></p>
-          </div>
-        </div>
-      ))}
-      </details>
+        ) : null}
       </div>
+    );
+  }
+
+  return (
+    <div className="dash">
+      <header className="dash-header">
+        <h2>Support Dashboard</h2>
+        <p>Review organisation applications, support messages, listings and edit requests.</p>
+      </header>
+
+      <p className="dash-group__title">Review</p>
+      <div className="dash-group">
+        <DashSection icon="inbox" title="Support Inbox" count={inboxOpen.length} itemIDs={inboxOpen.map((r) => String(r.id))} seenKey="inbox">
+          {inboxOpen.length === 0 ? <p className="panel-note">No support messages yet.</p> : inboxOpen.map((r) => requestCard(r, "inbox"))}
+          {inboxClosed.length ? (
+            <details className="dash-sub"><summary>Closed messages ({inboxClosed.length})</summary>{inboxClosed.map((r) => requestCard(r, "inbox"))}</details>
+          ) : null}
+        </DashSection>
+        <DashSection icon="flag" title="Listing Reports" count={reportsOpen.length} itemIDs={reportsOpen.map((r) => String(r.id))} seenKey="reports">
+          {reportsOpen.length === 0 ? <p className="panel-note">No listing reports yet.</p> : reportsOpen.map((r) => requestCard(r, "report"))}
+          {reportsClosed.length ? (
+            <details className="dash-sub"><summary>Closed reports ({reportsClosed.length})</summary>{reportsClosed.map((r) => requestCard(r, "report"))}</details>
+          ) : null}
+        </DashSection>
+        <DashSection icon="seal" title="Organisation Applications" count={pendingProfiles.length} itemIDs={pendingProfiles.map((p) => String(p.id))} seenKey="applications">
+          {pendingProfiles.length === 0 ? <p className="panel-note">No organisation applications have been submitted yet.</p> : null}
+          {pendingProfiles.map((profile) => (
+            <div className="review-card dash-item" key={profile.id}>
+              <div className="dash-item__head"><strong>{profile.business_name}</strong><span className="dash-status dash-status--open">Pending review</span></div>
+              <small className="support-inbox__author">{profile.selected_plan_id ?? "local_business"} · {areaLabel(profile.area_scope_id)}</small>
+              <p>{profile.about}</p>
+              <div className="review-detail-grid">
+                <p><strong>Email</strong><span>{profile.contact_email}</span></p>
+                <p><strong>Contact</strong><span>{profile.contact_name ?? "Not supplied"}</span></p>
+                <p><strong>Phone</strong><span>{profile.phone ?? "Not supplied"}</span></p>
+                <p><strong>Website</strong><span>{profile.website ?? "Not supplied"}</span></p>
+              </div>
+              <p className="panel-note">
+                {subscriptionsByProfile.get(profile.id)?.[0]
+                  ? `Payment and entitlement: ${subscriptionsByProfile.get(profile.id)?.[0].plan_id} · ${subscriptionsByProfile.get(profile.id)?.[0].status}`
+                  : "No verified Apple subscription is attached yet."}
+              </p>
+              {profile.support_note ? <p className="dash-reply"><strong>Support note</strong>{profile.support_note}</p> : null}
+              <label className="dash-field-label">Extra Support note
+                <textarea
+                  value={memberReviewNote(profile)}
+                  onChange={(event) => updateMemberReviewNote(profile.id, event.target.value)}
+                  placeholder="Optional. This can be shown to the organisation, so keep it clear and professional."
+                />
+              </label>
+              <div className="action-row">
+                <button type="button" className="dash-btn dash-btn--go" disabled={busy} onClick={() => onUpdate("business_profiles", profile.id, reviewPatch(profile, "approved"))}>Approve</button>
+                <button type="button" className="dash-btn dash-btn--warn" disabled={busy} onClick={() => onUpdate("business_profiles", profile.id, reviewPatch(profile, "rejected"))}>Request Changes</button>
+                <button type="button" className="dash-btn dash-btn--stop" disabled={busy} onClick={() => onUpdate("business_profiles", profile.id, reviewPatch(profile, "suspended"))}>Suspend</button>
+              </div>
+            </div>
+          ))}
+        </DashSection>
+        <DashSection icon="tray" title="Pending Listings" count={pendingListings.length} itemIDs={pendingListings.map((l) => String(l.id))} seenKey="pending-listings">
+          {pendingListings.length === 0 ? <p className="panel-note">No pending listings are waiting for review.</p> : null}
+          {pendingListings.map((listing) => {
+            const extra = listing as EventRecord & { contact_name?: string | null; contact_email?: string | null; contact_phone?: string | null; audience?: string | null };
+            return (
+              <div className="review-card dash-item" key={listing.id}>
+                <div className="dash-item__head"><strong>{listing.title}</strong><span className="dash-status dash-status--open">Pending</span></div>
+                <small className="support-inbox__author">{listing.category} · {listing.location_display_name ?? listing.town ?? "No place"}</small>
+                <p>{listing.short_description || listing.long_description || "No description supplied."}</p>
+                <div className="review-detail-grid">
+                  <p><strong>Venue</strong><span>{listing.venue || "Not supplied"}</span></p>
+                  <p><strong>Time</strong><span>{formatDate(listing.start_at)}</span></p>
+                  <p><strong>Price</strong><span>{listing.price_label ?? "Free"}</span></p>
+                  {extra.audience ? <p><strong>Audience</strong><span>{extra.audience}</span></p> : null}
+                  {extra.contact_name || extra.contact_email || extra.contact_phone ? <p><strong>Review Contact</strong><span>{[extra.contact_name, extra.contact_email, extra.contact_phone].filter(Boolean).join(" · ")}</span></p> : null}
+                </div>
+                <div className="action-row">
+                  <button type="button" className="dash-btn dash-btn--go" disabled={busy} onClick={() => onUpdate("events", listing.id, { status: "published" })}>Publish</button>
+                  <button type="button" className="dash-btn dash-btn--stop" disabled={busy} onClick={() => onUpdate("events", listing.id, { status: "rejected" })}>Reject</button>
+                  <button type="button" className="dash-btn dash-btn--neutral" disabled={busy} onClick={() => onUpdate("events", listing.id, { status: "archived" })}>Archive</button>
+                  {onOpenListing ? <button type="button" className="dash-btn" onClick={() => onOpenListing(listing)}>View listing</button> : null}
+                </div>
+              </div>
+            );
+          })}
+        </DashSection>
+        <DashSection icon="edit" title="Change Requests" count={pendingChangeRequests.length} itemIDs={pendingChangeRequests.map((r) => String(r.id))} seenKey="change-requests">
+          {pendingChangeRequests.length === 0 ? <p className="panel-note">No edit or removal requests are waiting for review.</p> : pendingChangeRequests.map(changeCard)}
+          {reviewedChangeRequests.length ? (
+            <details className="dash-sub"><summary>Reviewed requests ({reviewedChangeRequests.length})</summary>{reviewedChangeRequests.map(changeCard)}</details>
+          ) : null}
+        </DashSection>
+        <DashSection icon="notice" title="Organisation Notices" count={publishedNotices.length} countTone="info" itemIDs={publishedNotices.map((n) => String(n.id))} seenKey="notices">
+          <p className="panel-note">Weekly letters and organisation updates. Archive anything that should not remain visible while you review it.</p>
+          {memberNotices.length === 0 ? <p className="panel-note">No organisation Notices yet.</p> : memberNotices.map((notice) => (
+            <div className="review-card dash-item" key={notice.id}>
+              <div className="dash-item__head"><strong>{notice.title}</strong><span className="dash-status">{notice.status}</span></div>
+              <p>{notice.summary ?? notice.body ?? "No summary supplied."}</p>
+              <div className="review-detail-grid">
+                <p><strong>Template</strong><span>{notice.template_style.replaceAll("_", " ")}</span></p>
+                <p><strong>Created</strong><span>{formatDate(notice.created_at)}</span></p>
+                <p><strong>Published</strong><span>{notice.published_at ? formatDate(notice.published_at) : "Not published"}</span></p>
+                <p><strong>Organisation</strong><span>{profiles.find((profile) => profile.id === notice.business_profile_id)?.business_name ?? notice.business_profile_id}</span></p>
+              </div>
+              <div className="action-row">
+                <button type="button" className="dash-btn dash-btn--go" disabled={busy || notice.status === "published"} onClick={() => onUpdate("member_notices", notice.id, { status: "published" })}>Publish</button>
+                <button type="button" className="dash-btn dash-btn--neutral" disabled={busy || notice.status === "archived"} onClick={() => onUpdate("member_notices", notice.id, { status: "archived" })}>Archive</button>
+              </div>
+            </div>
+          ))}
+        </DashSection>
       </div>
+
+      <p className="dash-group__title">Listings</p>
+      <div className="dash-group">
+        <DashSection icon="calendar" title="Published Events" count={publishedListings.length} countTone="info" itemIDs={publishedListings.map((l) => String(l.id))} seenKey="events-published-events">
+          {publishedListings.length === 0 ? <p className="panel-note">No published events.</p> : publishedListings.map(listingRow)}
+        </DashSection>
+        <DashSection icon="clock" title="Ended" count={endedListings.length} countTone="info" itemIDs={endedListings.map((l) => String(l.id))} seenKey="events-ended">
+          {endedListings.length === 0 ? <p className="panel-note">No ended events.</p> : endedListings.map(listingRow)}
+        </DashSection>
+        <DashSection icon="x" title="Rejected" count={rejectedListings.length} countTone="info" itemIDs={rejectedListings.map((l) => String(l.id))} seenKey="events-rejected">
+          {rejectedListings.length === 0 ? <p className="panel-note">No rejected listings.</p> : rejectedListings.map(listingRow)}
+        </DashSection>
+        <DashSection icon="archive" title="Archived" count={archivedListings.length} countTone="info" itemIDs={archivedListings.map((l) => String(l.id))} seenKey="events-archived">
+          {archivedListings.length === 0 ? <p className="panel-note">No archived listings.</p> : archivedListings.map(listingRow)}
+        </DashSection>
+      </div>
+      <p className="panel-note dash-footnote">Pending listings and edit requests wait here. Owner remove archives immediately. Published listings stay on the board until dates end or an owner archives them.</p>
+
+      <p className="dash-group__title">System</p>
+      <div className="dash-group">
+        <DashSection icon="bell" title="Alerts" count={failedNotifications.length + queuedNotifications.length}>
+          <p className="panel-note">In-app/web notifications and push state. Push retry controls stay server-side so secrets never enter the browser.</p>
+          {notifications.length === 0 ? <p className="panel-note">No notifications yet.</p> : notifications.slice(0, 20).map((notification) => (
+            <div className="review-card dash-item" key={notification.id}>
+              <div className="dash-item__head"><strong>{notification.title}</strong><span className={`dash-status${notification.push_status === "failed" ? " dash-status--failed" : ""}`}>{notification.push_status ?? "queued"}</span></div>
+              <p>{notification.body}</p>
+              <div className="review-detail-grid">
+                <p><strong>Type</strong><span>{notification.notification_type}</span></p>
+                <p><strong>Created</strong><span>{formatDate(notification.created_at)}</span></p>
+                <p><strong>Attempts</strong><span>{notification.push_attempts ?? 0}</span></p>
+                <p><strong>Sent</strong><span>{notification.push_sent_at ? formatDate(notification.push_sent_at) : "Not sent"}</span></p>
+              </div>
+              {notification.push_error ? <p className="panel-note">Push error: {notification.push_error}</p> : null}
+            </div>
+          ))}
+        </DashSection>
+        <DashSection icon="list" title="Audit trail">
+          {auditEvents.length === 0 ? <p className="panel-note">No support audit events yet.</p> : auditEvents.slice(0, 24).map((event) => (
+            <div className="review-card dash-item" key={event.id}>
+              <div className="dash-item__head"><strong>{event.action}</strong><span className="dash-status">{event.entity_table}</span></div>
+              <div className="review-detail-grid">
+                <p><strong>When</strong><span>{formatDate(event.created_at)}</span></p>
+                <p><strong>Entity</strong><span>{event.entity_id}</span></p>
+                <p><strong>Actor</strong><span>{event.actor_user_id ?? "System"}</span></p>
+                <p><strong>Reason</strong><span>{event.reason ?? "Not supplied"}</span></p>
+              </div>
+            </div>
+          ))}
+        </DashSection>
+      </div>
+      <p className="panel-note dash-footnote">{activeSubscriptions.length} active subscriptions on file.</p>
     </div>
+  );
+}
+
+const DASH_ICONS: Record<string, string> = {
+  inbox: "M3 6h18v12H3z M3 7l9 6 9-6",
+  flag: "M5 21V4 M5 4h11l-2 4 2 4H5",
+  seal: "M20 6L9 17l-5-5",
+  tray: "M3 13h5l2 3h4l2-3h5 M5 5h14l2 8v6H3v-6z",
+  edit: "M4 20h4L19 9l-4-4L4 16z",
+  notice: "M6 3h9l4 4v14H6z M14 3v5h5",
+  bell: "M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z M10 21h4",
+  calendar: "M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4",
+  clock: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M12 7v5l3 2",
+  x: "M6 6l12 12M18 6L6 18",
+  archive: "M3 4h18v4H3z M5 8v12h14V8 M10 12h4",
+  list: "M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1",
+};
+
+// t262: Support section badges. The orange badge counts only items in this section not seen yet on this
+// device; opening the section marks them seen (localStorage, survives reloads). The total is a neutral number.
+const SUPPORT_SEEN_PREFIX = "pcc.support.section.seen.";
+const SUPPORT_SEEN_CAP = 2000;
+function supportUnseenCount(ids: string[], seen: Set<string>): number {
+  return new Set(ids.filter((id) => !seen.has(id))).size;
+}
+function mergeSeenIDs(ids: string[], existing: string[], cap = SUPPORT_SEEN_CAP): string[] {
+  const incoming = new Set(ids);
+  const next = existing.filter((id) => !incoming.has(id));
+  for (const id of incoming) next.push(id);
+  return next.length > cap ? next.slice(next.length - cap) : next;
+}
+function readSupportSeen(section: string): string[] {
+  try { const raw = window.localStorage.getItem(SUPPORT_SEEN_PREFIX + section); const list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list.filter((v) => typeof v === "string") : []; } catch { return []; }
+}
+function writeSupportSeen(section: string, list: string[]) {
+  try { window.localStorage.setItem(SUPPORT_SEEN_PREFIX + section, JSON.stringify(list)); } catch { /* storage unavailable */ }
+}
+
+function DashSection({ icon, title, count, countTone = "alert", defaultOpen = false, itemIDs, seenKey, children }: {
+  icon: string;
+  title: string;
+  count?: number;
+  countTone?: "alert" | "info";
+  defaultOpen?: boolean;
+  itemIDs?: string[];
+  seenKey?: string;
+  children: React.ReactNode;
+}) {
+  const [seen, setSeen] = useState<Set<string>>(() => new Set());
+  const [open, setOpen] = useState(defaultOpen);
+  const idsKey = (itemIDs ?? []).join("|");
+  useEffect(() => {
+    if (!seenKey) return;
+    setSeen(new Set(readSupportSeen(seenKey)));
+  }, [seenKey]);
+  useEffect(() => {
+    if (!open || !seenKey || !itemIDs || itemIDs.length === 0) return;
+    const next = mergeSeenIDs(itemIDs, readSupportSeen(seenKey));
+    writeSupportSeen(seenKey, next);
+    setSeen(new Set(next));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, seenKey, idsKey]);
+  const tracked = Boolean(seenKey && itemIDs);
+  const unseen = tracked ? supportUnseenCount(itemIDs ?? [], seen) : 0;
+  void count; void countTone; // t270: totals are no longer shown
+  return (
+    <details className="dash-section" open={defaultOpen || undefined} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
+      <summary className="dash-row">
+        <span className="dash-row__icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={DASH_ICONS[icon] ?? DASH_ICONS.list} /></svg>
+        </span>
+        <span className="dash-row__title">{title}</span>
+        {/* t270: no plain total number; a number shows only as the "N new" unseen badge */}
+        {unseen > 0 ? <span className="dash-row__badge dash-row__badge--alert" aria-label={`${unseen} new since you last opened this section`}>{unseen} new</span> : null}
+        <span className="dash-row__chev" aria-hidden="true" />
+      </summary>
+      <div className="dash-section__body">{children}</div>
+    </details>
   );
 }
 
